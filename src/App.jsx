@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import Tareas from './pages/Tareas'
 import Navbar from './components/Navbar'
 import Register from './pages/Register'
+import Proyectos from './pages/Proyectos'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -71,6 +72,11 @@ function AppInner() {
         <Route path="/tareas" element={
           <PrivateRoute>
             <Tareas cicloSeleccionado={cicloSeleccionado} />
+          </PrivateRoute>
+        } />
+        <Route path="/proyectos" element={
+          <PrivateRoute>
+            <Proyectos />
           </PrivateRoute>
         } />
 

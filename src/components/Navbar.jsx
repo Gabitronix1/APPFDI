@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { TreePine, LayoutDashboard, ListChecks, LogOut } from 'lucide-react'
+import { TreePine, LayoutDashboard, ListChecks, LogOut, FolderKanban } from 'lucide-react'
 import CambiadorMes from './CambiadorMes'
 
 export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
@@ -10,6 +10,7 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
   const links = [
     { to: '/',       label: 'Dashboard', icon: LayoutDashboard },
     { to: '/tareas', label: 'Tareas',    icon: ListChecks },
+    { to: '/proyectos', label: 'Proyectos', icon: FolderKanban },
   ]
 
   return (
