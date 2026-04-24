@@ -295,7 +295,8 @@ function DashboardAdmin({ tareas, tituloCiclo, isLoading, profile }) {
     if (t.estado === 'completada' || t.estado === 'completada_con_atraso') acc[area].completadas++
     return acc
   }, {})
- 
+ console.log('onClickTarea:', onClickTarea)
+ console.log('misPendientesActivas:', misPendientesActivas.length)
 
   return (
     <div className="space-y-8">
