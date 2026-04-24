@@ -103,7 +103,7 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
         </button>
 
         {/* Mes */}
-        <span className="px-3 text-sm font-medium text-white min-w-[150px] text-center">
+        <span className="px-2 text-sm font-medium text-white min-w-[100px] sm:min-w-[150px] text-center">
           {MESES[cicloSeleccionado.mes - 1]} {cicloSeleccionado.anio}
           {esActivo
             ? <span className="ml-2 text-xs text-green-400">● activo</span>
