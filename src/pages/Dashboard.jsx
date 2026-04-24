@@ -1,7 +1,7 @@
 import { useAuth } from '../context/AuthContext'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import { CheckCircle2, Clock, AlertCircle, ListChecks, TrendingUp, User, Users, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle2, Clock, AlertCircle, ListChecks, TrendingUp, User, Users, ChevronDown, ChevronUp, RefreshCw, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 
 const MESES = [
@@ -68,7 +68,12 @@ function TareaRow({ tarea }) {
   return (
     <div className={`bg-gray-900 border ${borderColor} rounded-xl p-4 flex items-center justify-between gap-4 hover:bg-gray-800/50 transition`}>
       <div className="flex-1 min-w-0">
-        <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
+        <div className="flex items-center gap-1.5">
+            {tarea.template_id
+                ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+                : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+            <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
+        </div>
         <p className="text-gray-500 text-xs mt-0.5">{tarea.area} · Vence {tarea.fecha_termino}</p>
       </div>
       <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${badge}`}>
@@ -186,9 +191,14 @@ function TablaResponsabilidad({ tareas }) {
                       return (
                         <div key={tarea.id}>
                           <div className="flex items-center justify-between gap-3 mb-1">
-                            <p className="text-gray-300 text-xs truncate flex-1" title={tarea.nombre_tarea}>
-                              {tarea.nombre_tarea}
+                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                {tarea.template_id
+                                ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+                                : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+                            <p className="text-gray-300 text-xs truncate" title={tarea.nombre_tarea}>
+                                {tarea.nombre_tarea}
                             </p>
+                        </div>
                             <div className="flex items-center gap-2 shrink-0">
                               {tarea.dias_atraso > 0 && (
                                 <span className="text-xs text-gray-600">
@@ -510,7 +520,12 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading }) {
               return (
                 <div key={t.id} className="flex items-center justify-between gap-4 py-2 border-b border-gray-800/50 last:border-0">
                   <div className="flex-1 min-w-0">
-                    <p className="text-gray-300 text-sm truncate">{t.nombre_tarea}</p>
+                    <div className="flex items-center gap-1.5">
+                        {t.template_id
+                            ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+                            : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+                        <p className="text-gray-300 text-sm truncate">{t.nombre_tarea}</p>
+                    </div>
                     <p className="text-gray-600 text-xs">{t.area}</p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
