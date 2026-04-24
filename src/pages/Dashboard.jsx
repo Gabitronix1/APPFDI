@@ -165,7 +165,7 @@ function TablaResponsabilidad({ tareas }) {
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-green-900 flex items-center justify-center shrink-0">
                       <span className="text-green-300 text-sm font-bold">
-                        {nombre.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                        (nombre ?? '??').split(' ').map(n => n[0]).join('').slice(0, 2)
                       </span>
                     </div>
                     <div>
