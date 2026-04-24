@@ -1,9 +1,9 @@
 import { useAuth } from '../context/AuthContext'
+import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { CheckCircle2, Clock, AlertCircle, ListChecks, TrendingUp, User, Users, ChevronDown, ChevronUp, RefreshCw, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import TaskModal from '../components/TaskModal'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -46,7 +46,7 @@ function BarraProgreso({ label, completadas, total }) {
   )
 }
 
-function TareaRow({ tarea, onClick }) {
+function TareaRow({ tarea }) {
   const esFueraPlazo = tarea.alerta === 'fuera_de_plazo' && tarea.estado !== 'completada'
   const borderColor  = {
     ok:             'border-gray-800',
@@ -65,20 +65,15 @@ function TareaRow({ tarea, onClick }) {
       }[tarea.estado] ?? 'bg-gray-800 text-gray-300'
 
   const label = esFueraPlazo ? 'Fuera de plazo' : tarea.estado.replace(/_/g, ' ')
-  const esClickeable = tarea.estado !== 'completada' && tarea.estado !== 'completada_con_atraso' && tarea.estado !== 'no_completada'
 
   return (
-    <div
-      onClick={() => esClickeable && onClick?.()}
-      className={`bg-gray-900 border ${borderColor} rounded-xl p-4 flex items-center justify-between gap-4 transition
-        ${esClickeable ? 'cursor-pointer hover:bg-gray-800' : 'opacity-60'}`}
-    >
+    <div className={`bg-gray-900 border ${borderColor} rounded-xl p-4 flex items-center justify-between gap-4 hover:bg-gray-800/50 transition`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          {tarea.template_id
-            ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
-            : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
-          <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
+            {tarea.template_id
+                ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+                : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+            <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
         </div>
         <p className="text-gray-500 text-xs mt-0.5">{tarea.area} · Vence {tarea.fecha_termino}</p>
       </div>
@@ -165,11 +160,7 @@ function TablaResponsabilidad({ tareas }) {
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-green-900 flex items-center justify-center shrink-0">
                       <span className="text-green-300 text-sm font-bold">
-                        {(() => {
-                                  const parts = (nombre ?? '??').split(' ')
-                                  return parts.map(n => n[0] ?? '').join('').slice(0, 2)
-                               })()}
-                
+                        {nombre.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </span>
                     </div>
                     <div>
@@ -299,8 +290,7 @@ function DashboardAdmin({ tareas, tituloCiclo, isLoading, profile }) {
     if (t.estado === 'completada' || t.estado === 'completada_con_atraso') acc[area].completadas++
     return acc
   }, {})
- console.log('onClickTarea:', onClickTarea)
- console.log('misPendientesActivas:', misPendientesActivas.length)
+ 
 
   return (
     <div className="space-y-8">
@@ -430,7 +420,7 @@ function DashboardAdmin({ tareas, tituloCiclo, isLoading, profile }) {
 }
 
 // ─── DASHBOARD USUARIO ────────────────────────────────────────────────────────
-function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTarea }) {
+function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading }) {
   const misTareas             = tareas.filter(t => t.responsable_nombre === profile?.nombre)
   const misCompletadas        = misTareas.filter(t => t.estado === 'completada').length
   const misCompletadasAtraso  = misTareas.filter(t => t.estado === 'completada_con_atraso').length
@@ -571,7 +561,7 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
         ) : (
           <div className="space-y-3">
             {misPendientesActivas.map(tarea => (
-              <TareaRow key={tarea.id} tarea={tarea} onClick={() => onClickTarea(tarea)} />
+              <TareaRow key={tarea.id} tarea={tarea} />
             ))}
           </div>
         )}
@@ -600,8 +590,6 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
 
 export default function Dashboard({ cicloSeleccionado }) {
   const { profile } = useAuth()
-  const [tareaActiva, setTareaActiva] = useState(null)
-  const queryClient = useQueryClient()
 
   const { data: tareas = [], isLoading } = useQuery({
     queryKey: ['tareas', cicloSeleccionado?.id],
@@ -659,17 +647,6 @@ export default function Dashboard({ cicloSeleccionado }) {
           profile={profile}
           tituloCiclo={tituloCiclo}
           isLoading={isLoading}
-          onClickTarea={setTareaActiva}
-        />
-      )}
-      {tareaActiva && (
-        <TaskModal
-          tarea={tareaActiva}
-          onClose={() => setTareaActiva(null)}
-          onCompletada={() => {
-            queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
-            setTareaActiva(null)
-          }}
         />
       )}
     </div>
