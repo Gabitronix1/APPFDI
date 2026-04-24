@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TaskModal from '../components/TaskModal'
-import { CheckCircle2, Clock, AlertCircle, Filter, Plus, Trash2, Settings, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle2, Clock, AlertCircle, Filter, Plus, Trash2, RefreshCw, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
 import NuevaTareaModal from '../components/NuevaTareaModal'
 
 const MESES = [
@@ -26,150 +26,72 @@ const ALERTA_BORDER = {
   por_vencer:     'border-amber-500',
   fuera_de_plazo: 'border-red-500',
 }
-
-// ─── PANEL DE PLANTILLAS ──────────────────────────────────────────────────────
-function PanelPlantillas() {
-  const queryClient = useQueryClient()
-  const [eliminandoPlantilla, setEliminandoPlantilla] = useState(null)
-  const [loadingEliminar, setLoadingEliminar]         = useState(false)
-
-  const { data: plantillas = [], isLoading } = useQuery({
-    queryKey: ['plantillas'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('task_templates')
-        .select('*, responsable:users(nombre)')
-        .eq('activo', true)
-        .order('area')
-      if (error) throw error
-      return data ?? []
-    }
-  })
-
-  async function handleEliminarPlantilla() {
-    if (!eliminandoPlantilla) return
-    setLoadingEliminar(true)
-    try {
-      const { error } = await supabase
-        .from('task_templates')
-        .update({ activo: false })
-        .eq('id', eliminandoPlantilla.id)
-      if (error) throw error
-      queryClient.invalidateQueries({ queryKey: ['plantillas'] })
-      setEliminandoPlantilla(null)
-    } catch (err) {
-      console.error('Error al eliminar plantilla:', err)
-    } finally {
-      setLoadingEliminar(false)
-    }
-  }
-
-  if (isLoading) return (
-    <div className="flex justify-center py-6">
-      <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
-
-  // Agrupar por área
-  const porArea = plantillas.reduce((acc, p) => {
-    if (!acc[p.area]) acc[p.area] = []
-    acc[p.area].push(p)
-    return acc
-  }, {})
+function TareaItem({ tarea, profile, onClickTarea, onEliminar }) {
+  const esFueraPlazo = tarea.alerta === 'fuera_de_plazo' && tarea.estado !== 'completada'
+  const estilos = esFueraPlazo
+    ? ESTADO_STYLES.fuera_de_plazo
+    : ESTADO_STYLES[tarea.estado] ?? ESTADO_STYLES.pendiente
+  const borde = ALERTA_BORDER[tarea.alerta] ?? 'border-gray-800'
 
   return (
-    <>
-      <div className="space-y-4">
-        {Object.entries(porArea).map(([area, items]) => (
-          <div key={area}>
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 px-1">{area}</p>
-            <div className="space-y-2">
-              {items.map(plantilla => (
-                <div
-                  key={plantilla.id}
-                  className="flex items-center gap-3 bg-gray-800/50 border border-gray-800 rounded-xl px-4 py-3 group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-gray-200 text-sm truncate">{plantilla.nombre_tarea}</p>
-                    <p className="text-gray-500 text-xs mt-0.5">
-                      {plantilla.responsable?.nombre ?? 'Sin asignar'} ·
-                      Día {plantilla.dia_del_mes} · {plantilla.condicion === 'habil' ? 'Día hábil' : 'Día real'}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setEliminandoPlantilla(plantilla)}
-                    className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20
-                               transition opacity-0 group-hover:opacity-100"
-                    title="Eliminar plantilla"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {plantillas.length === 0 && (
-          <p className="text-center text-gray-600 text-sm py-4">No hay plantillas activas</p>
-        )}
+    <div className={`bg-gray-900 border ${borde} rounded-xl p-4 flex items-center gap-4
+      ${tarea.estado !== 'completada' ? 'hover:bg-gray-800 transition' : 'opacity-60'}`}
+    >
+      <div className="shrink-0 cursor-pointer" onClick={onClickTarea}>
+        {tarea.estado === 'completada'
+          ? <CheckCircle2 className="w-5 h-5 text-green-500" />
+          : esFueraPlazo
+          ? <AlertCircle className="w-5 h-5 text-orange-400" />
+          : tarea.estado === 'con_atraso'
+          ? <AlertCircle className="w-5 h-5 text-red-400" />
+          : <Clock className="w-5 h-5 text-gray-500" />}
       </div>
 
-      {/* Modal confirmar eliminar plantilla */}
-      {eliminandoPlantilla && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-red-900/40 rounded-xl">
-                <Trash2 className="w-5 h-5 text-red-400" />
-              </div>
-              <h3 className="text-white font-semibold">¿Eliminar plantilla?</h3>
-            </div>
-            <p className="text-white text-sm font-medium bg-gray-800 rounded-lg px-3 py-2 mb-3">
-              {eliminandoPlantilla.nombre_tarea}
-            </p>
-            <p className="text-gray-500 text-xs mb-6">
-              La plantilla dejará de generarse en futuros ciclos. Las tareas ya creadas en ciclos anteriores no se verán afectadas.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setEliminandoPlantilla(null)}
-                disabled={loadingEliminar}
-                className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300
-                           py-2.5 rounded-xl text-sm transition disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleEliminarPlantilla}
-                disabled={loadingEliminar}
-                className="flex-1 flex items-center justify-center gap-2 bg-red-700
-                           hover:bg-red-600 text-white py-2.5 rounded-xl text-sm
-                           font-semibold transition disabled:opacity-50"
-              >
-                {loadingEliminar
-                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Eliminando...</>
-                  : <><Trash2 className="w-4 h-4" /> Eliminar</>}
-              </button>
-            </div>
-          </div>
+      <div className="flex-1 min-w-0 cursor-pointer" onClick={onClickTarea}>
+        <div className="flex items-center gap-1.5">
+          {tarea.template_id
+            ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+            : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+          <p className="text-white font-medium truncate">{tarea.nombre_tarea}</p>
         </div>
-      )}
-    </>
+        <p className="text-gray-500 text-xs mt-0.5">
+          {tarea.responsable_nombre} · {tarea.area} · Vence {tarea.fecha_termino}
+        </p>
+      </div>
+
+      <div className="flex items-center gap-2 shrink-0">
+        {tarea.total_evidencias > 0 && (
+          <span className="text-xs text-gray-500">{tarea.total_evidencias} 📎</span>
+        )}
+        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${estilos.badge}`}>
+          {estilos.label}
+        </span>
+        {(profile?.rol === 'admin' ||
+          (tarea.responsable_nombre === profile?.nombre && tarea.estado === 'pendiente')
+        ) && (
+          <button
+            onClick={e => { e.stopPropagation(); onEliminar() }}
+            className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
   )
 }
-
-// ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
 export default function Tareas({ cicloSeleccionado }) {
   const { profile }  = useAuth()
   const queryClient  = useQueryClient()
-  const [soloMias, setSoloMias]             = useState(false)
-  const [filtroArea, setFiltroArea]         = useState('todas')
-  const [tareaActiva, setTareaActiva]       = useState(null)
-  const [mostrarNueva, setMostrarNueva]     = useState(false)
-  const [eliminando, setEliminando]         = useState(null)
+  const [soloMias, setSoloMias]               = useState(false)
+  const [filtroArea, setFiltroArea]           = useState('todas')
+  const [tareaActiva, setTareaActiva]         = useState(null)
+  const [mostrarNueva, setMostrarNueva]       = useState(false)
+  const [eliminando, setEliminando]           = useState(null)
+  const [eliminarRecurrente, setEliminarRecurrente] = useState(false)
   const [loadingEliminar, setLoadingEliminar] = useState(false)
-  const [mostrarPlantillas, setMostrarPlantillas] = useState(false)
+  const [verRecurrentes, setVerRecurrentes] = useState(true)
+  const [verNuevas, setVerNuevas]           = useState(true)
 
   const { data: tareas = [], isLoading } = useQuery({
     queryKey: ['tareas', cicloSeleccionado?.id],
@@ -192,6 +114,8 @@ export default function Tareas({ cicloSeleccionado }) {
     if (filtroArea !== 'todas' && t.area !== filtroArea) return false
     return true
   })
+  const tareasRecurrentes = tareasFiltradas.filter(t => t.template_id)
+  const tareasNuevas      = tareasFiltradas.filter(t => !t.template_id)
 
   function onCompletada() {
     queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
@@ -204,10 +128,21 @@ export default function Tareas({ cicloSeleccionado }) {
     try {
       await supabase.from('evidencias').delete().eq('task_id', eliminando)
       await supabase.from('task_completions').delete().eq('task_id', eliminando)
+
       const { error } = await supabase.from('tasks').delete().eq('id', eliminando)
       if (error) throw error
+
+      // Si se marcó eliminar recurrente, desactivar la plantilla
+      if (eliminarRecurrente && tareaAEliminar?.template_id) {
+        await supabase
+          .from('task_templates')
+          .update({ activo: false })
+          .eq('id', tareaAEliminar.template_id)
+      }
+
       queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
       setEliminando(null)
+      setEliminarRecurrente(false)
     } catch (err) {
       console.error('Error al eliminar:', err)
     } finally {
@@ -215,7 +150,7 @@ export default function Tareas({ cicloSeleccionado }) {
     }
   }
 
-  const tituloCiclo   = cicloSeleccionado
+  const tituloCiclo    = cicloSeleccionado
     ? `${MESES[cicloSeleccionado.mes - 1]} ${cicloSeleccionado.anio}`
     : ''
   const tareaAEliminar = tareas.find(t => t.id === eliminando)
@@ -262,106 +197,93 @@ export default function Tareas({ cicloSeleccionado }) {
             <option key={a} value={a}>{a === 'todas' ? 'Todas las áreas' : a}</option>
           ))}
         </select>
+      </div>
+      
+    
 
-        {/* Botón gestionar plantillas — solo admin */}
-        {profile?.rol === 'admin' && (
-          <button
-            onClick={() => setMostrarPlantillas(!mostrarPlantillas)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition ml-auto
-              ${mostrarPlantillas ? 'bg-gray-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-          >
-            <Settings className="w-4 h-4" />
-            <span className="hidden sm:inline">Plantillas recurrentes</span>
-            {mostrarPlantillas
+{/* Lista */}
+{isLoading ? (
+  <div className="flex justify-center py-16">
+    <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+  </div>
+) : tareasFiltradas.length === 0 ? (
+  <div className="text-center py-16 text-gray-500">No hay tareas con ese filtro</div>
+) : (
+  <div className="space-y-6">
+
+    {/* Tareas recurrentes */}
+    {tareasRecurrentes.length > 0 && (
+      <div>
+        <button
+          onClick={() => setVerRecurrentes(!verRecurrentes)}
+          className="flex items-center gap-2 mb-3 group w-full"
+        >
+          <RefreshCw className="w-4 h-4 text-blue-400" />
+          <span className="text-sm font-semibold text-gray-300">
+            Tareas recurrentes
+          </span>
+          <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
+            {tareasRecurrentes.length}
+          </span>
+          <span className="ml-auto text-gray-600">
+            {verRecurrentes
               ? <ChevronUp className="w-4 h-4" />
               : <ChevronDown className="w-4 h-4" />}
-          </button>
+          </span>
+        </button>
+        {verRecurrentes && (
+          <div className="space-y-3">
+            {tareasRecurrentes.map(tarea => (
+              <TareaItem
+                key={tarea.id}
+                tarea={tarea}
+                profile={profile}
+                onClickTarea={() => tarea.estado !== 'completada' && setTareaActiva(tarea)}
+                onEliminar={() => setEliminando(tarea.id)}
+              />
+            ))}
+          </div>
         )}
       </div>
+    )}
 
-      {/* Panel plantillas colapsable */}
-      {mostrarPlantillas && profile?.rol === 'admin' && (
-        <div className="bg-gray-900 border border-gray-700 rounded-2xl p-5 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Settings className="w-4 h-4 text-gray-400" />
-            <h2 className="text-white font-medium">Plantillas recurrentes</h2>
-            <span className="text-xs text-gray-500 ml-1">
-              — Se generan automáticamente en cada nuevo ciclo
-            </span>
-          </div>
-          <PanelPlantillas />
-        </div>
-      )}
-
-      {/* Lista tareas */}
-      {isLoading ? (
-        <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : tareasFiltradas.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">No hay tareas con ese filtro</div>
-      ) : (
-        <div className="space-y-3">
-          {tareasFiltradas.map(tarea => {
-            const esFueraPlazo = tarea.alerta === 'fuera_de_plazo' && tarea.estado !== 'completada'
-            const estilos = esFueraPlazo
-              ? ESTADO_STYLES.fuera_de_plazo
-              : ESTADO_STYLES[tarea.estado] ?? ESTADO_STYLES.pendiente
-            const borde = ALERTA_BORDER[tarea.alerta] ?? 'border-gray-800'
-
-            return (
-              <div
+    {/* Tareas nuevas del ciclo */}
+    {tareasNuevas.length > 0 && (
+      <div>
+        <button
+          onClick={() => setVerNuevas(!verNuevas)}
+          className="flex items-center gap-2 mb-3 group w-full"
+        >
+          <Sparkles className="w-4 h-4 text-amber-400" />
+          <span className="text-sm font-semibold text-gray-300">
+            Tareas del ciclo
+          </span>
+          <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
+            {tareasNuevas.length}
+          </span>
+          <span className="ml-auto text-gray-600">
+            {verNuevas
+              ? <ChevronUp className="w-4 h-4" />
+              : <ChevronDown className="w-4 h-4" />}
+          </span>
+        </button>
+        {verNuevas && (
+          <div className="space-y-3">
+            {tareasNuevas.map(tarea => (
+              <TareaItem
                 key={tarea.id}
-                className={`bg-gray-900 border ${borde} rounded-xl p-4 flex items-center gap-4
-                  ${tarea.estado !== 'completada' ? 'hover:bg-gray-800 transition' : 'opacity-60'}`}
-              >
-                <div
-                  className="shrink-0 cursor-pointer"
-                  onClick={() => tarea.estado !== 'completada' && setTareaActiva(tarea)}
-                >
-                  {tarea.estado === 'completada'
-                    ? <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    : esFueraPlazo
-                    ? <AlertCircle className="w-5 h-5 text-orange-400" />
-                    : tarea.estado === 'con_atraso'
-                    ? <AlertCircle className="w-5 h-5 text-red-400" />
-                    : <Clock className="w-5 h-5 text-gray-500" />}
-                </div>
-
-                <div
-                  className="flex-1 min-w-0 cursor-pointer"
-                  onClick={() => tarea.estado !== 'completada' && setTareaActiva(tarea)}
-                >
-                  <p className="text-white font-medium truncate">{tarea.nombre_tarea}</p>
-                  <p className="text-gray-500 text-xs mt-0.5">
-                    {tarea.responsable_nombre} · {tarea.area} · Vence {tarea.fecha_termino}
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  {tarea.total_evidencias > 0 && (
-                    <span className="text-xs text-gray-500">{tarea.total_evidencias} 📎</span>
-                  )}
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${estilos.badge}`}>
-                    {estilos.label}
-                  </span>
-                  {(profile?.rol === 'admin' ||
-                    (tarea.responsable_nombre === profile?.nombre && tarea.estado === 'pendiente')
-                  ) && (
-                    <button
-                      onClick={e => { e.stopPropagation(); setEliminando(tarea.id) }}
-                      className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition"
-                      title="Eliminar tarea"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+                tarea={tarea}
+                profile={profile}
+                onClickTarea={() => tarea.estado !== 'completada' && setTareaActiva(tarea)}
+                onEliminar={() => setEliminando(tarea.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+)}
 
       {/* Modal completar */}
       {tareaActiva && (
@@ -384,7 +306,7 @@ export default function Tareas({ cicloSeleccionado }) {
         />
       )}
 
-      {/* Modal confirmar eliminación tarea */}
+      {/* Modal confirmar eliminación */}
       {eliminando && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
@@ -394,16 +316,43 @@ export default function Tareas({ cicloSeleccionado }) {
               </div>
               <h3 className="text-white font-semibold">¿Eliminar tarea?</h3>
             </div>
+
             <p className="text-gray-400 text-sm mb-2">Se eliminará permanentemente:</p>
-            <p className="text-white text-sm font-medium bg-gray-800 rounded-lg px-3 py-2 mb-6">
+            <p className="text-white text-sm font-medium bg-gray-800 rounded-lg px-3 py-2 mb-4">
               {tareaAEliminar?.nombre_tarea}
             </p>
+
+            {/* Casilla recurrente — solo si tiene template_id */}
+            {tareaAEliminar?.template_id && (
+              <label className={`flex items-start gap-3 rounded-xl px-4 py-3 mb-4 cursor-pointer border transition
+                ${eliminarRecurrente
+                  ? 'bg-red-950 border-red-700'
+                  : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={eliminarRecurrente}
+                  onChange={e => setEliminarRecurrente(e.target.checked)}
+                  className="mt-0.5 accent-red-500 w-4 h-4 shrink-0"
+                />
+                <div>
+                  <p className="text-sm text-white font-medium">Eliminar también de ciclos futuros</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    La tarea dejará de generarse automáticamente en próximos meses
+                  </p>
+                </div>
+              </label>
+            )}
+
             <p className="text-gray-500 text-xs mb-6">
-              También se eliminarán las evidencias y registros de cumplimiento asociados. Esta acción no se puede deshacer.
+              {eliminarRecurrente
+                ? 'Se eliminará del ciclo actual y no se generará en futuros ciclos.'
+                : 'Solo se eliminará del ciclo actual. Los ciclos futuros no se verán afectados.'}
             </p>
+
             <div className="flex gap-3">
               <button
-                onClick={() => setEliminando(null)}
+                onClick={() => { setEliminando(null); setEliminarRecurrente(false) }}
                 disabled={loadingEliminar}
                 className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300
                            py-2.5 rounded-xl text-sm transition disabled:opacity-50"
