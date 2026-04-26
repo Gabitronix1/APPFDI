@@ -15,8 +15,10 @@ const AREAS = [
   'Otro',
 ]
 
-export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada }) {
+export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, departamentoForzado }) {
   const { user, profile } = useAuth()
+
+  const deptoActivo = departamentoForzado ?? profile?.departamento
 
   const [form, setForm] = useState({
     nombre_tarea:   '',
@@ -32,13 +34,13 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada }
   const [error, setError]     = useState('')
 
   const { data: usuarios = [] } = useQuery({
-    queryKey: ['usuarios-depto', profile?.departamento],
+    queryKey: ['usuarios-depto', deptoActivo],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('users')
         .select('id, nombre, cargo')
         .eq('activo', true)
-        .eq('departamento', profile?.departamento)
+        .eq('departamento', deptoActivo)
         .order('nombre')
       if (error) throw error
       return data ?? []
@@ -68,7 +70,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada }
           responsable_id: form.responsable_id,
           nombre_tarea:   form.nombre_tarea.trim(),
           area:           form.area || 'Otro',
-          departamento: profile?.departamento ?? 'CDG',
+          departamento: deptoActivo,
           condicion:      form.condicion,
           fecha_inicio:   form.fecha_inicio || form.fecha_termino,
           fecha_termino:  form.fecha_termino,
@@ -85,7 +87,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada }
           .insert({
             nombre_tarea:   form.nombre_tarea.trim(),
             area:           form.area || 'Otro',
-            departamento: profile?.departamento ?? 'CDG',
+            departamento: deptoActivo,
             condicion:      form.condicion,
             dia_del_mes:    diaDelMes,
             responsable_id: form.responsable_id,
