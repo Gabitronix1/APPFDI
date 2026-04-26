@@ -6,14 +6,15 @@ import { X, Upload, CheckCircle2, AlertCircle, UserCheck, Clock } from 'lucide-r
 
 export default function TaskModal({ tarea, onClose, onCompletada }) {
   const { user, profile } = useAuth()
-  const [comentario, setComentario]   = useState('')
-  const [archivo, setArchivo]         = useState(null)
-  const [loading, setLoading]         = useState(false)
-  const [error, setError]             = useState('')
-  const [tab, setTab]                 = useState('completar')
+  const [comentario, setComentario]             = useState('')
+  const [archivo, setArchivo]                   = useState(null)
+  const [loading, setLoading]                   = useState(false)
+  const [error, setError]                       = useState('')
+  const [tab, setTab]                           = useState('completar')
   const [nuevoResponsable, setNuevoResponsable] = useState('')
-  const [reasignando, setReasignando] = useState(false)
-  const [exito, setExito]             = useState('')
+  const [reasignando, setReasignando]           = useState(false)
+  const [exito, setExito]                       = useState('')
+  const [reasignarRecurrente, setReasignarRecurrente] = useState(false)
 
   // Calcular días de atraso si se completa hoy
   const hoy = new Date()
@@ -27,18 +28,19 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
     : diasAtraso === 3 ? 70
     : 50
 
+  const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente'
+
   const { data: usuarios = [] } = useQuery({
     queryKey: ['usuarios-depto', profile?.departamento],
-    enabled:  profile?.rol === 'admin' || profile?.rol === 'gerente',
+    enabled:  esAdminOGerente,
     queryFn: async () => {
       let query = supabase
         .from('users')
         .select('id, nombre, cargo')
         .eq('activo', true)
         .order('nombre')
-      // Gerente ve todos, admin solo su depto
       if (profile?.rol !== 'gerente') {
-        query.eq('departamento', profile?.departamento)
+        query = query.eq('departamento', profile?.departamento)
       }
       const { data, error } = await query
       if (error) throw error
@@ -48,8 +50,8 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
 
   async function handleCompletar(e) {
     e.preventDefault()
-    if (comentario.length < 10) {
-      setError('El comentario debe tener al menos 10 caracteres')
+    if (!comentario.trim()) {
+      setError('El comentario es obligatorio')
       return
     }
     setLoading(true)
@@ -103,6 +105,7 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
     setError('')
 
     try {
+      // Reasignar tarea del ciclo actual
       const { error: errReas } = await supabase
         .from('tasks')
         .update({
@@ -112,6 +115,15 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
         })
         .eq('id', tarea.id)
       if (errReas) throw errReas
+
+      // Si se marcó recurrente, actualizar la plantilla también
+      if (reasignarRecurrente && tarea.template_id) {
+        await supabase
+          .from('task_templates')
+          .update({ responsable_id: nuevoResponsable })
+          .eq('id', tarea.template_id)
+      }
+
       setExito('Tarea reasignada correctamente')
       setTimeout(() => onCompletada(), 1500)
     } catch (err) {
@@ -150,8 +162,8 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
           </button>
         </div>
 
-        {/* Tabs — solo admin ve reasignar */}
-        {profile?.rol === 'admin' && (
+        {/* Tabs — admin y gerente ven reasignar */}
+        {esAdminOGerente && (
           <div className="flex gap-1 bg-gray-800 rounded-lg p-1 mb-4">
             <button
               onClick={() => { setTab('completar'); setError('') }}
@@ -213,7 +225,6 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2
                            text-white text-sm focus:outline-none focus:border-green-500 resize-none"
               />
-              <p className="text-xs text-gray-600 mt-1">{comentario.length}/10 mínimo</p>
             </div>
 
             <div>
@@ -277,6 +288,28 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
                   ))}
               </select>
             </div>
+
+            {/* Casilla recurrente — solo si tiene template_id */}
+            {tarea.template_id && nuevoResponsable && (
+              <label className={`flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer border transition
+                ${reasignarRecurrente
+                  ? 'bg-blue-950 border-blue-700'
+                  : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={reasignarRecurrente}
+                  onChange={e => setReasignarRecurrente(e.target.checked)}
+                  className="mt-0.5 accent-blue-500 w-4 h-4 shrink-0"
+                />
+                <div>
+                  <p className="text-sm text-white font-medium">Aplicar también a ciclos futuros</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    El nuevo responsable quedará como predeterminado en la plantilla recurrente
+                  </p>
+                </div>
+              </label>
+            )}
 
             {error && <p className="text-red-400 text-sm">{error}</p>}
             {exito && <p className="text-green-400 text-sm">{exito}</p>}
