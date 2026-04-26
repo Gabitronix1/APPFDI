@@ -218,7 +218,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           </div>
 
           {/* Guardar como plantilla — solo admin */}
-          {profile?.rol === 'admin' || profile?.rol === 'gerente') && (
+          {(profile?.rol === 'admin' || profile?.rol === 'gerente') && (
             <label className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3 cursor-pointer">
               <input
                 type="checkbox"
