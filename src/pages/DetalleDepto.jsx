@@ -257,6 +257,7 @@ export default function DetalleDepto() {
       {mostrarNueva && cicloActivo && (
         <NuevaTareaModal
           cicloSeleccionado={cicloActivo}
+          departamentoForzado={deptoNombre} 
           onClose={() => setMostrarNueva(false)}
           onCreada={() => {
             queryClient.invalidateQueries({ queryKey: ['tareas-depto', deptoNombre, cicloActivo?.id] })
