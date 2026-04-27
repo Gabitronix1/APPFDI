@@ -21,6 +21,9 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
     { to: '/proyectos', label: 'Proyectos', icon: FolderKanban },
   ]
 
+  console.log('mostrarAyuda:', mostrarAyuda)
+  console.log('esGerente:', esGerente)
+  
   function isActive(to) {
     if (to === '/gerente') return location.pathname.startsWith('/gerente')
     return location.pathname === to
