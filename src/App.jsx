@@ -100,6 +100,15 @@ function AppInner() {
           <Navigate to={esGerente ? '/gerente' : '/'} replace />
         } />
       </Routes>
+      
+      {/* Footer */}
+      {user && (
+        <div className="fixed bottom-2 right-3 z-10">
+          <p className="text-gray-700 text-xs">
+            Desarrollado por Gabriel Valderrama
+          </p>
+      </div>
+    )}    
     </div>
   )
 }
