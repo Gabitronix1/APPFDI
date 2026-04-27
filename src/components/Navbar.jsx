@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { TreePine, LayoutDashboard, ListChecks, LogOut, FolderKanban } from 'lucide-react'
 import CambiadorMes from './CambiadorMes'
+import logo from '../assets/logo_fdi.png'
 
 export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
   const { profile, signOut } = useAuth()
@@ -29,8 +30,8 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
 
         {/* Logo */}
         <div className="items-center gap-2 shrink-0 hidden sm:flex">
-          <TreePine className="w-5 h-5 text-green-400" />
-          <span className="font-bold text-white text-sm">
+          <img src={logo} alt="FDI" className="h-8 w-auto" />
+          <span className="font-bold text-white text-sm">Gestión FDI
             {esGerente ? 'Vista Gerencial' : 'Cierres CDG'}
           </span>
         </div>
