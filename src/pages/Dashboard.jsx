@@ -329,7 +329,8 @@ function DashboardAdmin({ tareas, tituloCiclo, isLoading, profile }) {
       return results
     }
   })
- 
+  console.log('historial:', historial)
+  console.log('profile departamento:', profile?.departamento)
 
   return (
     <div className="space-y-8">
