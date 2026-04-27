@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { Users, ChevronRight, ChevronLeft, ChevronDown, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
+import React, { useState } from 'react'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
