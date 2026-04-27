@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { CheckCircle2, Clock, AlertCircle, ListChecks, TrendingUp, User, Users, ChevronDown, ChevronUp, RefreshCw, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 import TaskModal from '../components/TaskModal'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -290,6 +291,44 @@ function DashboardAdmin({ tareas, tituloCiclo, isLoading, profile }) {
     if (t.estado === 'completada' || t.estado === 'completada_con_atraso') acc[area].completadas++
     return acc
   }, {})
+
+  // Historial de cumplimiento mensual
+  const { data: historial = [] } = useQuery({
+    queryKey: ['historial-admin', profile?.departamento],
+    queryFn: async () => {
+      const { data: ciclosHist } = await supabase
+        .from('monthly_cycles')
+        .select('id, mes, anio')
+        .order('anio', { ascending: true })
+        .order('mes', { ascending: true })
+
+      if (!ciclosHist?.length) return []
+
+      const results = []
+      for (const c of ciclosHist) {
+        const { data: tareasHist } = await supabase
+          .from('v_tareas_ciclo_activo')
+          .select('estado')
+          .eq('ciclo_id', c.id)
+          .eq('departamento', profile?.departamento)
+
+        if (!tareasHist?.length) continue
+
+        const completadas = tareasHist.filter(t =>
+          t.estado === 'completada' || t.estado === 'completada_con_atraso'
+        ).length
+        const pct = Math.round((completadas / tareasHist.length) * 100)
+
+        results.push({
+          mes: `${MESES[c.mes - 1].slice(0, 3)} ${c.anio}`,
+          pct,
+          completadas,
+          total: tareasHist.length,
+        })
+      }
+      return results
+    }
+  })
  
 
   return (
@@ -325,6 +364,59 @@ function DashboardAdmin({ tareas, tituloCiclo, isLoading, profile }) {
         <StatCard icon={Clock}        label="Con atraso"          value={conAtraso}               color="bg-yellow-700" sub="Completadas tarde" />
         <StatCard icon={AlertCircle}  label="Sin completar"       value={atrasadas + noCompletadas + pendientes} color="bg-red-700" sub={`${pendientes} pend. · ${atrasadas + noCompletadas} vencidas`} />
       </div>
+
+      {/* Gráfico tendencia mensual */}
+      {historial.length > 1 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-5">
+            <TrendingUp className="w-5 h-5 text-green-400" />
+            <h2 className="text-white font-semibold">Tendencia de cumplimiento</h2>
+            <span className="text-xs text-gray-500 ml-1">— últimos {historial.length} meses</span>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={historial} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis
+                dataKey="mes"
+                tick={{ fill: '#6B7280', fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fill: '#6B7280', fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={v => `${v}%`}
+              />
+              <Tooltip
+                content={({ active, payload, label }) => {
+                  if (active && payload?.length) {
+                    return (
+                      <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 shadow-xl">
+                        <p className="text-gray-400 text-xs mb-1">{label}</p>
+                        <p className="text-white font-bold text-lg">{payload[0].value}%</p>
+                        <p className="text-gray-500 text-xs">
+                          {payload[0].payload.completadas}/{payload[0].payload.total} tareas
+                        </p>
+                      </div>
+                    )
+                  }
+                  return null
+                }}
+              />
+              <Line
+                type="monotone"
+                dataKey="pct"
+                stroke="#22C55E"
+                strokeWidth={2}
+                dot={{ fill: '#22C55E', r: 4 }}
+                activeDot={{ r: 6, fill: '#16A34A' }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Cumplimiento por integrante */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
