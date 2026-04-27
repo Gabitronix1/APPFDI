@@ -44,7 +44,7 @@ export default function DashboardGerente() {
 
   // Ciclo seleccionado — por defecto el activo
   const cicloActivo = ciclos.find(c => c.estado === 'activo') ?? ciclos[0]
-  const [cicloSeleccionado, setCicloSeleccionado] = React.useState(null)
+  const [cicloSeleccionado, setCicloSeleccionado] = useState(null)
   const ciclo = cicloSeleccionado ?? cicloActivo
 
   const idx      = ciclos.findIndex(c => c.id === ciclo?.id)
