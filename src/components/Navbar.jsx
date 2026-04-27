@@ -31,8 +31,8 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
         {/* Logo */}
         <div className="items-center gap-2 shrink-0 hidden sm:flex">
           <img src={logo} alt="FDI" className="h-12 w-auto" />
-          <span className="font-bold text-white text-sm">Gestión FDI
-            {esGerente ? 'Vista Gerencial' : 'Cierres CDG'}
+          <span className="font-bold text-white text-sm">
+            {esGerente ? 'Vista Gerencial' : 'Gestión FDI'}
           </span>
         </div>
 
