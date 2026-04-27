@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, ChevronRight, CheckCircle2, Clock, AlertCircle, TrendingUp } from 'lucide-react'
+import { Users, ChevronRight, ChevronLeft, ChevronDown, CheckCircle2, Clock, AlertCircle } from 'lucide-react'
+import React, { useState } from 'react'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -28,36 +28,44 @@ export default function DashboardGerente() {
   const { profile } = useAuth()
   const navigate    = useNavigate()
 
-  // Traer todos los ciclos activos
-  const { data: ciclosActivos = [] } = useQuery({
-    queryKey: ['ciclos-activos-gerente'],
+  // Traer todos los ciclos
+  const { data: ciclos = [] } = useQuery({
+    queryKey: ['ciclos-gerente'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('monthly_cycles')
         .select('*')
-        .eq('estado', 'activo')
-        .order('mes', { ascending: true })
+        .order('anio', { ascending: false })
+        .order('mes', { ascending: false })
       if (error) throw error
       return data ?? []
     }
   })
 
-  // Traer todas las tareas de ciclos activos
+  // Ciclo seleccionado — por defecto el activo
+  const cicloActivo = ciclos.find(c => c.estado === 'activo') ?? ciclos[0]
+  const [cicloSeleccionado, setCicloSeleccionado] = React.useState(null)
+  const ciclo = cicloSeleccionado ?? cicloActivo
+
+  const idx      = ciclos.findIndex(c => c.id === ciclo?.id)
+  const anterior = ciclos[idx + 1] ?? null
+  const siguiente = ciclos[idx - 1] ?? null
+
+  // Tareas del ciclo seleccionado
   const { data: todasTareas = [], isLoading } = useQuery({
-    queryKey: ['tareas-gerente'],
-    enabled: ciclosActivos.length > 0,
+    queryKey: ['tareas-gerente', ciclo?.id],
+    enabled: !!ciclo?.id,
     queryFn: async () => {
-      const cicloIds = ciclosActivos.map(c => c.id)
       const { data, error } = await supabase
         .from('v_tareas_ciclo_activo')
         .select('*')
-        .in('ciclo_id', cicloIds)
+        .eq('ciclo_id', ciclo.id)
       if (error) throw error
       return data ?? []
     }
   })
 
-  // Traer todos los usuarios agrupados por depto
+  // Usuarios agrupados por depto
   const { data: usuarios = [] } = useQuery({
     queryKey: ['usuarios-gerente'],
     queryFn: async () => {
@@ -72,43 +80,73 @@ export default function DashboardGerente() {
     }
   })
 
-  // Agrupar por departamento
   const deptos = usuarios.reduce((acc, u) => {
     if (!acc[u.departamento]) acc[u.departamento] = []
     acc[u.departamento].push(u)
     return acc
   }, {})
 
-  // Calcular métricas por depto
   function metricasDepto(depto) {
     const tareas      = todasTareas.filter(t => t.departamento === depto)
     const completadas = tareas.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
     const pendientes  = tareas.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
     const atrasadas   = tareas.filter(t => t.estado === 'con_atraso' || t.estado === 'no_completada').length
     const pct         = tareas.length ? Math.round((completadas / tareas.length) * 100) : 0
-    const ciclo       = ciclosActivos[0]
-    return { tareas: tareas.length, completadas, pendientes, atrasadas, pct, ciclo }
+    return { tareas: tareas.length, completadas, pendientes, atrasadas, pct }
   }
 
-  // Métricas globales
   const totalTareas      = todasTareas.length
   const totalCompletadas = todasTareas.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
   const totalPendientes  = todasTareas.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
   const totalAtrasadas   = todasTareas.filter(t => t.estado === 'con_atraso' || t.estado === 'no_completada').length
   const pctGlobal        = totalTareas ? Math.round((totalCompletadas / totalTareas) * 100) : 0
 
+  const tituloCiclo = ciclo ? `${MESES[ciclo.mes - 1]} ${ciclo.anio}` : ''
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
 
       {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="w-2 h-8 bg-blue-500 rounded-full" />
-          <h1 className="text-2xl font-bold text-white">
-            Hola, {profile?.nombre?.split(' ')[0]} 👋
-          </h1>
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-2 h-8 bg-blue-500 rounded-full" />
+            <h1 className="text-2xl font-bold text-white">
+              Hola, {profile?.nombre?.split(' ')[0]} 👋
+            </h1>
+          </div>
+          <p className="text-gray-400 text-sm ml-5">Vista gerencial · Resumen por departamento</p>
         </div>
-        <p className="text-gray-400 text-sm ml-5">Vista gerencial · Resumen por departamento</p>
+
+        {/* Selector ciclo */}
+        {ciclo && (
+          <div className="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg p-1 shrink-0">
+            <button
+              onClick={() => anterior && setCicloSeleccionado(anterior)}
+              disabled={!anterior}
+              className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
+                         transition disabled:opacity-30 disabled:cursor-not-allowed"
+              title={anterior ? `← ${MESES[anterior.mes-1]} ${anterior.anio}` : ''}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-3 text-sm font-medium text-white min-w-[130px] text-center">
+              {tituloCiclo}
+              {ciclo.estado === 'activo'
+                ? <span className="ml-2 text-xs text-green-400">● activo</span>
+                : <span className="ml-2 text-xs text-gray-500">● cerrado</span>}
+            </span>
+            <button
+              onClick={() => siguiente && setCicloSeleccionado(siguiente)}
+              disabled={!siguiente}
+              className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
+                         transition disabled:opacity-30 disabled:cursor-not-allowed"
+              title={siguiente ? `${MESES[siguiente.mes-1]} ${siguiente.anio} →` : ''}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Barra progreso global */}
@@ -153,11 +191,12 @@ export default function DashboardGerente() {
             return (
               <div
                 key={depto}
-                onClick={() => navigate(`/gerente/depto/${encodeURIComponent(depto)}`)}
+                onClick={() => navigate(`/gerente/depto/${encodeURIComponent(depto)}`, {
+                  state: { cicloId: ciclo?.id }
+                })}
                 className="bg-gray-900 border border-gray-800 hover:border-gray-600
                            rounded-2xl p-6 cursor-pointer transition group"
               >
-                {/* Header depto */}
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
@@ -173,10 +212,8 @@ export default function DashboardGerente() {
                   <ChevronRight className="w-5 h-5 text-gray-600 group-hover:text-gray-300 transition shrink-0" />
                 </div>
 
-                {/* Barra progreso */}
                 <BarraDepto pct={m.pct} />
 
-                {/* Stats mini */}
                 <div className="flex gap-4 mt-4">
                   <div className="flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
@@ -194,14 +231,11 @@ export default function DashboardGerente() {
                   )}
                 </div>
 
-                {/* Ciclo activo */}
-                {m.ciclo && (
-                  <div className="mt-3 pt-3 border-t border-gray-800">
-                    <p className="text-xs text-gray-600">
-                      Ciclo activo: {MESES[m.ciclo.mes - 1]} {m.ciclo.anio} · {m.tareas} tareas
-                    </p>
-                  </div>
-                )}
+                <div className="mt-3 pt-3 border-t border-gray-800">
+                  <p className="text-xs text-gray-600">
+                    {tituloCiclo} · {m.tareas} tareas
+                  </p>
+                </div>
               </div>
             )
           })}

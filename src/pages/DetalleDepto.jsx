@@ -2,8 +2,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Users, CheckCircle2, Clock, AlertCircle, Plus, RefreshCw, Sparkles, Trash2 } from 'lucide-react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, AlertCircle, Plus, RefreshCw, Sparkles, TrendingUp } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import TaskModal from '../components/TaskModal'
 import NuevaTareaModal from '../components/NuevaTareaModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
@@ -32,6 +33,7 @@ const ALERTA_BORDER = {
 export default function DetalleDepto() {
   const { depto }    = useParams()
   const navigate     = useNavigate()
+  const location     = useLocation()
   const queryClient  = useQueryClient()
   const deptoNombre  = decodeURIComponent(depto)
 
@@ -39,33 +41,81 @@ export default function DetalleDepto() {
   const [tareaDetalle, setTareaDetalle]   = useState(null)
   const [mostrarNueva, setMostrarNueva]   = useState(false)
   const [filtroPersona, setFiltroPersona] = useState('todas')
+  const [cicloSeleccionado, setCicloSeleccionado] = useState(null)
 
-  // Ciclo activo
-  const { data: cicloActivo } = useQuery({
-    queryKey: ['ciclo-activo-depto', deptoNombre],
+  // Todos los ciclos
+  const { data: ciclos = [] } = useQuery({
+    queryKey: ['ciclos-gerente'],
     queryFn: async () => {
       const { data } = await supabase
         .from('monthly_cycles')
         .select('*')
-        .eq('estado', 'activo')
-        .single()
-      return data
+        .order('anio', { ascending: false })
+        .order('mes', { ascending: false })
+      return data ?? []
     }
   })
 
-  // Tareas del depto
+  // Ciclo activo por defecto
+  const cicloActivo = ciclos.find(c => c.estado === 'activo') ?? ciclos[0]
+  const ciclo = cicloSeleccionado ?? cicloActivo
+
+  const idx      = ciclos.findIndex(c => c.id === ciclo?.id)
+  const anterior = ciclos[idx + 1] ?? null
+  const siguiente = ciclos[idx - 1] ?? null
+
+  // Tareas del ciclo seleccionado para este depto
   const { data: tareas = [], isLoading } = useQuery({
-    queryKey: ['tareas-depto', deptoNombre, cicloActivo?.id],
-    enabled: !!cicloActivo?.id,
+    queryKey: ['tareas-depto', deptoNombre, ciclo?.id],
+    enabled: !!ciclo?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('v_tareas_ciclo_activo')
         .select('*')
-        .eq('ciclo_id', cicloActivo.id)
+        .eq('ciclo_id', ciclo.id)
         .eq('departamento', deptoNombre)
         .order('fecha_termino', { ascending: true })
       if (error) throw error
       return data ?? []
+    }
+  })
+
+  // Datos históricos para el gráfico (últimos 12 meses)
+  const { data: historial = [] } = useQuery({
+    queryKey: ['historial-depto', deptoNombre],
+    queryFn: async () => {
+      const { data: ciclosHist } = await supabase
+        .from('monthly_cycles')
+        .select('id, mes, anio')
+        .order('anio', { ascending: true })
+        .order('mes', { ascending: true })
+        .limit(24)
+
+      if (!ciclosHist?.length) return []
+
+      const results = []
+      for (const c of ciclosHist) {
+        const { data: tareasHist } = await supabase
+          .from('v_tareas_ciclo_activo')
+          .select('estado')
+          .eq('ciclo_id', c.id)
+          .eq('departamento', deptoNombre)
+
+        if (!tareasHist?.length) continue
+
+        const completadas = tareasHist.filter(t =>
+          t.estado === 'completada' || t.estado === 'completada_con_atraso'
+        ).length
+        const pct = Math.round((completadas / tareasHist.length) * 100)
+
+        results.push({
+          mes:   `${MESES[c.mes - 1].slice(0, 3)} ${c.anio}`,
+          pct,
+          completadas,
+          total: tareasHist.length,
+        })
+      }
+      return results
     }
   })
 
@@ -93,14 +143,26 @@ export default function DetalleDepto() {
   const pct         = tareas.length ? Math.round((completadas / tareas.length) * 100) : 0
 
   function onCompletada() {
-    queryClient.invalidateQueries({ queryKey: ['tareas-depto', deptoNombre, cicloActivo?.id] })
+    queryClient.invalidateQueries({ queryKey: ['tareas-depto', deptoNombre, ciclo?.id] })
     queryClient.invalidateQueries({ queryKey: ['tareas-gerente'] })
     setTareaActiva(null)
   }
 
-  const tituloCiclo = cicloActivo
-    ? `${MESES[cicloActivo.mes - 1]} ${cicloActivo.anio}`
-    : ''
+  const tituloCiclo = ciclo ? `${MESES[ciclo.mes - 1]} ${ciclo.anio}` : ''
+
+  // Tooltip personalizado para el gráfico
+  function CustomTooltip({ active, payload, label }) {
+    if (active && payload?.length) {
+      return (
+        <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 shadow-xl">
+          <p className="text-gray-400 text-xs mb-1">{label}</p>
+          <p className="text-white font-bold text-lg">{payload[0].value}%</p>
+          <p className="text-gray-500 text-xs">{payload[0].payload.completadas}/{payload[0].payload.total} tareas</p>
+        </div>
+      )
+    }
+    return null
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -113,26 +175,55 @@ export default function DetalleDepto() {
         >
           <ChevronLeft className="w-5 h-5" />
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">{deptoNombre}</h1>
           <p className="text-gray-400 text-sm mt-0.5">
-            {tituloCiclo} · {usuarios.length} integrantes · {tareas.length} tareas
+            {usuarios.length} integrantes
           </p>
         </div>
+
+        {/* Selector ciclo */}
+        {ciclo && (
+          <div className="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg p-1 shrink-0">
+            <button
+              onClick={() => anterior && setCicloSeleccionado(anterior)}
+              disabled={!anterior}
+              className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
+                         transition disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-2 text-sm font-medium text-white min-w-[120px] text-center">
+              {tituloCiclo}
+              {ciclo.estado === 'activo'
+                ? <span className="ml-1 text-xs text-green-400">● activo</span>
+                : <span className="ml-1 text-xs text-gray-500">● cerrado</span>}
+            </span>
+            <button
+              onClick={() => siguiente && setCicloSeleccionado(siguiente)}
+              disabled={!siguiente}
+              className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
+                         transition disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         <button
           onClick={() => setMostrarNueva(true)}
-          className="ml-auto flex items-center gap-2 bg-green-700 hover:bg-green-600
-                     text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+          className="flex items-center gap-2 bg-green-700 hover:bg-green-600
+                     text-white text-sm font-medium px-4 py-2 rounded-lg transition shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span className="hidden sm:inline">Nueva tarea</span>
         </button>
       </div>
 
-      {/* Resumen */}
+      {/* Resumen del ciclo */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
         <div className="flex justify-between items-center mb-3">
-          <h2 className="text-white font-semibold">Avance del departamento</h2>
+          <h2 className="text-white font-semibold">Avance — {tituloCiclo}</h2>
           <span className={`text-2xl font-bold ${
             pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
           }`}>{pct}%</span>
@@ -151,6 +242,44 @@ export default function DetalleDepto() {
           {atrasadas > 0 && <span className="text-xs text-red-400">⚠ {atrasadas} atrasadas</span>}
         </div>
       </div>
+
+      {/* Gráfico de tendencia */}
+      {historial.length > 1 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
+          <div className="flex items-center gap-2 mb-5">
+            <TrendingUp className="w-4 h-4 text-blue-400" />
+            <h2 className="text-white font-medium text-sm">Tendencia de cumplimiento</h2>
+            <span className="text-xs text-gray-500 ml-1">— últimos {historial.length} meses</span>
+          </div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={historial} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis
+                dataKey="mes"
+                tick={{ fill: '#6B7280', fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                domain={[0, 100]}
+                tick={{ fill: '#6B7280', fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={v => `${v}%`}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Line
+                type="monotone"
+                dataKey="pct"
+                stroke="#22C55E"
+                strokeWidth={2}
+                dot={{ fill: '#22C55E', r: 4 }}
+                activeDot={{ r: 6, fill: '#16A34A' }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       {/* Integrantes */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-6">
@@ -186,7 +315,7 @@ export default function DetalleDepto() {
           <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : tareasFiltradas.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">No hay tareas</div>
+        <div className="text-center py-16 text-gray-500">No hay tareas para este ciclo</div>
       ) : (
         <div className="space-y-3">
           {tareasFiltradas.map(tarea => {
@@ -254,13 +383,13 @@ export default function DetalleDepto() {
         />
       )}
 
-      {mostrarNueva && cicloActivo && (
+      {mostrarNueva && ciclo && (
         <NuevaTareaModal
-          cicloSeleccionado={cicloActivo}
-          departamentoForzado={deptoNombre} 
+          cicloSeleccionado={ciclo}
+          departamentoForzado={deptoNombre}
           onClose={() => setMostrarNueva(false)}
           onCreada={() => {
-            queryClient.invalidateQueries({ queryKey: ['tareas-depto', deptoNombre, cicloActivo?.id] })
+            queryClient.invalidateQueries({ queryKey: ['tareas-depto', deptoNombre, ciclo?.id] })
             queryClient.invalidateQueries({ queryKey: ['tareas-gerente'] })
             setMostrarNueva(false)
           }}
