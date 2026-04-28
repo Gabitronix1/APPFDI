@@ -1,19 +1,24 @@
 import { useAuth } from '../context/AuthContext'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import { CheckCircle2, Clock, AlertCircle, ListChecks, TrendingUp, User, Users, ChevronDown, ChevronUp, RefreshCw, Sparkles } from 'lucide-react'
+import { CheckCircle2, Clock, AlertCircle, ListChecks, TrendingUp, User, Users, ChevronDown, ChevronUp, RefreshCw, Sparkles, X } from 'lucide-react'
 import { useState } from 'react'
 import TaskModal from '../components/TaskModal'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import DetalleTareaPanel from '../components/DetalleTareaPanel'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
 
-function StatCard({ icon: Icon, label, value, color, sub }) {
+function StatCard({ icon: Icon, label, value, color, sub, onClick }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex items-center gap-4 hover:border-gray-700 transition">
+    <div
+      onClick={onClick}
+      className={`bg-gray-900 border border-gray-800 rounded-2xl p-5 flex items-center gap-4
+        hover:border-gray-700 transition ${onClick ? 'cursor-pointer hover:bg-gray-800/50' : ''}`}
+    >
       <div className={`p-3 rounded-xl ${color} shrink-0`}>
         <Icon className="w-5 h-5 text-white" />
       </div>
@@ -47,7 +52,7 @@ function BarraProgreso({ label, completadas, total }) {
   )
 }
 
-function TareaRow({ tarea }) {
+function TareaRow({ tarea, onClick }) {
   const esFueraPlazo = tarea.alerta === 'fuera_de_plazo' && tarea.estado !== 'completada'
   const borderColor  = {
     ok:             'border-gray-800',
@@ -68,7 +73,10 @@ function TareaRow({ tarea }) {
   const label = esFueraPlazo ? 'Fuera de plazo' : tarea.estado.replace(/_/g, ' ')
 
   return (
-    <div className={`bg-gray-900 border ${borderColor} rounded-xl p-4 flex items-center justify-between gap-4 hover:bg-gray-800/50 transition`}>
+    <div
+      onClick={onClick}
+      className={`bg-gray-900 border ${borderColor} rounded-xl p-4 flex items-center justify-between gap-4 transition ${onClick ? 'cursor-pointer hover:bg-gray-800' : 'hover:bg-gray-800/50'}`}
+    >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
             {tarea.template_id
@@ -262,9 +270,65 @@ function TablaResponsabilidad({ tareas }) {
     </div>
   )
 }
+function ModalListaTareas({ titulo, tareas, onClose, onClickTarea }) {
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <h3 className="text-white font-semibold">{titulo}</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        {/* Lista */}
+        <div className="overflow-y-auto p-4 space-y-2">
+          {tareas.length === 0 ? (
+            <p className="text-center text-gray-500 py-8">Sin tareas</p>
+          ) : tareas.map(tarea => {
+            const esFueraPlazo = tarea.alerta === 'fuera_de_plazo' && tarea.estado !== 'completada'
+            const borde = {
+              ok:             'border-gray-800',
+              por_vencer:     'border-amber-500',
+              fuera_de_plazo: 'border-red-500',
+            }[tarea.alerta] ?? 'border-gray-800'
+            return (
+              <div
+                key={tarea.id}
+                onClick={() => { onClose(); onClickTarea(tarea) }}
+                className={`bg-gray-800 border ${borde} rounded-xl p-3 flex items-center gap-3
+                  cursor-pointer hover:bg-gray-700 transition`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {tarea.template_id
+                      ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+                      : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+                    <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
+                  </div>
+                  <p className="text-gray-500 text-xs mt-0.5">
+                    {tarea.responsable_nombre} · {tarea.area}
+                  </p>
+                </div>
+                {(tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso') && (
+                  <PctBadge pct={tarea.porcentaje_cumplimiento ?? 100} />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 
 // ─── DASHBOARD ADMIN ──────────────────────────────────────────────────────────
 function DashboardAdmin({ tareas, tituloCiclo, isLoading, profile }) {
+  const [modalFiltro, setModalFiltro]     = useState(null) // 'completadas' | 'atraso' | 'sinCompletar'
+  const [tareaDetalle, setTareaDetalle]   = useState(null)
+  const [tareaActiva, setTareaActiva]     = useState(null)
+  const queryClient = useQueryClient()
   const completadas   = tareas.filter(t => t.estado === 'completada').length
   const conAtraso     = tareas.filter(t => t.estado === 'completada_con_atraso').length
   const pendientes    = tareas.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
@@ -360,11 +424,21 @@ function DashboardAdmin({ tareas, tituloCiclo, isLoading, profile }) {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={ListChecks}   label="Total tareas"        value={tareas.length}           color="bg-blue-700"   sub="este mes" />
-        <StatCard icon={CheckCircle2} label="Completadas"         value={completadas}             color="bg-green-700"  sub="En fecha" />
-        <StatCard icon={Clock}        label="Con atraso"          value={conAtraso}               color="bg-yellow-700" sub="Completadas tarde" />
-        <StatCard icon={AlertCircle}  label="Sin completar"       value={atrasadas + noCompletadas + pendientes} color="bg-red-700" sub={`${pendientes} pend. · ${atrasadas + noCompletadas} vencidas`} />
-      </div>
+        <StatCard icon={ListChecks}   label="Total tareas"  value={tareas.length}  color="bg-blue-700"   sub="este mes" />
+        <StatCard
+          icon={CheckCircle2} label="Completadas" value={completadas} color="bg-green-700" sub="En fecha"
+          onClick={() => setModalFiltro('completadas')}
+        />
+        <StatCard
+          icon={Clock} label="Con atraso" value={conAtraso} color="bg-yellow-700" sub="Completadas tarde"
+          onClick={() => setModalFiltro('atraso')}
+        />
+         <StatCard
+          icon={AlertCircle} label="Sin completar" value={atrasadas + noCompletadas + pendientes} color="bg-red-700"
+          sub={`${pendientes} pend. · ${atrasadas + noCompletadas} vencidas`}
+          onClick={() => setModalFiltro('sinCompletar')}
+        />
+        </div>
 
       {/* Gráfico tendencia mensual */}
       {historial.length > 1 && (
@@ -501,19 +575,62 @@ function DashboardAdmin({ tareas, tituloCiclo, isLoading, profile }) {
             </div>
             <div className="space-y-3">
               {misTareasPendientes.map(tarea => (
-                <TareaRow key={tarea.id} tarea={tarea} />
+               <TareaRow key={tarea.id} tarea={tarea} onClick={() => setTareaActiva(tarea)} />
               ))}
             </div>
           </div>
         )
       })()}
+{/* Modal lista tareas filtradas */}
+      {modalFiltro && (
+        <ModalListaTareas
+          titulo={
+            modalFiltro === 'completadas'  ? `Completadas en fecha (${completadas})`
+            : modalFiltro === 'atraso'     ? `Completadas con atraso (${conAtraso})`
+            : `Sin completar (${atrasadas + noCompletadas + pendientes})`
+          }
+          tareas={tareas.filter(t =>
+            modalFiltro === 'completadas'  ? t.estado === 'completada'
+            : modalFiltro === 'atraso'     ? t.estado === 'completada_con_atraso'
+            : ['con_atraso','no_completada','pendiente','en_progreso'].includes(t.estado)
+          )}
+          onClose={() => setModalFiltro(null)}
+          onClickTarea={tarea => {
+            if (tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada') {
+              setTareaDetalle(tarea)
+            } else {
+              setTareaActiva(tarea)
+            }
+          }}
+        />
+      )}
 
+      {/* Panel detalle */}
+      {tareaDetalle && (
+        <DetalleTareaPanel
+          tarea={tareaDetalle}
+          onClose={() => setTareaDetalle(null)}
+        />
+      )}
+
+      {/* Modal completar */}
+      {tareaActiva && (
+        <TaskModal
+          tarea={tareaActiva}
+          onClose={() => setTareaActiva(null)}
+          onCompletada={() => {
+            queryClient.invalidateQueries({ queryKey: ['tareas'] })
+            setTareaActiva(null)
+          }}
+        />
+      )}
     </div>
   )
 }
 
 // ─── DASHBOARD USUARIO ────────────────────────────────────────────────────────
-function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading }) {
+function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTarea }) {
+  const [tareaDetalle, setTareaDetalle] = useState(null)
   const misTareas             = tareas.filter(t => t.responsable_nombre === profile?.nombre)
   const misCompletadas        = misTareas.filter(t => t.estado === 'completada').length
   const misCompletadasAtraso  = misTareas.filter(t => t.estado === 'completada_con_atraso').length
@@ -654,12 +771,47 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading }) {
         ) : (
           <div className="space-y-3">
             {misPendientesActivas.map(tarea => (
-              <TareaRow key={tarea.id} tarea={tarea} />
+              <TareaRow key={tarea.id} tarea={tarea} onClick={() => onClickTarea(tarea)} />
             ))}
           </div>
         )}
       </div>
 
+      {/* Mis tareas completadas — clickeables para ver historial */}
+{(() => {
+  const misCompletadasAll = misTareas.filter(t =>
+    t.estado === 'completada' || t.estado === 'completada_con_atraso' || t.estado === 'no_completada'
+  )
+  if (misCompletadasAll.length === 0) return null
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+      <div className="flex items-center gap-2 mb-5">
+        <CheckCircle2 className="w-5 h-5 text-green-400" />
+        <h2 className="text-white font-semibold">Mis tareas completadas</h2>
+        <span className="text-xs bg-green-900 text-green-300 px-2 py-0.5 rounded-full">
+          {misCompletadasAll.length}
+        </span>
+      </div>
+      <div className="space-y-3">
+        {misCompletadasAll.map(tarea => (
+          <TareaRow
+            key={tarea.id}
+            tarea={tarea}
+            onClick={() => setTareaDetalle(tarea)}
+          />
+        ))}
+      </div>
+    </div>
+  )
+})()}
+
+{/* Panel detalle usuario */}
+{tareaDetalle && (
+  <DetalleTareaPanel
+    tarea={tareaDetalle}
+    onClose={() => setTareaDetalle(null)}
+  />
+)}
       {/* Referencia del equipo */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
         <div className="flex items-center gap-2 mb-3">
