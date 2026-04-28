@@ -835,6 +835,8 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
 
 export default function Dashboard({ cicloSeleccionado }) {
   const { profile } = useAuth()
+  const [tareaActiva, setTareaActiva] = useState(null)
+  const queryClient = useQueryClient()
 
   console.log('cicloSeleccionado:', cicloSeleccionado?.id)
   console.log('profile:', profile)
@@ -894,6 +896,7 @@ export default function Dashboard({ cicloSeleccionado }) {
           tituloCiclo={tituloCiclo}
           isLoading={isLoading}
           profile={profile}
+          onClickTarea={setTareaActiva}
         />
       ) : (
         <DashboardUsuario
@@ -901,8 +904,20 @@ export default function Dashboard({ cicloSeleccionado }) {
           profile={profile}
           tituloCiclo={tituloCiclo}
           isLoading={isLoading}
+          onClickTarea={setTareaActiva}
         />
       )}
-    </div>
-  )
-}
+      {/* Modal completar — usuario */}
+      {tareaActiva && (
+        <TaskModal
+          tarea={tareaActiva}
+          onClose={() => setTareaActiva(null)}
+          onCompletada={() => {
+            queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
+            setTareaActiva(null)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
