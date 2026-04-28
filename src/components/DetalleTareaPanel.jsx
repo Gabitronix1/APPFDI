@@ -352,7 +352,7 @@ export default function DetalleTareaPanel({ tarea, onClose }) {
                         {ev.subido_por_user?.nombre ?? 'Usuario'} · {formatBytes(ev.tamanio_bytes)}
                       </p>
                     </div>
-                    
+                    <a
                       href={ev.url_storage}
                       target="_blank"
                       rel="noopener noreferrer"
