@@ -4,16 +4,6 @@ import { supabase } from '../lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { X, Plus } from 'lucide-react'
 
-const AREAS = [
-  'Informe Cartográfico',
-  'Pensiones',
-  'Isibosque',
-  'Indicadores Bono Q y Maq',
-  'Informes',
-  'Combustibles',
-  'Registro Ind',
-  'Otro',
-]
 
 export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, departamentoForzado }) {
   const { user, profile } = useAuth()
@@ -144,16 +134,15 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           {/* Área */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">Área</label>
-            <select
+            <input
               name="area"
+              type="text"
               value={form.area}
               onChange={handleChange}
-              className="w-full bg-gray-800 border border-gray-700 text-gray-300 
-                         rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-green-500"
-            >
-              <option value="">Seleccionar área...</option>
-              {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
+              placeholder="Ej: Cartografía, Pensiones, Producción..."
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
+                         text-white text-sm focus:outline-none focus:border-green-500"
+            />
           </div>
 
           {/* Responsable */}
