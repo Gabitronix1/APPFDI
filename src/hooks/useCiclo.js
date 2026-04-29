@@ -60,59 +60,32 @@ export function useCrearCiclo() {
         .eq('activo', true)
       if (errPlant) throw errPlant
 
-      // 4. Calcular fechas con feriados chilenos y generar tareas
+      // 4. Calcular fechas y generar tareas — tipo 'cierre'
       const tareas = plantillas.map(p => {
         const { fecha_inicio, fecha_termino } = calcularFechasTarea(p, mes, anio)
         return {
-          ciclo_id:       ciclo.id,
-          template_id:    p.id,
-          responsable_id: p.responsable_id,
-          nombre_tarea:   p.nombre_tarea,
-          area:           p.area,
-          departamento:   p.departamento,
-          condicion:      p.condicion,
+          ciclo_id:        ciclo.id,
+          template_id:     p.id,
+          responsable_id:  p.responsable_id,
+          nombre_tarea:    p.nombre_tarea,
+          area:            p.area,
+          departamento:    p.departamento,
+          condicion:       p.condicion,
           fecha_inicio,
           fecha_termino,
-          estado:         'pendiente',
+          estado:          'pendiente',
+          tipo_tarea:      'cierre',
+          mes_calendario:  mes,
+          anio_calendario: anio,
         }
       })
 
-      const { data: tareasCreadas, error: errTareas } = await supabase
+      const { error: errTareas } = await supabase
         .from('tasks')
         .insert(tareas)
-        .select()
-    console.log('Tareas a insertar:', tareas)
-    console.log('Error tareas:', errTareas)
-    console.log('Tareas creadas:', tareasCreadas)
-    if (errTareas) throw errTareas
-      
+      if (errTareas) throw errTareas
 
       return ciclo
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['ciclos'] })
-      queryClient.invalidateQueries({ queryKey: ['tareas'] })
-    }
-  })
-}
-export function useActivarCiclo() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async (cicloId) => {
-      // Cerrar todos los activos
-      await supabase
-        .from('monthly_cycles')
-        .update({ estado: 'cerrado' })
-        .eq('estado', 'activo')
-      // Activar el seleccionado
-      const { data, error } = await supabase
-        .from('monthly_cycles')
-        .update({ estado: 'activo' })
-        .eq('id', cicloId)
-        .select()
-        .single()
-      if (error) throw error
-      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ciclos'] })
@@ -125,13 +98,14 @@ export function useEliminarCiclo() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (cicloId) => {
-      // Borrar tareas del ciclo primero
+      await supabase.from('evidencias').delete().in('task_id',
+        (await supabase.from('tasks').select('id').eq('ciclo_id', cicloId)).data?.map(t => t.id) ?? []
+      )
+      await supabase.from('task_completions').delete().in('task_id',
+        (await supabase.from('tasks').select('id').eq('ciclo_id', cicloId)).data?.map(t => t.id) ?? []
+      )
       await supabase.from('tasks').delete().eq('ciclo_id', cicloId)
-      // Borrar el ciclo
-      const { error } = await supabase
-        .from('monthly_cycles')
-        .delete()
-        .eq('id', cicloId)
+      const { error } = await supabase.from('monthly_cycles').delete().eq('id', cicloId)
       if (error) throw error
     },
     onSuccess: () => {
