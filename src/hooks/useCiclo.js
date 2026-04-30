@@ -35,7 +35,6 @@ export function useTareasPorCiclo(cicloId) {
 
 export function useCrearCiclo() {
   const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: async ({ mes, anio }) => {
       // 1. Cerrar ciclo activo anterior
@@ -60,7 +59,7 @@ export function useCrearCiclo() {
         .eq('activo', true)
       if (errPlant) throw errPlant
 
-      // 4. Calcular fechas y generar tareas — tipo 'cierre'
+      // 4. Calcular fechas y generar tareas
       const tareas = plantillas.map(p => {
         const { fecha_inicio, fecha_termino } = calcularFechasTarea(p, mes, anio)
         return {
@@ -98,14 +97,28 @@ export function useEliminarCiclo() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (cicloId) => {
-      await supabase.from('evidencias').delete().in('task_id',
-        (await supabase.from('tasks').select('id').eq('ciclo_id', cicloId)).data?.map(t => t.id) ?? []
-      )
-      await supabase.from('task_completions').delete().in('task_id',
-        (await supabase.from('tasks').select('id').eq('ciclo_id', cicloId)).data?.map(t => t.id) ?? []
-      )
+      // 1. Obtener IDs de tareas del ciclo
+      const { data: tareasDelCiclo } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('ciclo_id', cicloId)
+
+      const taskIds = tareasDelCiclo?.map(t => t.id) ?? []
+
+      // 2. Borrar evidencias y completions si hay tareas
+      if (taskIds.length > 0) {
+        await supabase.from('evidencias').delete().in('task_id', taskIds)
+        await supabase.from('task_completions').delete().in('task_id', taskIds)
+      }
+
+      // 3. Borrar tareas
       await supabase.from('tasks').delete().eq('ciclo_id', cicloId)
-      const { error } = await supabase.from('monthly_cycles').delete().eq('id', cicloId)
+
+      // 4. Borrar ciclo
+      const { error } = await supabase
+        .from('monthly_cycles')
+        .delete()
+        .eq('id', cicloId)
       if (error) throw error
     },
     onSuccess: () => {
