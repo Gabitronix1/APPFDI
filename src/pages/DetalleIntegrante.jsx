@@ -255,7 +255,7 @@ export default function DetalleIntegrante() {
                 </span>
               </div>
               <div className="space-y-3">
-                {tareasAdicionales.map(tarea => ((
+                {tareasAdicionales.map(tarea => (
                   <TareaItem key={tarea.id} tarea={tarea} 
                     esCicloCerrado={ciclo?.estado === 'cerrado'}
                     onClick={() => handleClickTarea(tarea)} />
