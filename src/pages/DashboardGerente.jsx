@@ -10,6 +10,11 @@ const MESES = [
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
 
+function nombreCierre(mes, anio) {
+  if (mes === 1) return `Cierre de Diciembre ${anio - 1}`
+  return `Cierre de ${MESES[mes - 2]} ${anio}`
+}
+
 function BarraDepto({ pct }) {
   const color = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
   const texto = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
@@ -101,8 +106,8 @@ export default function DashboardGerente() {
   const totalAtrasadas   = todasTareas.filter(t => t.estado === 'con_atraso' || t.estado === 'no_completada').length
   const pctGlobal        = totalTareas ? Math.round((totalCompletadas / totalTareas) * 100) : 0
 
-  const tituloCiclo = ciclo ? `${MESES[ciclo.mes - 1]} ${ciclo.anio}` : ''
-
+  const tituloCiclo = ciclo ? nombreCierre(ciclo.mes, ciclo.anio) : ''
+  
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
 
@@ -126,7 +131,7 @@ export default function DashboardGerente() {
               disabled={!anterior}
               className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
                          transition disabled:opacity-30 disabled:cursor-not-allowed"
-              title={anterior ? `← ${MESES[anterior.mes-1]} ${anterior.anio}` : ''}
+              title={anterior ? `← ${nombreCierre(anterior.mes, anterior.anio)}` : ''}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -141,7 +146,7 @@ export default function DashboardGerente() {
               disabled={!siguiente}
               className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
                          transition disabled:opacity-30 disabled:cursor-not-allowed"
-              title={siguiente ? `${MESES[siguiente.mes-1]} ${siguiente.anio} →` : ''}
+              title={siguiente ? `${nombreCierre(siguiente.mes, siguiente.anio)} →` : ''}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
