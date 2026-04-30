@@ -28,12 +28,17 @@ const ALERTA_BORDER = {
   fuera_de_plazo: 'border-red-500',
 }
 
-function TareaItem({ tarea, profile, onClickTarea, onEliminar }) {
-  const esFueraPlazo = tarea.alerta === 'fuera_de_plazo' && tarea.estado !== 'completada'
+function TareaItem({ tarea, profile, onClickTarea, onEliminar, esCicloCerrado }) {
+  const esFueraPlazo = !esCicloCerrado &&
+    tarea.alerta === 'fuera_de_plazo' &&
+    tarea.estado !== 'completada' &&
+    tarea.estado !== 'completada_con_atraso'
   const estilos = esFueraPlazo
     ? ESTADO_STYLES.fuera_de_plazo
     : ESTADO_STYLES[tarea.estado] ?? ESTADO_STYLES.pendiente
-  const borde = ALERTA_BORDER[tarea.alerta] ?? 'border-gray-800'
+  const borde = esCicloCerrado
+    ? 'border-gray-800'
+    : ALERTA_BORDER[tarea.alerta] ?? 'border-gray-800'
 
   return (
     <div className={`bg-gray-900 border ${borde} rounded-xl p-4 flex items-center gap-4 hover:bg-gray-800 transition cursor-pointer`}>
@@ -255,6 +260,7 @@ export default function Tareas({ cicloSeleccionado }) {
                       key={tarea.id}
                       tarea={tarea}
                       profile={profile}
+                      esCicloCerrado={esCicloCerrado}
                       onClickTarea={() => handleClickTarea(tarea)}
                       onEliminar={esCicloCerrado ? null : () => setEliminando(tarea.id)}
                     />
@@ -289,6 +295,7 @@ export default function Tareas({ cicloSeleccionado }) {
                       key={tarea.id}
                       tarea={tarea}
                       profile={profile}
+                      esCicloCerrado={esCicloCerrado}
                       onClickTarea={() => handleClickTarea(tarea)}
                       onEliminar={esCicloCerrado ? null : () => setEliminando(tarea.id)}
                     />
