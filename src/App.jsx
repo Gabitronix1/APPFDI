@@ -96,9 +96,9 @@ function AppInner() {
           </PrivateRoute>
         } />
 
-        <Route path="/integrantes/:integranteSlug" element={
+        <Route path="/integrante/:nombre" element={
           <PrivateRoute>
-            <DetalleIntegrante cicloSeleccionado={cicloSeleccionado} />
+             <DetalleIntegrante />
           </PrivateRoute>
         } />
 
