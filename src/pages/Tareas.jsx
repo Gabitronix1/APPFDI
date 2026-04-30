@@ -17,7 +17,7 @@ const ESTADO_STYLES = {
   en_progreso:           { badge: 'bg-blue-800 text-blue-300',     label: 'En progreso' },
   completada:            { badge: 'bg-green-800 text-green-300',   label: 'Completada' },
   completada_con_atraso: { badge: 'bg-yellow-900 text-yellow-300', label: 'Completada con atraso' },
-  con_atraso:            { badge: 'bg-red-900 text-red-300',       label: 'Atrasada' },
+  con_atraso:            { badge: 'bg-red-900 text-red-300',       label: 'No completada' },
   no_completada:         { badge: 'bg-gray-800 text-gray-500',     label: 'No completada' },
   fuera_de_plazo:        { badge: 'bg-orange-900 text-orange-300', label: 'Fuera de plazo' },
 }
