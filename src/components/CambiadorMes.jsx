@@ -57,9 +57,9 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
         }
       })
     }
-    if (confirmando.tipo === 'eliminar') {
+    if (confirmando.tipo === '') {
       const fallback = anterior ?? siguiente
-      eliminarCiclo(cicloSeleccionado.id, {
+      Ciclo(cicloSeleccionado.id, {
         onSuccess: () => {
           mostrarExito('Cierre eliminado')
           setConfirmando(null)
@@ -110,8 +110,7 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
 
         {profile?.rol === 'admin' && (
           <>
-            {/* Eliminar — solo en activo */}
-            {esActivo && (
+            {/* Eliminar — siempre visible para admin */}
               <button
                 onClick={() => setConfirmando({ tipo: 'eliminar' })}
                 className="p-1.5 rounded-md text-red-500 hover:text-red-400 hover:bg-gray-700 transition"
@@ -119,7 +118,6 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
               >
                 <Trash2 className="w-4 h-4" />
               </button>
-            )}
 
             {/* Nuevo cierre */}
             <button
