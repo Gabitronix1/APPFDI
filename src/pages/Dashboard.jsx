@@ -2,12 +2,15 @@ import { useAuth } from '../context/AuthContext'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import {
-  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+  CalendarDays,
   CheckCircle2,
   ChevronRight,
-  Clock,
+  Clock3,
+  Flame,
+  Layers3,
   ListChecks,
-  RefreshCw,
   Sparkles,
   TrendingUp,
   Users,
@@ -32,7 +35,7 @@ const MESES = [
 ]
 
 function nombreCierre(mes, anio) {
-  if (!mes || !anio) return ''
+  if (!mes || !anio) return 'Ciclo activo'
   if (mes === 1) return `Cierre de Diciembre ${anio - 1}`
   return `Cierre de ${MESES[mes - 2]} ${anio}`
 }
@@ -56,6 +59,26 @@ function formatoFechaES(date = new Date()) {
   }).format(date)
 }
 
+function formatoFechaCorta(date) {
+  if (!date) return 'sin fecha'
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return 'sin fecha'
+  return new Intl.DateTimeFormat('es-CL', {
+    day: '2-digit',
+    month: 'short',
+  }).format(d)
+}
+
+function diasHasta(fecha) {
+  if (!fecha) return null
+  const d = new Date(fecha)
+  if (Number.isNaN(d.getTime())) return null
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  d.setHours(0, 0, 0, 0)
+  return Math.round((d.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
+}
+
 function getFinMes(cicloSeleccionado) {
   if (!cicloSeleccionado?.anio || !cicloSeleccionado?.mes) return null
   return new Date(cicloSeleccionado.anio, cicloSeleccionado.mes, 0, 23, 59, 59)
@@ -67,8 +90,7 @@ function getDiasRestantes(cicloSeleccionado) {
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
   finMes.setHours(0, 0, 0, 0)
-  const diff = Math.ceil((finMes.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
-  return diff
+  return Math.ceil((finMes.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
 }
 
 function esCompletada(t) {
@@ -79,25 +101,14 @@ function esPendiente(t) {
   return t.estado === 'pendiente' || t.estado === 'en_progreso'
 }
 
-function esSinCompletar(t) {
-  return t.estado === 'con_atraso' || t.estado === 'no_completada' || esPendiente(t)
-}
-
 function getTipoTarea(t) {
   const raw = String(t?.tipo_tarea ?? t?.tipo ?? t?.categoria ?? t?.clase ?? t?.origen ?? '').toLowerCase()
-
-  if (raw.includes('cierre')) return 'cierre'
   if (raw.includes('ciclo')) return 'ciclo'
-  if (raw.includes('recurrent')) return 'recurrente'
-  if (t?.template_id) return 'recurrente'
-  return 'ciclo'
+  return 'recurrente'
 }
 
 function getTipoLabel(t) {
-  const tipo = getTipoTarea(t)
-  if (tipo === 'cierre') return 'Cierre'
-  if (tipo === 'recurrente') return 'Recurrente'
-  return 'Ciclo'
+  return getTipoTarea(t) === 'ciclo' ? 'Ciclo' : 'Recurrente'
 }
 
 function getEstadoLabel(t) {
@@ -106,16 +117,16 @@ function getEstadoLabel(t) {
 }
 
 function getEstadoChipClass(t) {
-  if (t.alerta === 'fuera_de_plazo' && !esCompletada(t)) return 'bg-orange-900/70 text-orange-300 border-orange-800'
+  if (t.alerta === 'fuera_de_plazo' && !esCompletada(t)) return 'bg-orange-900/60 text-orange-300 border-orange-800'
   switch (t.estado) {
     case 'completada':
-      return 'bg-green-900/70 text-green-300 border-green-800'
+      return 'bg-green-900/60 text-green-300 border-green-800'
     case 'completada_con_atraso':
-      return 'bg-yellow-900/70 text-yellow-300 border-yellow-800'
+      return 'bg-yellow-900/60 text-yellow-300 border-yellow-800'
     case 'con_atraso':
-      return 'bg-red-900/70 text-red-300 border-red-800'
+      return 'bg-red-900/60 text-red-300 border-red-800'
     case 'en_progreso':
-      return 'bg-blue-900/70 text-blue-300 border-blue-800'
+      return 'bg-blue-900/60 text-blue-300 border-blue-800'
     case 'pendiente':
       return 'bg-gray-800 text-gray-300 border-gray-700'
     case 'no_completada':
@@ -126,143 +137,90 @@ function getEstadoChipClass(t) {
 }
 
 function getTypeChipClass(tipo) {
-  if (tipo === 'cierre') return 'bg-emerald-900/60 text-emerald-300 border-emerald-800'
-  if (tipo === 'recurrente') return 'bg-blue-900/60 text-blue-300 border-blue-800'
-  return 'bg-gray-800 text-gray-300 border-gray-700'
+  if (tipo === 'ciclo') return 'bg-indigo-900/50 text-indigo-300 border-indigo-800'
+  return 'bg-blue-900/50 text-blue-300 border-blue-800'
 }
 
 function pctColorClass(pct) {
   if (pct === null || pct === undefined) return 'text-gray-500'
   if (pct === 100) return 'text-green-400'
-  if (pct >= 80) return 'text-amber-400'
-  if (pct >= 50) return 'text-orange-400'
+  if (pct >= 85) return 'text-emerald-400'
+  if (pct >= 65) return 'text-amber-400'
+  if (pct >= 40) return 'text-orange-400'
   return 'text-red-400'
 }
 
 function pctBarClass(pct) {
   if (pct === null || pct === undefined) return 'bg-gray-700'
   if (pct === 100) return 'bg-green-500'
-  if (pct >= 80) return 'bg-amber-500'
-  if (pct >= 50) return 'bg-orange-500'
+  if (pct >= 85) return 'bg-emerald-500'
+  if (pct >= 65) return 'bg-amber-500'
+  if (pct >= 40) return 'bg-orange-500'
   return 'bg-red-500'
 }
 
 function Panel({ children, className = '' }) {
   return (
-    <div className={`bg-gray-900 border border-gray-800 rounded-2xl shadow-[0_0_0_1px_rgba(255,255,255,0.02)] ${className}`}>
-      {children}
-    </div>
-  )
-}
-
-function StatCard({ icon: Icon, label, value, sub, accent = 'bg-gray-800', onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full text-left ${onClick ? 'cursor-pointer' : 'cursor-default'}`}
-    >
-      <Panel className="p-5 h-full hover:border-gray-700 transition">
-        <div className="flex items-start gap-4">
-          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${accent}`}>
-            <Icon className="w-5 h-5 text-white" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">{label}</p>
-            <p className="text-2xl font-bold text-white mt-1">{value}</p>
-            {sub && <p className="text-xs text-gray-500 mt-1">{sub}</p>}
-          </div>
-        </div>
-      </Panel>
-    </button>
-  )
-}
-
-function ProgressBar({ value = 0, height = 'h-3' }) {
-  const pct = Math.max(0, Math.min(100, value))
-  return (
-    <div className={`w-full bg-gray-800 rounded-full overflow-hidden ${height}`}>
-      <div className={`h-full rounded-full transition-all duration-700 ${pctBarClass(pct)}`} style={{ width: `${pct}%` }} />
+    <div className={`relative overflow-hidden rounded-3xl border border-white/5 bg-white/[0.03] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)] backdrop-blur-xl ${className}`}>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.10),transparent_40%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.08),transparent_35%)]" />
+      <div className="relative">{children}</div>
     </div>
   )
 }
 
 function Badge({ children, className = '' }) {
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold tracking-wide ${className}`}>
       {children}
     </span>
   )
 }
 
-function MemberRow({ nombre, stats, onClick }) {
-  const pct = stats.total
-    ? Math.round(((stats.completadas + stats.completadasAtraso) / stats.total) * 100)
-    : 0
-  const restantes = Math.max(0, stats.total - stats.completadas - stats.completadasAtraso)
-
+function ProgressBar({ value = 0, height = 'h-3' }) {
+  const pct = Math.max(0, Math.min(100, value))
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left group"
-    >
-      <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-4 hover:border-gray-700 hover:bg-gray-800/60 transition">
-        <div className="flex items-center justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-900 flex items-center justify-center shrink-0">
-                <span className="text-emerald-300 text-sm font-bold">
-                  {nombre.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)}
-                </span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-white font-medium truncate">{nombre}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {stats.total} tarea{stats.total === 1 ? '' : 's'} · {restantes} pendiente{restantes === 1 ? '' : 's'}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <div className={`text-right ${pctColorClass(pct)}`}>
-              <p className="text-xl font-bold">{pct}%</p>
-              <p className="text-[11px] text-gray-500">avance</p>
-            </div>
-            <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-300 transition" />
-          </div>
-        </div>
+    <div className={`w-full rounded-full bg-white/5 ${height}`}>
+      <div
+        className={`h-full rounded-full transition-all duration-700 ${pctBarClass(pct)}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  )
+}
 
-        <div className="mt-4">
-          <ProgressBar value={pct} height="h-2.5" />
-        </div>
+function SectionTitle({ eyebrow, title, subtitle, action }) {
+  return (
+    <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <div>
+        {eyebrow && <p className="text-[11px] uppercase tracking-[0.22em] text-white/40">{eyebrow}</p>}
+        <h2 className="mt-1 text-lg md:text-xl font-semibold text-white">{title}</h2>
+        {subtitle && <p className="mt-1 text-sm text-white/55">{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  )
+}
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Badge className="bg-green-900/60 text-green-300 border-green-800">
-            {stats.completadas + stats.completadasAtraso} completadas
-          </Badge>
-          {stats.atrasadas > 0 && (
-            <Badge className="bg-red-900/60 text-red-300 border-red-800">
-              {stats.atrasadas} con atraso
-            </Badge>
-          )}
-          {stats.pendientes > 0 && (
-            <Badge className="bg-gray-800 text-gray-300 border-gray-700">
-              {stats.pendientes} sin completar
-            </Badge>
-          )}
+function MetricCard({ icon: Icon, label, value, helper, tone = 'bg-white/5' }) {
+  return (
+    <Panel className="p-5">
+      <div className="flex items-start gap-4">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border border-white/5 ${tone}`}>
+          <Icon className="h-5 w-5 text-white" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-white/40">{label}</p>
+          <p className="mt-1 text-2xl font-bold text-white">{value}</p>
+          {helper && <p className="mt-1 text-sm text-white/50">{helper}</p>}
         </div>
       </div>
-    </button>
+    </Panel>
   )
 }
 
 function TaskTypePill({ tarea }) {
-  return (
-    <Badge className={getTypeChipClass(getTipoTarea(tarea))}>
-      {getTipoLabel(tarea)}
-    </Badge>
-  )
+  const tipo = getTipoTarea(tarea)
+  return <Badge className={getTypeChipClass(tipo)}>{getTipoLabel(tarea)}</Badge>
 }
 
 function TaskRow({ tarea, onClick }) {
@@ -275,32 +233,30 @@ function TaskRow({ tarea, onClick }) {
       : null
 
   return (
-    <button type="button" onClick={onClick} className="w-full text-left">
-      <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4 hover:bg-gray-800/70 hover:border-gray-700 transition">
+    <button type="button" onClick={onClick} className="group w-full text-left">
+      <div className="rounded-2xl border border-white/5 bg-black/20 p-4 transition duration-300 hover:-translate-y-0.5 hover:border-white/10 hover:bg-white/[0.05]">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              {tipo === 'cierre'
-                ? <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                : <RefreshCw className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              {tipo === 'ciclo'
+                ? <Layers3 className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
+                : <Sparkles className="h-3.5 w-3.5 text-blue-300 shrink-0" />
               }
-              <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
+              <p className="truncate text-sm font-medium text-white">{tarea.nombre_tarea}</p>
             </div>
-            <p className="text-gray-500 text-xs mt-1">
-              {tarea.area || 'Sin área'} · vence {tarea.fecha_termino || 'sin fecha'}
+            <p className="mt-1 text-xs text-white/45">
+              {tarea.area || 'Sin área'} · vence {formatoFechaCorta(tarea.fecha_termino)}
             </p>
           </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="flex flex-wrap gap-2 justify-end">
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <TaskTypePill tarea={tarea} />
               <Badge className={getEstadoChipClass(tarea)}>
-                {getEstadoLabel(tarea)}
+                {esFueraDePlazo ? 'Fuera de plazo' : getEstadoLabel(tarea)}
               </Badge>
             </div>
             {pct !== null && (
-              <span className={`text-xs font-semibold ${pctColorClass(pct)}`}>
-                {pct}%
-              </span>
+              <span className={`text-sm font-bold ${pctColorClass(pct)}`}>{pct}%</span>
             )}
           </div>
         </div>
@@ -309,90 +265,151 @@ function TaskRow({ tarea, onClick }) {
   )
 }
 
-function StateBreakdown({ completadas, conAtraso, sinCompletar, total }) {
+function RiskBadge({ late, pending, daysRemaining }) {
+  const overdueWeight = late * 2 + pending
+  const urgent = daysRemaining !== null && daysRemaining <= 5
+  let label = 'En control'
+  let className = 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+  let icon = <CheckCircle2 className="h-3.5 w-3.5" />
+
+  if (overdueWeight >= 5 || (urgent && overdueWeight >= 3)) {
+    label = 'Comprometido'
+    className = 'bg-red-500/10 text-red-300 border-red-500/20'
+    icon = <AlertTriangle className="h-3.5 w-3.5" />
+  } else if (overdueWeight >= 2 || urgent) {
+    label = 'En riesgo'
+    className = 'bg-amber-500/10 text-amber-300 border-amber-500/20'
+    icon = <Clock3 className="h-3.5 w-3.5" />
+  }
+
+  return <Badge className={className}>{icon}{label}</Badge>
+}
+
+function MemberRow({ nombre, stats, onClick }) {
+  const pct = stats.total ? Math.round(((stats.completadas + stats.completadasAtraso) / stats.total) * 100) : 0
+  const restantes = Math.max(0, stats.total - stats.completadas - stats.completadasAtraso)
+  const initials = nombre
+    .split(' ')
+    .filter(Boolean)
+    .map(part => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-      <div className="rounded-2xl bg-gray-950/50 border border-gray-800 p-4">
-        <p className="text-xs text-gray-500 uppercase tracking-[0.18em]">Total</p>
-        <p className="text-2xl font-bold text-white mt-1">{total}</p>
+    <button type="button" onClick={onClick} className="group w-full text-left">
+      <div className="rounded-2xl border border-white/5 bg-black/20 p-4 transition duration-300 hover:-translate-y-0.5 hover:border-white/10 hover:bg-white/[0.05]">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-blue-500/20 ring-1 ring-white/5">
+              <span className="text-sm font-bold text-emerald-200">{initials}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="truncate font-medium text-white">{nombre}</p>
+                <RiskBadge late={stats.atrasadas} pending={stats.pendientes} daysRemaining={null} />
+              </div>
+              <p className="mt-1 text-xs text-white/45">
+                {stats.total} tareas · {restantes} sin completar · {stats.atrasadas} con atraso
+              </p>
+              <div className="mt-3">
+                <ProgressBar value={pct} height="h-2.5" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3">
+            <div className="text-right">
+              <p className={`text-2xl font-bold ${pctColorClass(pct)}`}>{pct}%</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-white/35">avance</p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-white/25 transition group-hover:translate-x-0.5 group-hover:text-white/60" />
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+            {stats.completadas + stats.completadasAtraso} completadas
+          </Badge>
+          {stats.atrasadas > 0 && (
+            <Badge className="border-red-500/20 bg-red-500/10 text-red-300">
+              {stats.atrasadas} con atraso
+            </Badge>
+          )}
+          {stats.pendientes > 0 && (
+            <Badge className="border-white/10 bg-white/5 text-white/55">
+              {stats.pendientes} sin completar
+            </Badge>
+          )}
+        </div>
       </div>
-      <div className="rounded-2xl bg-gray-950/50 border border-gray-800 p-4">
-        <p className="text-xs text-gray-500 uppercase tracking-[0.18em]">Completadas</p>
-        <p className="text-2xl font-bold text-green-400 mt-1">{completadas}</p>
-      </div>
-      <div className="rounded-2xl bg-gray-950/50 border border-gray-800 p-4">
-        <p className="text-xs text-gray-500 uppercase tracking-[0.18em]">Con atraso</p>
-        <p className="text-2xl font-bold text-yellow-400 mt-1">{conAtraso}</p>
-      </div>
-      <div className="rounded-2xl bg-gray-950/50 border border-gray-800 p-4">
-        <p className="text-xs text-gray-500 uppercase tracking-[0.18em]">Sin completar</p>
-        <p className="text-2xl font-bold text-red-400 mt-1">{sinCompletar}</p>
-      </div>
+    </button>
+  )
+}
+
+function StateBreakdown({ completadas, completadasAtraso, atrasadas, pendientes, total }) {
+  const cards = [
+    { label: 'Total', value: total, tone: 'text-white' },
+    { label: 'A tiempo', value: completadas, tone: 'text-emerald-300' },
+    { label: 'Con atraso', value: completadasAtraso + atrasadas, tone: 'text-amber-300' },
+    { label: 'Sin completar', value: pendientes, tone: 'text-red-300' },
+  ]
+
+  return (
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {cards.map(card => (
+        <div key={card.label} className="rounded-2xl border border-white/5 bg-black/20 p-4">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-white/35">{card.label}</p>
+          <p className={`mt-1 text-2xl font-bold ${card.tone}`}>{card.value}</p>
+        </div>
+      ))}
     </div>
   )
 }
 
-function DashboardAdmin({ tareas, cicloSeleccionado, profile, isLoading }) {
-  const navigate = useNavigate()
-  const [tareaActiva, setTareaActiva] = useState(null)
-  const [tareaDetalle, setTareaDetalle] = useState(null)
-  const queryClient = useQueryClient()
+function TimelineHint({ historial }) {
+  if (!historial?.length) return null
+  const first = historial[0]?.pct ?? 0
+  const last = historial[historial.length - 1]?.pct ?? 0
+  const delta = last - first
+  const sign = delta > 0 ? '+' : ''
+  const label =
+    delta === 0 ? 'estable'
+      : delta > 0 ? `${sign}${delta}% vs. inicio del periodo`
+      : `${delta}% vs. inicio del periodo`
 
-  const tituloCiclo = useMemo(
-    () => (cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : 'Cierre activo'),
-    [cicloSeleccionado]
+  return (
+    <Badge className="border-white/10 bg-white/5 text-white/65">
+      {last >= first ? <TrendingUp className="h-3.5 w-3.5" /> : <ArrowRight className="h-3.5 w-3.5 rotate-180" />}
+      {label}
+    </Badge>
   )
+}
 
-  const diasRestantes = getDiasRestantes(cicloSeleccionado)
-  const fechaHoy = formatoFechaES(new Date())
+function useTareas(cicloSeleccionado, profile) {
+  return useQuery({
+    queryKey: ['tareas', cicloSeleccionado?.id, profile?.departamento],
+    enabled: !!cicloSeleccionado?.id && !!profile?.departamento,
+    queryFn: async () => {
+      let query = supabase
+        .from('v_tareas_ciclo_activo')
+        .select('*')
+        .eq('ciclo_id', cicloSeleccionado.id)
+        .order('fecha_termino', { ascending: true })
 
-  const completadas = tareas.filter(t => t.estado === 'completada').length
-  const conAtraso = tareas.filter(t => t.estado === 'completada_con_atraso').length
-  const pendientes = tareas.filter(esPendiente).length
-  const atrasadas = tareas.filter(t => t.estado === 'con_atraso').length
-  const noCompletadas = tareas.filter(t => t.estado === 'no_completada').length
-  const sinCompletar = pendientes + atrasadas + noCompletadas
-  const pctCierre = tareas.length ? Math.round(((completadas + conAtraso) / tareas.length) * 100) : 0
-
-  const tareasAdicionales = tareas.filter(t => getTipoTarea(t) !== 'cierre')
-  const tareasAdicionalesCompletadas = tareasAdicionales.filter(esCompletada).length
-  const tareasAdicionalesPendientes = tareasAdicionales.length - tareasAdicionalesCompletadas
-
-  const teamStats = Object.entries(
-    tareas.reduce((acc, tarea) => {
-      const nombre = tarea.responsable_nombre ?? 'Sin asignar'
-      if (!acc[nombre]) {
-        acc[nombre] = {
-          total: 0,
-          completadas: 0,
-          completadasAtraso: 0,
-          atrasadas: 0,
-          pendientes: 0,
-          tareas: [],
-        }
+      if (profile?.rol !== 'gerente') {
+        query = query.eq('departamento', profile?.departamento)
       }
-      acc[nombre].total += 1
-      acc[nombre].tareas.push(tarea)
-      if (tarea.estado === 'completada') acc[nombre].completadas += 1
-      if (tarea.estado === 'completada_con_atraso') acc[nombre].completadasAtraso += 1
-      if (tarea.estado === 'con_atraso') acc[nombre].atrasadas += 1
-      if (esPendiente(tarea) || tarea.estado === 'no_completada') acc[nombre].pendientes += 1
-      return acc
-    }, {})
-  )
-    .map(([nombre, stats]) => {
-      const pct = stats.total
-        ? Math.round(((stats.completadas + stats.completadasAtraso) / stats.total) * 100)
-        : 0
-      return { nombre, ...stats, pct }
-    })
-    .sort((a, b) => a.pct - b.pct || b.pendientes - a.pendientes || a.nombre.localeCompare(b.nombre))
 
-  const tareasCierre = tareas.filter(t => getTipoTarea(t) === 'cierre')
-  const tareasRecurrentes = tareas.filter(t => getTipoTarea(t) === 'recurrente')
-  const tareasCiclo = tareas.filter(t => getTipoTarea(t) === 'ciclo')
+      const { data, error } = await query
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
 
-  const { data: historial = [] } = useQuery({
+function useHistorial12m(profile) {
+  return useQuery({
     queryKey: ['historial-anual', profile?.departamento],
     enabled: !!profile?.departamento,
     queryFn: async () => {
@@ -429,6 +446,76 @@ function DashboardAdmin({ tareas, cicloSeleccionado, profile, isLoading }) {
       return results
     },
   })
+}
+
+function DashboardAdmin({ tareas, cicloSeleccionado, profile }) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [tareaActiva, setTareaActiva] = useState(null)
+  const [tareaDetalle, setTareaDetalle] = useState(null)
+  const { data: historial = [] } = useHistorial12m(profile)
+
+  const tituloCiclo = useMemo(
+    () => nombreCierre(cicloSeleccionado?.mes, cicloSeleccionado?.anio),
+    [cicloSeleccionado]
+  )
+
+  const fechaHoy = formatoFechaES(new Date())
+  const diasRestantes = getDiasRestantes(cicloSeleccionado)
+
+  const completadas = tareas.filter(t => t.estado === 'completada').length
+  const completadasAtraso = tareas.filter(t => t.estado === 'completada_con_atraso').length
+  const atrasadas = tareas.filter(t => t.estado === 'con_atraso').length
+  const pendientes = tareas.filter(t => esPendiente(t) || t.estado === 'no_completada').length
+  const sinCompletar = atrasadas + pendientes
+  const pctCierre = tareas.length ? Math.round(((completadas + completadasAtraso) / tareas.length) * 100) : 0
+
+  const tasksOrdenadas = useMemo(() => {
+    return [...tareas].sort((a, b) => {
+      const aUrg = a.estado === 'con_atraso' ? 0 : a.estado === 'no_completada' ? 1 : 2
+      const bUrg = b.estado === 'con_atraso' ? 0 : b.estado === 'no_completada' ? 1 : 2
+      if (aUrg !== bUrg) return aUrg - bUrg
+      const da = diasHasta(a.fecha_termino)
+      const db = diasHasta(b.fecha_termino)
+      if (da !== null && db !== null && da !== db) return da - db
+      return String(a.nombre_tarea ?? '').localeCompare(String(b.nombre_tarea ?? ''))
+    })
+  }, [tareas])
+
+  const tareasCriticas = tasksOrdenadas.filter(t => !esCompletada(t)).slice(0, 5)
+  const recurrentes = tasksOrdenadas.filter(t => getTipoTarea(t) === 'recurrente')
+  const ciclo = tasksOrdenadas.filter(t => getTipoTarea(t) === 'ciclo')
+
+  const teamStats = useMemo(() => {
+    const map = tareas.reduce((acc, tarea) => {
+      const nombre = tarea.responsable_nombre ?? 'Sin asignar'
+      if (!acc[nombre]) {
+        acc[nombre] = {
+          total: 0,
+          completadas: 0,
+          completadasAtraso: 0,
+          atrasadas: 0,
+          pendientes: 0,
+        }
+      }
+
+      acc[nombre].total += 1
+      if (tarea.estado === 'completada') acc[nombre].completadas += 1
+      if (tarea.estado === 'completada_con_atraso') acc[nombre].completadasAtraso += 1
+      if (tarea.estado === 'con_atraso') acc[nombre].atrasadas += 1
+      if (esPendiente(tarea) || tarea.estado === 'no_completada') acc[nombre].pendientes += 1
+      return acc
+    }, {})
+
+    return Object.entries(map)
+      .map(([nombre, stats]) => {
+        const pct = stats.total
+          ? Math.round(((stats.completadas + stats.completadasAtraso) / stats.total) * 100)
+          : 0
+        return { nombre, ...stats, pct }
+      })
+      .sort((a, b) => a.pct - b.pct || b.pendientes - a.pendientes || a.nombre.localeCompare(b.nombre))
+  }, [tareas])
 
   function abrirIntegrante(nombre) {
     navigate(`/integrantes/${slugify(nombre)}`, {
@@ -436,134 +523,115 @@ function DashboardAdmin({ tareas, cicloSeleccionado, profile, isLoading }) {
         nombre,
         departamento: profile?.departamento,
         cicloId: cicloSeleccionado?.id,
+        mes: cicloSeleccionado?.mes,
+        anio: cicloSeleccionado?.anio,
       },
     })
   }
 
   return (
-    <div className="space-y-8">
+    <div className="relative space-y-6 py-6 md:py-8">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_28%),linear-gradient(to_bottom,rgba(255,255,255,0.05),transparent_35%)]" />
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:72px_72px] opacity-40" />
+
       <Panel className="p-6 md:p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-3">
+        <div className="grid gap-6 lg:grid-cols-[1.3fr_.9fr]">
+          <div className="space-y-5">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-bold text-white">
-                Hola, {profile?.nombre?.split(' ')[0] ?? 'Gabriel'} 👋
-              </h1>
-              <Badge className="bg-emerald-900/70 text-emerald-300 border-emerald-800">
+              <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                <Flame className="h-3.5 w-3.5" />
                 Cierre activo
               </Badge>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400">
-              <span className="text-gray-300 font-medium">{tituloCiclo}</span>
-              <span className="text-gray-600">•</span>
-              <span>Hoy: {fechaHoy}</span>
+              <Badge className="border-white/10 bg-white/5 text-white/65">
+                <CalendarDays className="h-3.5 w-3.5" />
+                Hoy: {fechaHoy}
+              </Badge>
               {diasRestantes !== null && (
-                <>
-                  <span className="text-gray-600">•</span>
-                  <span className={diasRestantes >= 0 ? 'text-gray-300' : 'text-red-400'}>
-                    {diasRestantes >= 0 ? `${diasRestantes} días restantes` : `${Math.abs(diasRestantes)} días de atraso`}
-                  </span>
-                </>
+                <Badge className={diasRestantes >= 0
+                  ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                  : 'border-red-500/20 bg-red-500/10 text-red-300'}>
+                  {diasRestantes >= 0 ? `${diasRestantes} días restantes` : `${Math.abs(diasRestantes)} días de atraso`}
+                </Badge>
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-1">
-              <Badge className="bg-gray-800 text-gray-300 border-gray-700">Total: {tareas.length}</Badge>
-              <Badge className="bg-green-900/60 text-green-300 border-green-800">Completadas: {completadas}</Badge>
-              <Badge className="bg-yellow-900/60 text-yellow-300 border-yellow-800">Con atraso: {conAtraso}</Badge>
-              <Badge className="bg-red-900/60 text-red-300 border-red-800">Sin completar: {sinCompletar}</Badge>
+            <div>
+              <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-white">
+                Hola, {profile?.nombre?.split(' ')[0] ?? 'Gabriel'} 👋
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm md:text-base text-white/60">
+                {tituloCiclo} · una lectura ejecutiva para ver avance, riesgo y foco operativo en un solo lugar.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Badge className="border-white/10 bg-white/5 text-white/70">Total: {tareas.length}</Badge>
+              <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300">Completadas: {completadas + completadasAtraso}</Badge>
+              <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-300">Con atraso: {completadasAtraso + atrasadas}</Badge>
+              <Badge className="border-red-500/20 bg-red-500/10 text-red-300">Sin completar: {sinCompletar}</Badge>
+              <RiskBadge late={completadasAtraso + atrasadas} pending={pendientes} daysRemaining={diasRestantes} />
             </div>
           </div>
 
-          <div className="w-full lg:w-[320px]">
-            <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Estado del cierre</p>
-                  <p className="text-white text-sm mt-1">{completadas + conAtraso} de {tareas.length} tareas completadas</p>
-                </div>
-                <div className={`text-4xl font-bold ${pctColorClass(pctCierre)}`}>
-                  {pctCierre}%
-                </div>
+          <div className="rounded-3xl border border-white/5 bg-black/20 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-white/40">Estado del cierre</p>
+                <h3 className="mt-2 text-xl font-semibold text-white">{pctCierre}%</h3>
               </div>
-              <div className="mt-4">
-                <ProgressBar value={pctCierre} height="h-3.5" />
+              <div className={`text-5xl font-bold ${pctColorClass(pctCierre)}`}>{pctCierre}%</div>
+            </div>
+
+            <div className="mt-4">
+              <ProgressBar value={pctCierre} height="h-4" />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                <p className="text-white/40 uppercase tracking-[0.18em] text-[11px]">A tiempo</p>
+                <p className="mt-1 text-xl font-bold text-emerald-300">{completadas}</p>
               </div>
-              <div className="mt-4">
-                <StateBreakdown
-                  total={tareas.length}
-                  completadas={completadas}
-                  conAtraso={conAtraso}
-                  sinCompletar={sinCompletar}
-                />
+              <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                <p className="text-white/40 uppercase tracking-[0.18em] text-[11px]">Con atraso</p>
+                <p className="mt-1 text-xl font-bold text-amber-300">{completadasAtraso + atrasadas}</p>
+              </div>
+              <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                <p className="text-white/40 uppercase tracking-[0.18em] text-[11px]">Pendientes</p>
+                <p className="mt-1 text-xl font-bold text-white">{pendientes}</p>
+              </div>
+              <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                <p className="text-white/40 uppercase tracking-[0.18em] text-[11px]">Total</p>
+                <p className="mt-1 text-xl font-bold text-white">{tareas.length}</p>
               </div>
             </div>
           </div>
         </div>
       </Panel>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatCard
-          icon={ListChecks}
-          label="Total tareas"
-          value={tareas.length}
-          sub="del cierre actual"
-          accent="bg-blue-700"
-        />
-        <StatCard
-          icon={CheckCircle2}
-          label="Completadas"
-          value={completadas}
-          sub={`${tareas.length ? Math.round((completadas / tareas.length) * 100) : 0}% del total`}
-          accent="bg-green-700"
-        />
-        <StatCard
-          icon={Clock}
-          label="Con atraso"
-          value={conAtraso}
-          sub="terminadas fuera de plazo"
-          accent="bg-yellow-700"
-        />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard icon={ListChecks} label="Tareas del ciclo" value={tareas.length} helper="base operativa del periodo" tone="bg-blue-500/10" />
+        <MetricCard icon={CheckCircle2} label="Completadas" value={completadas + completadasAtraso} helper={`${tareas.length ? Math.round(((completadas + completadasAtraso) / tareas.length) * 100) : 0}% del total`} tone="bg-emerald-500/10" />
+        <MetricCard icon={Clock3} label="Con atraso" value={completadasAtraso + atrasadas} helper="requieren seguimiento" tone="bg-amber-500/10" />
+        <MetricCard icon={AlertTriangle} label="Sin completar" value={sinCompletar} helper="pendientes y atrasadas" tone="bg-red-500/10" />
       </div>
 
-      <Panel className="p-6">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Tareas del mes</p>
-            <h2 className="text-xl font-semibold text-white mt-1">Tareas adicionales fuera del cierre</h2>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Badge className="bg-emerald-900/60 text-emerald-300 border-emerald-800">
-              {tareasAdicionalesCompletadas} completadas
-            </Badge>
-            <Badge className="bg-gray-800 text-gray-300 border-gray-700">
-              {tareasAdicionalesPendientes} pendientes
-            </Badge>
-            <Badge className="bg-blue-900/60 text-blue-300 border-blue-800">
-              {tareasRecurrentes.length} recurrentes
-            </Badge>
-            <Badge className="bg-gray-800 text-gray-300 border-gray-700">
-              {tareasCiclo.length} de ciclo
-            </Badge>
-          </div>
-        </div>
-
-        <div className="mt-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {tareasAdicionales.length === 0 ? (
-            <div className="col-span-full rounded-2xl border border-dashed border-gray-700 bg-gray-950/30 p-8 text-center">
-              <p className="text-gray-400">No hay tareas adicionales para mostrar en este mes.</p>
-            </div>
-          ) : (
-            tareasAdicionales
-              .slice()
-              .sort((a, b) => {
-                const typeA = getTipoTarea(a)
-                const typeB = getTipoTarea(b)
-                if (typeA !== typeB) return typeA.localeCompare(typeB)
-                return String(a.nombre_tarea).localeCompare(String(b.nombre_tarea))
-              })
-              .map(tarea => (
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_.9fr]">
+        <Panel className="p-6">
+          <SectionTitle
+            eyebrow="Atención hoy"
+            title="Tareas críticas"
+            subtitle="Las tareas más urgentes aparecen arriba para decidir rápido."
+            action={<Badge className="border-white/10 bg-white/5 text-white/60">{tareasCriticas.length} visibles</Badge>}
+          />
+          <div className="mt-5 space-y-3">
+            {tareasCriticas.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center">
+                <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-400" />
+                <p className="font-medium text-white">Todo está al día</p>
+                <p className="mt-1 text-sm text-white/50">No hay tareas críticas en este momento.</p>
+              </div>
+            ) : (
+              tareasCriticas.map(tarea => (
                 <TaskRow
                   key={tarea.id}
                   tarea={tarea}
@@ -576,25 +644,88 @@ function DashboardAdmin({ tareas, cicloSeleccionado, profile, isLoading }) {
                   }}
                 />
               ))
-          )}
-        </div>
-      </Panel>
+            )}
+          </div>
+        </Panel>
+
+        <Panel className="p-6">
+          <SectionTitle
+            eyebrow="Tareas del mes"
+            title="Recurrentes y ciclo"
+            subtitle="La distinción de cierre desaparece y todo lo operativo queda ordenado en dos grupos."
+          />
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-blue-300" />
+                  <p className="font-medium text-white">Recurrentes</p>
+                </div>
+                <Badge className="border-blue-500/20 bg-blue-500/10 text-blue-300">{recurrentes.length}</Badge>
+              </div>
+              <p className="mt-3 text-sm text-white/50">
+                {recurrentes.filter(esCompletada).length} completadas · {recurrentes.filter(t => !esCompletada(t)).length} pendientes
+              </p>
+              <div className="mt-4 space-y-2">
+                {recurrentes.slice(0, 4).map(tarea => (
+                  <TaskRow
+                    key={tarea.id}
+                    tarea={tarea}
+                    onClick={() => {
+                      if (esCompletada(tarea) || tarea.estado === 'no_completada') {
+                        setTareaDetalle(tarea)
+                      } else {
+                        setTareaActiva(tarea)
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Layers3 className="h-4 w-4 text-indigo-300" />
+                  <p className="font-medium text-white">Ciclo</p>
+                </div>
+                <Badge className="border-indigo-500/20 bg-indigo-500/10 text-indigo-300">{ciclo.length}</Badge>
+              </div>
+              <p className="mt-3 text-sm text-white/50">
+                {ciclo.filter(esCompletada).length} completadas · {ciclo.filter(t => !esCompletada(t)).length} pendientes
+              </p>
+              <div className="mt-4 space-y-2">
+                {ciclo.slice(0, 4).map(tarea => (
+                  <TaskRow
+                    key={tarea.id}
+                    tarea={tarea}
+                    onClick={() => {
+                      if (esCompletada(tarea) || tarea.estado === 'no_completada') {
+                        setTareaDetalle(tarea)
+                      } else {
+                        setTareaActiva(tarea)
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </Panel>
+      </div>
 
       <Panel className="p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Mi equipo hoy</p>
-            <h2 className="text-xl font-semibold text-white mt-1">Los más atrasados aparecen primero</h2>
-          </div>
-          <Badge className="bg-gray-800 text-gray-300 border-gray-700">
-            {teamStats.length} integrantes
-          </Badge>
-        </div>
-
+        <SectionTitle
+          eyebrow="Mi equipo hoy"
+          title="Ordenado desde el más atrasado"
+          subtitle="La lista prioriza a quien necesita más apoyo primero."
+          action={<Badge className="border-white/10 bg-white/5 text-white/60">{teamStats.length} integrantes</Badge>}
+        />
         <div className="mt-5 space-y-3">
           {teamStats.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-gray-700 bg-gray-950/30 p-8 text-center">
-              <p className="text-gray-400">No hay integrantes para mostrar.</p>
+            <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center">
+              <p className="text-white/55">No hay integrantes para mostrar.</p>
             </div>
           ) : (
             teamStats.map(({ nombre, ...stats }) => (
@@ -611,22 +742,26 @@ function DashboardAdmin({ tareas, cicloSeleccionado, profile, isLoading }) {
 
       {historial.length > 1 && (
         <Panel className="p-6">
-          <div className="flex items-center gap-2 mb-5">
-            <TrendingUp className="w-5 h-5 text-green-400" />
-            <div>
-              <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Tendencia</p>
-              <h2 className="text-white font-semibold">Cumplimiento últimos 12 meses</h2>
-            </div>
-          </div>
-
-          <div className="h-[220px]">
+          <SectionTitle
+            eyebrow="Tendencia"
+            title="Cumplimiento últimos 12 meses"
+            subtitle="La serie muestra cómo ha evolucionado el avance del departamento."
+            action={<TimelineHint historial={historial} />}
+          />
+          <div className="mt-5 h-[260px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={historial} margin={{ top: 5, right: 12, left: -18, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="mes" tick={{ fill: '#6B7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+              <LineChart data={historial} margin={{ top: 5, right: 16, left: -16, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="lineFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.28} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.45} />
+                <XAxis dataKey="mes" tick={{ fill: '#94a3b8', fontSize: 10 }} tickLine={false} axisLine={false} />
                 <YAxis
                   domain={[0, 100]}
-                  tick={{ fill: '#6B7280', fontSize: 10 }}
+                  tick={{ fill: '#94a3b8', fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={v => `${v}%`}
@@ -635,10 +770,10 @@ function DashboardAdmin({ tareas, cicloSeleccionado, profile, isLoading }) {
                   content={({ active, payload, label }) => {
                     if (!active || !payload?.length) return null
                     return (
-                      <div className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-3 shadow-xl">
-                        <p className="text-gray-400 text-xs mb-1">{label}</p>
-                        <p className="text-white font-bold text-lg">{payload[0].value}%</p>
-                        <p className="text-gray-500 text-xs">
+                      <div className="rounded-2xl border border-white/10 bg-slate-950/95 px-4 py-3 shadow-2xl backdrop-blur-xl">
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/40">{label}</p>
+                        <p className="mt-1 text-2xl font-bold text-white">{payload[0].value}%</p>
+                        <p className="text-sm text-white/50">
                           {payload[0].payload.completadas}/{payload[0].payload.total} tareas
                         </p>
                       </div>
@@ -649,7 +784,7 @@ function DashboardAdmin({ tareas, cicloSeleccionado, profile, isLoading }) {
                   type="monotone"
                   dataKey="pct"
                   stroke="#22C55E"
-                  strokeWidth={2}
+                  strokeWidth={3}
                   dot={{ fill: '#22C55E', r: 3 }}
                   activeDot={{ r: 6, fill: '#16A34A' }}
                 />
@@ -684,133 +819,153 @@ function DashboardUsuario({ tareas, profile, cicloSeleccionado, isLoading, onCli
   const misCompletadas = misTareas.filter(t => t.estado === 'completada').length
   const misCompletadasAtraso = misTareas.filter(t => t.estado === 'completada_con_atraso').length
   const misPendientes = misTareas.filter(esPendiente).length
-  const misSinCompletar = misTareas.filter(esSinCompletar).length
+  const misSinCompletar = misTareas.filter(t => t.estado === 'con_atraso' || t.estado === 'no_completada' || esPendiente(t)).length
   const miPct = misTareas.length ? Math.round(((misCompletadas + misCompletadasAtraso) / misTareas.length) * 100) : 0
 
-  const tareasCierre = misTareas.filter(t => getTipoTarea(t) === 'cierre')
-  const tareasCiclo = misTareas.filter(t => getTipoTarea(t) === 'ciclo')
-  const tareasRecurrentes = misTareas.filter(t => getTipoTarea(t) === 'recurrente')
+  const recurrentes = misTareas.filter(t => getTipoTarea(t) === 'recurrente')
+  const ciclo = misTareas.filter(t => getTipoTarea(t) === 'ciclo')
 
   return (
-    <div className="space-y-8">
+    <div className="relative space-y-6 py-6 md:py-8">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[360px] bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_28%)]" />
       <Panel className="p-6 md:p-8">
-        <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-          <div>
+        <div className="grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
+          <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-bold text-white">
-                Hola, {profile?.nombre?.split(' ')[0] ?? 'Gabriel'} 👋
-              </h1>
-              <Badge className="bg-emerald-900/70 text-emerald-300 border-emerald-800">
+              <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                <Users className="h-3.5 w-3.5" />
                 Mi panel
               </Badge>
+              <Badge className="border-white/10 bg-white/5 text-white/65">
+                {cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : 'Ciclo activo'}
+              </Badge>
             </div>
-            <p className="text-sm text-gray-400 mt-2">
-              {cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : 'Ciclo activo'}
+            <h1 className="text-3xl md:text-4xl font-semibold text-white">
+              Hola, {profile?.nombre?.split(' ')[0] ?? 'Gabriel'} 👋
+            </h1>
+            <p className="max-w-2xl text-sm md:text-base text-white/60">
+              Tu avance, tus pendientes y tu carga de trabajo en una vista limpia y rápida.
             </p>
           </div>
-          <div className="text-right">
-            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Mi avance</p>
-            <p className={`text-4xl font-bold mt-1 ${pctColorClass(miPct)}`}>{miPct}%</p>
+          <div className="rounded-3xl border border-white/5 bg-black/20 p-5">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-white/40">Mi avance</p>
+            <div className="mt-2 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-sm text-white/55">completadas</p>
+                <p className="mt-1 text-4xl font-bold text-white">{miPct}%</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-white/55">{misCompletadas + misCompletadasAtraso} / {misTareas.length}</p>
+                <p className="text-xs text-white/40">tareas cerradas</p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <ProgressBar value={miPct} height="h-4" />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300">Completadas: {misCompletadas + misCompletadasAtraso}</Badge>
+              <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-300">Pendientes: {misPendientes}</Badge>
+              <Badge className="border-red-500/20 bg-red-500/10 text-red-300">Sin completar: {misSinCompletar}</Badge>
+            </div>
           </div>
-        </div>
-
-        <div className="mt-5">
-          <ProgressBar value={miPct} height="h-3.5" />
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Badge className="bg-gray-800 text-gray-300 border-gray-700">Mis tareas: {misTareas.length}</Badge>
-          <Badge className="bg-green-900/60 text-green-300 border-green-800">Completadas: {misCompletadas + misCompletadasAtraso}</Badge>
-          <Badge className="bg-yellow-900/60 text-yellow-300 border-yellow-800">Pendientes: {misPendientes}</Badge>
-          <Badge className="bg-red-900/60 text-red-300 border-red-800">Sin completar: {misSinCompletar}</Badge>
         </div>
       </Panel>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard icon={ListChecks} label="Mis tareas" value={misTareas.length} accent="bg-blue-700" />
-        <StatCard icon={CheckCircle2} label="Completadas" value={misCompletadas + misCompletadasAtraso} accent="bg-green-700" />
-        <StatCard icon={Clock} label="Pendientes" value={misPendientes} accent="bg-amber-600" />
-        <StatCard icon={AlertCircle} label="Sin completar" value={misSinCompletar} accent="bg-red-700" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <MetricCard icon={ListChecks} label="Mis tareas" value={misTareas.length} helper="ciclo actual" tone="bg-blue-500/10" />
+        <MetricCard icon={CheckCircle2} label="Completadas" value={misCompletadas + misCompletadasAtraso} helper="a tiempo o con atraso" tone="bg-emerald-500/10" />
+        <MetricCard icon={Clock3} label="Pendientes" value={misPendientes} helper="requieren atención" tone="bg-amber-500/10" />
+        <MetricCard icon={AlertTriangle} label="Sin completar" value={misSinCompletar} helper="no avanzadas" tone="bg-red-500/10" />
       </div>
 
       <Panel className="p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Mis tareas por tipo</p>
-            <h2 className="text-white font-semibold mt-1">Recurrentes, cierre y ciclo</h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge className="bg-blue-900/60 text-blue-300 border-blue-800">{tareasRecurrentes.length} recurrentes</Badge>
-            <Badge className="bg-emerald-900/60 text-emerald-300 border-emerald-800">{tareasCierre.length} de cierre</Badge>
-            <Badge className="bg-gray-800 text-gray-300 border-gray-700">{tareasCiclo.length} de ciclo</Badge>
-          </div>
-        </div>
-
-        <div className="mt-5 grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {[
-            ['recurrente', tareasRecurrentes],
-            ['cierre', tareasCierre],
-            ['ciclo', tareasCiclo],
-          ].map(([tipo, lista]) => (
-            <div key={tipo} className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
-              <div className="flex items-center justify-between gap-2 mb-4">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${tipo === 'cierre' ? 'bg-emerald-400' : tipo === 'recurrente' ? 'bg-blue-400' : 'bg-gray-400'}`} />
-                  <p className="text-white font-medium capitalize">{tipo}</p>
-                </div>
-                <span className="text-xs text-gray-500">{lista.length}</span>
+        <SectionTitle
+          eyebrow="Mis tareas por tipo"
+          title="Recurrentes y ciclo"
+          subtitle="La vista separa las tareas repetitivas de las del ciclo para priorizar mejor."
+        />
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-blue-300" />
+                <p className="font-medium text-white">Recurrentes</p>
               </div>
-
-              <div className="space-y-2">
-                {lista.length === 0 ? (
-                  <p className="text-sm text-gray-500">Sin tareas</p>
-                ) : (
-                  lista.map(t => (
-                    <TaskRow
-                      key={t.id}
-                      tarea={t}
-                      onClick={() => {
-                        if (esCompletada(t) || t.estado === 'no_completada') {
-                          setTareaDetalle(t)
-                        } else {
-                          onClickTarea(t)
-                        }
-                      }}
-                    />
-                  ))
-                )}
-              </div>
+              <Badge className="border-blue-500/20 bg-blue-500/10 text-blue-300">{recurrentes.length}</Badge>
             </div>
-          ))}
+            <div className="mt-4 space-y-2">
+              {recurrentes.length === 0 ? (
+                <p className="text-sm text-white/45">Sin tareas</p>
+              ) : (
+                recurrentes.map(t => (
+                  <TaskRow
+                    key={t.id}
+                    tarea={t}
+                    onClick={() => {
+                      if (esCompletada(t) || t.estado === 'no_completada') {
+                        setTareaDetalle(t)
+                      } else {
+                        onClickTarea(t)
+                      }
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Layers3 className="h-4 w-4 text-indigo-300" />
+                <p className="font-medium text-white">Ciclo</p>
+              </div>
+              <Badge className="border-indigo-500/20 bg-indigo-500/10 text-indigo-300">{ciclo.length}</Badge>
+            </div>
+            <div className="mt-4 space-y-2">
+              {ciclo.length === 0 ? (
+                <p className="text-sm text-white/45">Sin tareas</p>
+              ) : (
+                ciclo.map(t => (
+                  <TaskRow
+                    key={t.id}
+                    tarea={t}
+                    onClick={() => {
+                      if (esCompletada(t) || t.estado === 'no_completada') {
+                        setTareaDetalle(t)
+                      } else {
+                        onClickTarea(t)
+                      }
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </Panel>
 
       <Panel className="p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Users className="w-5 h-5 text-green-400" />
-          <h2 className="text-white font-semibold">Mis tareas pendientes</h2>
+        <SectionTitle
+          eyebrow="Mis pendientes"
+          title="Lo que todavía falta"
+          subtitle="Las tareas abiertas quedan agrupadas en una lista limpia, sin ruido."
+        />
+        <div className="mt-5 space-y-3">
+          {misTareas.filter(t => !esCompletada(t) && t.estado !== 'no_completada').length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 bg-black/20 p-8 text-center">
+              <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-400" />
+              <p className="font-medium text-white">¡Todo al día!</p>
+              <p className="mt-1 text-sm text-white/50">No tienes tareas pendientes para este ciclo.</p>
+            </div>
+          ) : (
+            misTareas
+              .filter(t => !esCompletada(t) && t.estado !== 'no_completada')
+              .map(tarea => (
+                <TaskRow key={tarea.id} tarea={tarea} onClick={() => onClickTarea(tarea)} />
+              ))
+          )}
         </div>
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <div className="w-6 h-6 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {misTareas.filter(t => !esCompletada(t) && t.estado !== 'no_completada').length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-gray-700 bg-gray-950/30 p-8 text-center">
-                <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
-                <p className="text-gray-300 font-medium">¡Todo al día!</p>
-                <p className="text-gray-500 text-sm">No tienes tareas pendientes para este ciclo</p>
-              </div>
-            ) : (
-              misTareas
-                .filter(t => !esCompletada(t) && t.estado !== 'no_completada')
-                .map(tarea => (
-                  <TaskRow key={tarea.id} tarea={tarea} onClick={() => onClickTarea(tarea)} />
-                ))
-            )}
-          </div>
-        )}
       </Panel>
 
       {tareaDetalle && (
@@ -822,44 +977,24 @@ function DashboardUsuario({ tareas, profile, cicloSeleccionado, isLoading, onCli
 
 export default function Dashboard({ cicloSeleccionado }) {
   const { profile } = useAuth()
-  const [tareaActiva, setTareaActiva] = useState(null)
   const queryClient = useQueryClient()
+  const [tareaActiva, setTareaActiva] = useState(null)
 
-  const { data: tareas = [], isLoading } = useQuery({
-    queryKey: ['tareas', cicloSeleccionado?.id, profile?.departamento],
-    enabled: !!cicloSeleccionado?.id && !!profile?.departamento,
-    queryFn: async () => {
-      let query = supabase
-        .from('v_tareas_ciclo_activo')
-        .select('*')
-        .eq('ciclo_id', cicloSeleccionado.id)
-        .order('fecha_termino', { ascending: true })
-
-      if (profile?.rol !== 'gerente') {
-        query = query.eq('departamento', profile?.departamento)
-      }
-
-      const { data, error } = await query
-      if (error) throw error
-      return data ?? []
-    },
-  })
-
+  const { data: tareas = [], isLoading } = useTareas(cicloSeleccionado, profile)
   const esAdmin = profile?.rol === 'admin' || profile?.rol === 'gerente'
 
+  if (isLoading) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-7xl items-center justify-center px-4 py-10">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
+      </div>
+    )
+  }
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {isLoading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-        </div>
-      ) : esAdmin ? (
-        <DashboardAdmin
-          tareas={tareas}
-          cicloSeleccionado={cicloSeleccionado}
-          profile={profile}
-          isLoading={isLoading}
-        />
+    <div className="mx-auto max-w-7xl px-4">
+      {esAdmin ? (
+        <DashboardAdmin tareas={tareas} cicloSeleccionado={cicloSeleccionado} profile={profile} />
       ) : (
         <DashboardUsuario
           tareas={tareas}
@@ -875,7 +1010,7 @@ export default function Dashboard({ cicloSeleccionado }) {
           tarea={tareaActiva}
           onClose={() => setTareaActiva(null)}
           onCompletada={() => {
-            queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
+            queryClient.invalidateQueries({ queryKey: ['tareas'] })
             setTareaActiva(null)
           }}
         />
