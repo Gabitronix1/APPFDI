@@ -240,7 +240,7 @@ export default function Tareas({ cicloSeleccionado }) {
                 className="flex items-center gap-2 mb-3 w-full"
               >
                 <RefreshCw className="w-4 h-4 text-blue-400" />
-                <span className="text-sm font-semibold text-gray-300">{tituloCiclo}</span>
+                <span className="text-sm font-semibold text-gray-300">Tareas recurrentes</span>
                 <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
                   {tareasRecurrentes.length}
                 </span>
