@@ -37,12 +37,17 @@ function PctBadge({ pct }) {
   return <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${color}`}>{pct}%</span>
 }
 
-function TareaItem({ tarea, onClick }) {
-  const esFueraPlazo = tarea.alerta === 'fuera_de_plazo' && tarea.estado !== 'completada'
+function TareaItem({ tarea, onClick, esCicloCerrado }) {
+  const esFueraPlazo = !esCicloCerrado &&
+    tarea.alerta === 'fuera_de_plazo' &&
+    tarea.estado !== 'completada' &&
+    tarea.estado !== 'completada_con_atraso'
   const estilos = esFueraPlazo
     ? ESTADO_STYLES.fuera_de_plazo
     : ESTADO_STYLES[tarea.estado] ?? ESTADO_STYLES.pendiente
-  const borde = {
+  const borde = esCicloCerrado
+    ? 'border-gray-800'
+    : {
     ok:             'border-gray-800',
     por_vencer:     'border-amber-500',
     fuera_de_plazo: 'border-red-500',
@@ -60,10 +65,10 @@ function TareaItem({ tarea, onClick }) {
       <div className="shrink-0">
         {tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso'
           ? <CheckCircle2 className="w-5 h-5 text-green-500" />
+          : tarea.estado === 'no_completada' || tarea.estado === 'con_atraso'
+          ? <AlertCircle className="w-5 h-5 text-gray-500" />
           : esFueraPlazo
           ? <AlertCircle className="w-5 h-5 text-orange-400" />
-          : tarea.estado === 'con_atraso'
-          ? <AlertCircle className="w-5 h-5 text-red-400" />
           : <Clock className="w-5 h-5 text-gray-500" />}
       </div>
       <div className="flex-1 min-w-0">
@@ -156,7 +161,7 @@ export default function DetalleIntegrante() {
   const colorBarra  = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
 
   function handleClickTarea(tarea) {
-    if (tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada') {
+    if (tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada' || tarea.estado === 'con_atraso') {
       setTareaDetalle(tarea)
     } else {
       setTareaActiva(tarea)
@@ -230,7 +235,7 @@ export default function DetalleIntegrante() {
               <div className="space-y-3">
                 {tareasCierre.map(tarea => (
                   <TareaItem key={tarea.id} tarea={tarea} 
-                    esCicloCerrado={true}  // historial siempre cerrado
+                    esCicloCerrado={ciclo?.estado === 'cerrado'}
                     onClick={() => handleClickTarea(tarea)} />
                 ))}
               </div>
@@ -250,8 +255,10 @@ export default function DetalleIntegrante() {
                 </span>
               </div>
               <div className="space-y-3">
-                {tareasAdicionales.map(tarea => (
-                  <TareaItem key={tarea.id} tarea={tarea} onClick={() => handleClickTarea(tarea)} />
+                {tareasAdicionales.map(tarea => ((
+                  <TareaItem key={tarea.id} tarea={tarea} 
+                    esCicloCerrado={ciclo?.estado === 'cerrado'}
+                    onClick={() => handleClickTarea(tarea)} />
                 ))}
               </div>
             </div>
