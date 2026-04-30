@@ -3,27 +3,38 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import {
   ArrowLeft,
+  BarChart3,
   CheckCircle2,
-  RefreshCw,
+  Clock3,
+  Flame,
   Sparkles,
-  TrendingUp,
   Users,
-  ListChecks,
+  AlertTriangle,
+  Layers3,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import TaskModal from '../components/TaskModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
 
-function nombreCierre(mes, anio) {
-  if (!mes || !anio) return ''
-  if (mes === 1) return `Cierre de Diciembre ${anio - 1}`
-  return `Cierre de ${MESES[mes - 2]} ${anio}`
+function nombreCiclo(mes, anio) {
+  if (!mes || !anio) return 'Ciclo activo'
+  if (mes === 1) return `Ciclo de Diciembre ${anio - 1}`
+  return `Ciclo de ${MESES[mes - 2]} ${anio}`
 }
 
 function slugify(text = '') {
@@ -45,6 +56,16 @@ function formatoFechaES(date = new Date()) {
   }).format(date)
 }
 
+function formatoFechaCorta(date) {
+  if (!date) return 'sin fecha'
+  const d = new Date(date)
+  if (Number.isNaN(d.getTime())) return 'sin fecha'
+  return new Intl.DateTimeFormat('es-CL', {
+    day: '2-digit',
+    month: 'short',
+  }).format(d)
+}
+
 function esCompletada(t) {
   return t.estado === 'completada' || t.estado === 'completada_con_atraso'
 }
@@ -55,74 +76,67 @@ function esPendiente(t) {
 
 function getTipoTarea(t) {
   const raw = String(t?.tipo_tarea ?? t?.tipo ?? t?.categoria ?? t?.clase ?? t?.origen ?? '').toLowerCase()
-
-  if (raw.includes('cierre')) return 'cierre'
   if (raw.includes('ciclo')) return 'ciclo'
-  if (raw.includes('recurrent')) return 'recurrente'
-  if (t?.template_id) return 'recurrente'
-  return 'ciclo'
+  return 'recurrente'
 }
 
 function getTipoLabel(t) {
-  const tipo = getTipoTarea(t)
-  if (tipo === 'cierre') return 'Cierre'
-  if (tipo === 'recurrente') return 'Recurrente'
-  return 'Ciclo'
-}
-
-function getTipoClass(tipo) {
-  if (tipo === 'cierre') return 'bg-emerald-900/60 text-emerald-300 border-emerald-800'
-  if (tipo === 'recurrente') return 'bg-blue-900/60 text-blue-300 border-blue-800'
-  return 'bg-gray-800 text-gray-300 border-gray-700'
+  return getTipoTarea(t) === 'ciclo' ? 'Ciclo' : 'Recurrente'
 }
 
 function getEstadoClass(t) {
-  if (t.alerta === 'fuera_de_plazo' && !esCompletada(t)) return 'bg-orange-900/70 text-orange-300 border-orange-800'
+  if (t.alerta === 'fuera_de_plazo' && !esCompletada(t)) return 'bg-orange-500/10 text-orange-300 border-orange-500/20'
   switch (t.estado) {
     case 'completada':
-      return 'bg-green-900/70 text-green-300 border-green-800'
+      return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
     case 'completada_con_atraso':
-      return 'bg-yellow-900/70 text-yellow-300 border-yellow-800'
+      return 'bg-amber-500/10 text-amber-300 border-amber-500/20'
     case 'con_atraso':
-      return 'bg-red-900/70 text-red-300 border-red-800'
+      return 'bg-red-500/10 text-red-300 border-red-500/20'
     case 'en_progreso':
-      return 'bg-blue-900/70 text-blue-300 border-blue-800'
+      return 'bg-blue-500/10 text-blue-300 border-blue-500/20'
     case 'pendiente':
-      return 'bg-gray-800 text-gray-300 border-gray-700'
+      return 'bg-white/5 text-white/60 border-white/10'
     case 'no_completada':
-      return 'bg-gray-900 text-gray-500 border-gray-800'
+      return 'bg-white/5 text-white/35 border-white/10'
     default:
-      return 'bg-gray-800 text-gray-300 border-gray-700'
+      return 'bg-white/5 text-white/60 border-white/10'
   }
 }
 
+function getTypeClass(tipo) {
+  if (tipo === 'ciclo') return 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
+  return 'bg-blue-500/10 text-blue-300 border-blue-500/20'
+}
+
 function pctColorClass(pct) {
-  if (pct === null || pct === undefined) return 'text-gray-500'
-  if (pct === 100) return 'text-green-400'
-  if (pct >= 80) return 'text-amber-400'
-  if (pct >= 50) return 'text-orange-400'
-  return 'text-red-400'
+  if (pct >= 100) return 'text-emerald-300'
+  if (pct >= 85) return 'text-emerald-300'
+  if (pct >= 65) return 'text-amber-300'
+  if (pct >= 40) return 'text-orange-300'
+  return 'text-red-300'
 }
 
 function pctBarClass(pct) {
-  if (pct === null || pct === undefined) return 'bg-gray-700'
-  if (pct === 100) return 'bg-green-500'
-  if (pct >= 80) return 'bg-amber-500'
-  if (pct >= 50) return 'bg-orange-500'
+  if (pct >= 100) return 'bg-emerald-500'
+  if (pct >= 85) return 'bg-emerald-500'
+  if (pct >= 65) return 'bg-amber-500'
+  if (pct >= 40) return 'bg-orange-500'
   return 'bg-red-500'
 }
 
 function Panel({ children, className = '' }) {
   return (
-    <div className={`bg-gray-900 border border-gray-800 rounded-2xl shadow-[0_0_0_1px_rgba(255,255,255,0.02)] ${className}`}>
-      {children}
+    <div className={`relative overflow-hidden rounded-3xl border border-white/5 bg-white/[0.03] shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)] backdrop-blur-xl ${className}`}>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.10),transparent_40%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.08),transparent_35%)]" />
+      <div className="relative">{children}</div>
     </div>
   )
 }
 
 function Badge({ children, className = '' }) {
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium ${className}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-semibold tracking-wide ${className}`}>
       {children}
     </span>
   )
@@ -131,8 +145,21 @@ function Badge({ children, className = '' }) {
 function ProgressBar({ value = 0, height = 'h-3' }) {
   const pct = Math.max(0, Math.min(100, value))
   return (
-    <div className={`w-full bg-gray-800 rounded-full overflow-hidden ${height}`}>
-      <div className={`h-full rounded-full transition-all duration-700 ${pctBarClass(pct)}`} style={{ width: `${pct}%` }} />
+    <div className={`w-full rounded-full bg-white/5 ${height}`}>
+      <div
+        className={`h-full rounded-full transition-all duration-700 ${pctBarClass(pct)}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  )
+}
+
+function StatCard({ label, value, helper, className = 'text-white' }) {
+  return (
+    <div className="rounded-3xl border border-white/5 bg-black/20 p-5">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-white/35">{label}</p>
+      <p className={`mt-1 text-3xl font-bold ${className}`}>{value}</p>
+      {helper && <p className="mt-1 text-sm text-white/50">{helper}</p>}
     </div>
   )
 }
@@ -146,27 +173,27 @@ function TaskRow({ tarea, onClick }) {
       : null
 
   return (
-    <button type="button" onClick={onClick} className="w-full text-left">
-      <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4 hover:bg-gray-800/70 hover:border-gray-700 transition">
+    <button type="button" onClick={onClick} className="group w-full text-left">
+      <div className="rounded-2xl border border-white/5 bg-black/20 p-4 transition duration-300 hover:-translate-y-0.5 hover:border-white/10 hover:bg-white/[0.05]">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              {tipo === 'cierre'
-                ? <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                : <RefreshCw className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              {tipo === 'ciclo'
+                ? <Layers3 className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
+                : <Sparkles className="h-3.5 w-3.5 text-blue-300 shrink-0" />
               }
-              <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
+              <p className="truncate text-sm font-medium text-white">{tarea.nombre_tarea}</p>
             </div>
-            <p className="text-gray-500 text-xs mt-1">
-              {tarea.area || 'Sin área'} · vence {tarea.fecha_termino || 'sin fecha'}
+            <p className="mt-1 text-xs text-white/45">
+              {tarea.area || 'Sin área'} · vence {formatoFechaCorta(tarea.fecha_termino)}
             </p>
           </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="flex flex-wrap gap-2 justify-end">
-              <Badge className={getTipoClass(tipo)}>{getTipoLabel(tarea)}</Badge>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Badge className={getTypeClass(tipo)}>{getTipoLabel(tarea)}</Badge>
               <Badge className={getEstadoClass(tarea)}>{String(tarea.estado ?? 'pendiente').replace(/_/g, ' ')}</Badge>
             </div>
-            {pct !== null && <span className={`text-xs font-semibold ${pctColorClass(pct)}`}>{pct}%</span>}
+            {pct !== null && <span className={`text-sm font-bold ${pctColorClass(pct)}`}>{pct}%</span>}
           </div>
         </div>
       </div>
@@ -174,25 +201,21 @@ function TaskRow({ tarea, onClick }) {
   )
 }
 
-function StateCard({ label, value, className }) {
+function SectionTitle({ eyebrow, title, subtitle, action }) {
   return (
-    <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
-      <p className="text-xs uppercase tracking-[0.18em] text-gray-500">{label}</p>
-      <p className={`text-2xl font-bold mt-1 ${className}`}>{value}</p>
+    <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+      <div>
+        {eyebrow && <p className="text-[11px] uppercase tracking-[0.22em] text-white/40">{eyebrow}</p>}
+        <h2 className="mt-1 text-lg md:text-xl font-semibold text-white">{title}</h2>
+        {subtitle && <p className="mt-1 text-sm text-white/55">{subtitle}</p>}
+      </div>
+      {action}
     </div>
   )
 }
 
-export default function DetalleIntegrante({ cicloSeleccionado }) {
-  const { profile } = useAuth()
-  const navigate = useNavigate()
-  const location = useLocation()
-  const queryClient = useQueryClient()
-  const { integranteSlug } = useParams()
-  const [tareaActiva, setTareaActiva] = useState(null)
-  const [tareaDetalle, setTareaDetalle] = useState(null)
-
-  const { data: tareas = [], isLoading } = useQuery({
+function useTareas(cicloSeleccionado, profile) {
+  return useQuery({
     queryKey: ['tareas', cicloSeleccionado?.id, profile?.departamento],
     enabled: !!cicloSeleccionado?.id && !!profile?.departamento,
     queryFn: async () => {
@@ -211,8 +234,50 @@ export default function DetalleIntegrante({ cicloSeleccionado }) {
       return data ?? []
     },
   })
+}
+
+function useTeamStats(cicloSeleccionado, profile) {
+  return useQuery({
+    queryKey: ['team-stats', cicloSeleccionado?.id, profile?.departamento],
+    enabled: !!cicloSeleccionado?.id && !!profile?.departamento,
+    queryFn: async () => {
+      let query = supabase
+        .from('v_tareas_ciclo_activo')
+        .select('responsable_nombre, estado, porcentaje_cumplimiento, fecha_termino, tipo_tarea, tipo, categoria, clase, origen, alerta')
+        .eq('ciclo_id', cicloSeleccionado.id)
+
+      if (profile?.rol !== 'gerente') query = query.eq('departamento', profile?.departamento)
+
+      const { data, error } = await query
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+function MemberMiniCard({ label, value, tone }) {
+  return (
+    <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+      <p className="text-[11px] uppercase tracking-[0.2em] text-white/35">{label}</p>
+      <p className={`mt-1 text-xl font-bold ${tone}`}>{value}</p>
+    </div>
+  )
+}
+
+export default function DetalleIntegrante({ cicloSeleccionado }) {
+  const { profile } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const queryClient = useQueryClient()
+  const { integranteSlug } = useParams()
+  const [tareaActiva, setTareaActiva] = useState(null)
+  const [tareaDetalle, setTareaDetalle] = useState(null)
+
+  const { data: tareas = [], isLoading } = useTareas(cicloSeleccionado, profile)
+  const { data: teamRaw = [] } = useTeamStats(cicloSeleccionado, profile)
 
   const nombreDesdeRuta = location.state?.nombre ?? decodeURIComponent(integranteSlug ?? '')
+
   const tareasIntegrante = useMemo(() => {
     const targetSlug = integranteSlug ? String(integranteSlug) : slugify(nombreDesdeRuta)
     return tareas.filter(t => slugify(t.responsable_nombre) === targetSlug)
@@ -238,108 +303,175 @@ export default function DetalleIntegrante({ cicloSeleccionado }) {
   const pct = tareasIntegrante.length ? Math.round(((completadas + completadasAtraso) / tareasIntegrante.length) * 100) : 0
 
   const recurrentes = tareasIntegrante.filter(t => getTipoTarea(t) === 'recurrente')
-  const cierre = tareasIntegrante.filter(t => getTipoTarea(t) === 'cierre')
   const ciclo = tareasIntegrante.filter(t => getTipoTarea(t) === 'ciclo')
 
-  function tituloSeccion(lista, tipo) {
-    const completadasSeccion = lista.filter(esCompletada).length
-    return `${tipo} · ${completadasSeccion}/${lista.length}`
+  const ranking = useMemo(() => {
+    const grouped = teamRaw.reduce((acc, tarea) => {
+      const nombre = tarea.responsable_nombre ?? 'Sin asignar'
+      if (!acc[nombre]) {
+        acc[nombre] = { total: 0, completadas: 0, completadasAtraso: 0, atrasadas: 0, pendientes: 0 }
+      }
+      acc[nombre].total += 1
+      if (tarea.estado === 'completada') acc[nombre].completadas += 1
+      if (tarea.estado === 'completada_con_atraso') acc[nombre].completadasAtraso += 1
+      if (tarea.estado === 'con_atraso') acc[nombre].atrasadas += 1
+      if (esPendiente(tarea) || tarea.estado === 'no_completada') acc[nombre].pendientes += 1
+      return acc
+    }, {})
+
+    return Object.entries(grouped)
+      .map(([nombre, stats]) => {
+        const avance = stats.total
+          ? Math.round(((stats.completadas + stats.completadasAtraso) / stats.total) * 100)
+          : 0
+        return { nombre, ...stats, avance }
+      })
+      .sort((a, b) => b.avance - a.avance || a.nombre.localeCompare(b.nombre))
+  }, [teamRaw])
+
+  const posicion = useMemo(() => {
+    const idx = ranking.findIndex(r => r.nombre === nombreIntegrante)
+    return idx >= 0 ? idx + 1 : null
+  }, [ranking, nombreIntegrante])
+
+  const promedioEquipo = useMemo(() => {
+    if (!ranking.length) return 0
+    return Math.round(ranking.reduce((acc, item) => acc + item.avance, 0) / ranking.length)
+  }, [ranking])
+
+  function diasDiff(fecha) {
+    if (!fecha) return 999
+    const d = new Date(fecha)
+    if (Number.isNaN(d.getTime())) return 999
+    const hoy = new Date()
+    hoy.setHours(0, 0, 0, 0)
+    d.setHours(0, 0, 0, 0)
+    return Math.round((d.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
   }
 
-  return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
-      <Panel className="p-6 md:p-8">
-        <div className="flex items-center gap-3 mb-5">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-800 bg-gray-950/40 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver
-          </button>
-          <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-green-400" />
-            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Detalle de integrante</p>
-          </div>
-        </div>
+  const tareasUrgentes = useMemo(() => {
+    return [...tareasIntegrante]
+      .filter(t => !esCompletada(t))
+      .sort((a, b) => {
+        const da = a.estado === 'con_atraso' ? -999 : diasDiff(a.fecha_termino)
+        const db = b.estado === 'con_atraso' ? -999 : diasDiff(b.fecha_termino)
+        if (da !== db) return da - db
+        return String(a.nombre_tarea ?? '').localeCompare(String(b.nombre_tarea ?? ''))
+      })
+      .slice(0, 4)
+  }, [tareasIntegrante])
 
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="space-y-3">
+  const fechaHoy = formatoFechaES(new Date())
+
+  return (
+    <div className="relative mx-auto max-w-7xl space-y-6 px-4 py-6 md:py-8">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[360px] bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.12),transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:72px_72px] opacity-35" />
+
+      <Panel className="p-6 md:p-8">
+        <div className="grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
+          <div className="space-y-4">
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/5 bg-black/20 px-4 py-2 text-sm text-white/75 transition hover:border-white/10 hover:bg-white/[0.05]"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Volver
+            </button>
+
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-bold text-white">{nombreIntegrante}</h1>
-              <Badge className="bg-emerald-900/70 text-emerald-300 border-emerald-800">Vista detallada</Badge>
+              <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                <Users className="h-3.5 w-3.5" />
+                Detalle de integrante
+              </Badge>
+              <Badge className="border-white/10 bg-white/5 text-white/65">
+                {cicloSeleccionado ? nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio) : 'Ciclo activo'}
+              </Badge>
+              <Badge className="border-white/10 bg-white/5 text-white/65">
+                <Flame className="h-3.5 w-3.5" />
+                {fechaHoy}
+              </Badge>
+            </div>
+
+            <div>
+              <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-white">
+                {nombreIntegrante}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm md:text-base text-white/60">
+                Vista individual con foco en avance, riesgo y carga por tipo de trabajo.
+              </p>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Badge className="bg-gray-800 text-gray-300 border-gray-700">
-                {cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : 'Ciclo activo'}
+              <Badge className="border-white/10 bg-white/5 text-white/70">{tareasIntegrante.length} tareas</Badge>
+              <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                {completadas + completadasAtraso} completadas
               </Badge>
-              <Badge className="bg-gray-800 text-gray-300 border-gray-700">
-                {formatoFechaES(new Date())}
+              <Badge className="border-amber-500/20 bg-amber-500/10 text-amber-300">
+                {completadasAtraso + atrasadas} con atraso
               </Badge>
-              <Badge className="bg-gray-800 text-gray-300 border-gray-700">
-                {tareasIntegrante.length} tareas
+              <Badge className="border-red-500/20 bg-red-500/10 text-red-300">
+                {sinCompletar} sin completar
               </Badge>
             </div>
           </div>
 
-          <div className="text-right">
-            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Avance</p>
-            <p className={`text-4xl font-bold mt-1 ${pctColorClass(pct)}`}>{pct}%</p>
-            <p className="text-sm text-gray-500 mt-1">
-              {completadas + completadasAtraso} de {tareasIntegrante.length} completadas
-            </p>
+          <div className="rounded-3xl border border-white/5 bg-black/20 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-white/40">Avance</p>
+                <p className={`mt-2 text-5xl font-bold ${pctColorClass(pct)}`}>{pct}%</p>
+              </div>
+              <Badge className="border-white/10 bg-white/5 text-white/65">
+                <BarChart3 className="h-3.5 w-3.5" />
+                Posición #{posicion ?? '—'}
+              </Badge>
+            </div>
+
+            <div className="mt-4">
+              <ProgressBar value={pct} height="h-4" />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <MemberMiniCard label="A tiempo" value={completadas} tone="text-emerald-300" />
+              <MemberMiniCard label="Con atraso" value={completadasAtraso + atrasadas} tone="text-amber-300" />
+              <MemberMiniCard label="Pendientes" value={pendientes} tone="text-white" />
+              <MemberMiniCard label="Promedio equipo" value={`${promedioEquipo}%`} tone="text-indigo-300" />
+            </div>
           </div>
-        </div>
-
-        <div className="mt-6">
-          <ProgressBar value={pct} height="h-3.5" />
-        </div>
-
-        <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-3">
-          <StateCard label="Total" value={tareasIntegrante.length} className="text-white" />
-          <StateCard label="Completadas" value={completadas} className="text-green-400" />
-          <StateCard label="Con atraso" value={completadasAtraso + atrasadas} className="text-yellow-400" />
-          <StateCard label="Sin completar" value={sinCompletar} className="text-red-400" />
         </div>
       </Panel>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <StateCard label="Recurrentes" value={recurrentes.length} className="text-blue-400" />
-        <StateCard label="De cierre" value={cierre.length} className="text-emerald-400" />
-        <StateCard label="De ciclo" value={ciclo.length} className="text-gray-200" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <StatCard label="Total" value={tareasIntegrante.length} helper="tareas asignadas" />
+        <StatCard label="Completadas" value={completadas + completadasAtraso} helper="terminadas a tiempo o con atraso" className="text-emerald-300" />
+        <StatCard label="Pendientes" value={pendientes} helper="requieren seguimiento" className="text-amber-300" />
+        <StatCard label="Sin completar" value={sinCompletar} helper="atrasadas + no completadas" className="text-red-300" />
       </div>
 
-      <Panel className="p-6">
-        <div className="flex items-center gap-2 mb-5">
-          <TrendingUp className="w-5 h-5 text-green-400" />
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Responsabilidad</p>
-            <h2 className="text-white font-semibold">Detalle por tipo de tarea</h2>
-          </div>
-        </div>
+      <div className="grid gap-6 xl:grid-cols-[1fr_.9fr]">
+        <Panel className="p-6">
+          <SectionTitle
+            eyebrow="Distribución del trabajo"
+            title="Recurrentes y ciclo"
+            subtitle="La lista está dividida en dos grupos para que el detalle sea más legible."
+          />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {[
-            ['recurrentes', recurrentes, 'recurrente'],
-            ['cierre', cierre, 'cierre'],
-            ['ciclo', ciclo, 'ciclo'],
-          ].map(([titulo, lista, tipo]) => (
-            <div key={tipo} className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
-              <div className="flex items-center justify-between gap-2 mb-4">
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className={`w-2.5 h-2.5 rounded-full ${tipo === 'cierre' ? 'bg-emerald-400' : tipo === 'recurrente' ? 'bg-blue-400' : 'bg-gray-400'}`} />
-                  <p className="text-white font-medium capitalize">{tituloSeccion(lista, titulo)}</p>
+                  <Sparkles className="h-4 w-4 text-blue-300" />
+                  <p className="font-medium text-white">Recurrentes</p>
                 </div>
-                <span className="text-xs text-gray-500">{lista.length}</span>
+                <Badge className={getTypeClass('recurrente')}>{recurrentes.length}</Badge>
               </div>
-
-              <div className="space-y-2">
-                {lista.length === 0 ? (
-                  <p className="text-sm text-gray-500">Sin tareas</p>
+              <div className="mt-4 space-y-2">
+                {recurrentes.length === 0 ? (
+                  <p className="text-sm text-white/45">Sin tareas</p>
                 ) : (
-                  lista.map(t => (
+                  recurrentes.map(t => (
                     <TaskRow
                       key={t.id}
                       tarea={t}
@@ -355,70 +487,112 @@ export default function DetalleIntegrante({ cicloSeleccionado }) {
                 )}
               </div>
             </div>
-          ))}
-        </div>
-      </Panel>
+
+            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Layers3 className="h-4 w-4 text-indigo-300" />
+                  <p className="font-medium text-white">Ciclo</p>
+                </div>
+                <Badge className={getTypeClass('ciclo')}>{ciclo.length}</Badge>
+              </div>
+              <div className="mt-4 space-y-2">
+                {ciclo.length === 0 ? (
+                  <p className="text-sm text-white/45">Sin tareas</p>
+                ) : (
+                  ciclo.map(t => (
+                    <TaskRow
+                      key={t.id}
+                      tarea={t}
+                      onClick={() => {
+                        if (esCompletada(t) || t.estado === 'no_completada') {
+                          setTareaDetalle(t)
+                        } else {
+                          setTareaActiva(t)
+                        }
+                      }}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel className="p-6">
+          <SectionTitle
+            eyebrow="Lectura ejecutiva"
+            title="Riesgo y señales"
+            subtitle="Aquí resaltamos lo que necesita atención inmediata."
+          />
+
+          <div className="mt-5 space-y-3">
+            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-white/35">Problemas detectados</p>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center gap-2 text-sm text-white/70">
+                  <AlertTriangle className="h-4 w-4 text-red-300" />
+                  {atrasadas > 0 ? `${atrasadas} tareas con atraso.` : 'No hay tareas atrasadas.'}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-white/70">
+                  <Clock3 className="h-4 w-4 text-amber-300" />
+                  {pendientes > 0 ? `${pendientes} tareas todavía abiertas.` : 'No quedan tareas abiertas.'}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-white/70">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                  {pct >= 80 ? 'Nivel de cumplimiento alto.' : 'Todavía hay espacio para mejorar el cumplimiento.'}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-white/35">Mi progreso</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <MemberMiniCard label="Avance" value={`${pct}%`} tone="text-emerald-300" />
+                <MemberMiniCard label="Ranking" value={posicion ? `#${posicion}` : '—'} tone="text-indigo-300" />
+                <MemberMiniCard label="Promedio equipo" value={`${promedioEquipo}%`} tone="text-white" />
+                <MemberMiniCard label="Tareas urgentes" value={tareasUrgentes.length} tone="text-red-300" />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/5 bg-black/20 p-4">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-white/35">Tareas urgentes</p>
+              <div className="mt-3 space-y-2">
+                {tareasUrgentes.length === 0 ? (
+                  <p className="text-sm text-white/45">No hay urgencias inmediatas.</p>
+                ) : (
+                  tareasUrgentes.map(t => (
+                    <TaskRow
+                      key={t.id}
+                      tarea={t}
+                      onClick={() => {
+                        if (esCompletada(t) || t.estado === 'no_completada') {
+                          setTareaDetalle(t)
+                        } else {
+                          setTareaActiva(t)
+                        }
+                      }}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </Panel>
+      </div>
 
       <Panel className="p-6">
-        <div className="flex items-center justify-between gap-4 mb-5">
-          <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Estado general</p>
-            <h2 className="text-white font-semibold">Resumen rápido</h2>
-          </div>
-          <Badge className="bg-gray-800 text-gray-300 border-gray-700">
-            {isLoading ? 'Cargando...' : 'Actualizado'}
-          </Badge>
+        <SectionTitle
+          eyebrow="Resumen rápido"
+          title="Estado general"
+          subtitle="Una lectura rápida para saber cuánta carga sigue abierta."
+        />
+        <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
+          <StatCard label="Abiertas" value={tareasIntegrante.filter(t => !esCompletada(t)).length} helper="tareas no cerradas" />
+          <StatCard label="Fuera de plazo" value={tareasIntegrante.filter(t => t.alerta === 'fuera_de_plazo' && !esCompletada(t)).length} helper="requieren revisión" className="text-red-300" />
+          <StatCard label="Recurrentes" value={recurrentes.length} helper="trabajo repetitivo" className="text-blue-300" />
+          <StatCard label="Ciclo" value={ciclo.length} helper="trabajo del periodo" className="text-indigo-300" />
         </div>
-
-        {isLoading ? (
-          <div className="flex justify-center py-10">
-            <div className="w-6 h-6 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Pendientes activas</p>
-              <p className="text-2xl font-bold text-white mt-1">
-                {tareasIntegrante.filter(t => !esCompletada(t) && t.estado !== 'no_completada').length}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Con atraso</p>
-              <p className="text-2xl font-bold text-yellow-400 mt-1">{completadasAtraso + atrasadas}</p>
-            </div>
-            <div className="rounded-2xl border border-gray-800 bg-gray-950/40 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-gray-500">Sin completar</p>
-              <p className="text-2xl font-bold text-red-400 mt-1">{sinCompletar}</p>
-            </div>
-          </div>
-        )}
-      </Panel>
-
-      <Panel className="p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <ListChecks className="w-5 h-5 text-green-400" />
-          <h2 className="text-white font-semibold">Tareas pendientes</h2>
-        </div>
-
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <div className="w-6 h-6 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : tareasIntegrante.filter(t => !esCompletada(t) && t.estado !== 'no_completada').length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-gray-700 bg-gray-950/30 p-8 text-center">
-            <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
-            <p className="text-gray-300 font-medium">¡Todo al día!</p>
-            <p className="text-gray-500 text-sm">No hay tareas pendientes para este integrante</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {tareasIntegrante
-              .filter(t => !esCompletada(t) && t.estado !== 'no_completada')
-              .map(tarea => (
-                <TaskRow key={tarea.id} tarea={tarea} onClick={() => setTareaActiva(tarea)} />
-              ))}
-          </div>
-        )}
       </Panel>
 
       {tareaDetalle && (
@@ -430,7 +604,7 @@ export default function DetalleIntegrante({ cicloSeleccionado }) {
           tarea={tareaActiva}
           onClose={() => setTareaActiva(null)}
           onCompletada={() => {
-            queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
+            queryClient.invalidateQueries({ queryKey: ['tareas'] })
             setTareaActiva(null)
           }}
         />
