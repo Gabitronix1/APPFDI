@@ -58,9 +58,14 @@ function StatCard({ icon: Icon, label, value, color, sub, onClick }) {
   )
 }
 
-function TareaRow({ tarea, onClick }) {
-  const esFueraPlazo = tarea.alerta === 'fuera_de_plazo' && tarea.estado !== 'completada'
-  const borderColor = {
+function TareaRow({ tarea, onClick, esCicloCerrado }) {
+  const esFueraPlazo = !esCicloCerrado &&
+    tarea.alerta === 'fuera_de_plazo' &&
+    tarea.estado !== 'completada' &&
+    tarea.estado !== 'completada_con_atraso'
+   const borderColor = esCicloCerrado
+    ? 'border-gray-800'
+     : {
     ok:             'border-gray-800',
     por_vencer:     'border-amber-500',
     fuera_de_plazo: 'border-red-500',
@@ -588,7 +593,9 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
         ) : (
           <div className="space-y-3">
             {misPendientesActivas.map(tarea => (
-              <TareaRow key={tarea.id} tarea={tarea} onClick={() => onClickTarea(tarea)} />
+              <TareaRow key={tarea.id} tarea={tarea}
+                esCicloCerrado={esCicloCerrado}
+                onClick={() => handleClickTarea(tarea)} />
             ))}
           </div>
         )}
