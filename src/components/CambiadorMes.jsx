@@ -46,28 +46,30 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
 
   const isPending = creando || eliminando
 
-  function handleConfirmar() {
-    if (!confirmando) return
-    if (confirmando.tipo === 'crear') {
-      crearCiclo({ mes: confirmando.mes, anio: confirmando.anio }, {
-        onSuccess: (nuevoCiclo) => {
-          mostrarExito(`${nombreCierre(confirmando.mes, confirmando.anio)} creado`)
-          setConfirmando(null)
-          onCambiarCiclo(nuevoCiclo)
-        }
-      })
-    }
-    if (confirmando.tipo === '') {
-      const fallback = anterior ?? siguiente
-      Ciclo(cicloSeleccionado.id, {
-        onSuccess: () => {
-          mostrarExito('Cierre eliminado')
-          setConfirmando(null)
-          if (fallback) onCambiarCiclo(fallback)
-        }
-      })
-    }
+ function handleConfirmar() {
+  if (!confirmando) return
+
+  if (confirmando.tipo === 'crear') {
+    crearCiclo({ mes: confirmando.mes, anio: confirmando.anio }, {
+      onSuccess: (nuevoCiclo) => {
+        mostrarExito(`${nombreCierre(confirmando.mes, confirmando.anio)} creado`)
+        setConfirmando(null)
+        onCambiarCiclo(nuevoCiclo)
+      }
+    })
   }
+
+  if (confirmando.tipo === 'eliminar') {
+    const fallback = anterior ?? siguiente
+    eliminarCiclo(cicloSeleccionado.id, {
+      onSuccess: () => {
+        mostrarExito('Cierre eliminado')
+        setConfirmando(null)
+        if (fallback) onCambiarCiclo(fallback)
+      }
+    })
+  }
+}
 
   function mostrarExito(msg) {
     setExito(msg)
