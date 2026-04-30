@@ -66,6 +66,9 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           fecha_termino:  form.fecha_termino,
           estado:         'pendiente',
           observaciones:  form.observaciones.trim() || null,
+          tipo_tarea:      'adicional',
+          mes_calendario:  new Date().getMonth() + 1,
+          anio_calendario: new Date().getFullYear(),
         })
       if (errTarea) throw errTarea
 

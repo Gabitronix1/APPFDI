@@ -14,6 +14,11 @@ const MESES = [
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
 
+function nombreCierre(mes, anio) {
+  if (mes === 1) return `Cierre de Diciembre ${anio - 1}`
+  return `Cierre de ${MESES[mes - 2]} ${anio}`
+}
+
 const ESTADO_STYLES = {
   pendiente:             { badge: 'bg-gray-700 text-gray-300',     label: 'Pendiente' },
   en_progreso:           { badge: 'bg-blue-800 text-blue-300',     label: 'En progreso' },
@@ -109,7 +114,7 @@ export default function DetalleDepto() {
         const pct = Math.round((completadas / tareasHist.length) * 100)
 
         results.push({
-          mes:   `${MESES[c.mes - 1].slice(0, 3)} ${c.anio}`,
+          mes: nombreCierre(c.mes, c.anio).replace('Cierre de ', ''),
           pct,
           completadas,
           total: tareasHist.length,
@@ -148,7 +153,7 @@ export default function DetalleDepto() {
     setTareaActiva(null)
   }
 
-  const tituloCiclo = ciclo ? `${MESES[ciclo.mes - 1]} ${ciclo.anio}` : ''
+  const tituloCiclo = ciclo ? nombreCierre(ciclo.mes, ciclo.anio) : ''
 
   // Tooltip personalizado para el gráfico
   function CustomTooltip({ active, payload, label }) {
