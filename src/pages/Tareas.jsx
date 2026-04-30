@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TaskModal from '../components/TaskModal'
-import { CheckCircle2, Clock, AlertCircle, Filter, Plus, Trash2, RefreshCw, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
+import { CheckCircle2, Clock, AlertCircle, Filter, Plus, Trash2, RefreshCw, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react'
 import NuevaTareaModal from '../components/NuevaTareaModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
 
@@ -27,6 +27,7 @@ const ALERTA_BORDER = {
   por_vencer:     'border-amber-500',
   fuera_de_plazo: 'border-red-500',
 }
+
 function TareaItem({ tarea, profile, onClickTarea, onEliminar }) {
   const esFueraPlazo = tarea.alerta === 'fuera_de_plazo' && tarea.estado !== 'completada'
   const estilos = esFueraPlazo
@@ -65,7 +66,7 @@ function TareaItem({ tarea, profile, onClickTarea, onEliminar }) {
         <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${estilos.badge}`}>
           {estilos.label}
         </span>
-        {profile?.rol === 'admin' && (
+        {profile?.rol === 'admin' && onEliminar && (
           <button
             onClick={e => { e.stopPropagation(); onEliminar() }}
             className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition"
@@ -77,22 +78,21 @@ function TareaItem({ tarea, profile, onClickTarea, onEliminar }) {
     </div>
   )
 }
+
 export default function Tareas({ cicloSeleccionado }) {
   const { profile }  = useAuth()
   const queryClient  = useQueryClient()
-  const [soloMias, setSoloMias]               = useState(false)
-  const [filtroArea, setFiltroArea]           = useState('todas')
-  const [tareaActiva, setTareaActiva]         = useState(null)
-  const [mostrarNueva, setMostrarNueva]       = useState(false)
-  const [eliminando, setEliminando]           = useState(null)
+  const [soloMias, setSoloMias]                     = useState(false)
+  const [filtroArea, setFiltroArea]                 = useState('todas')
+  const [tareaActiva, setTareaActiva]               = useState(null)
+  const [mostrarNueva, setMostrarNueva]             = useState(false)
+  const [eliminando, setEliminando]                 = useState(null)
   const [eliminarRecurrente, setEliminarRecurrente] = useState(false)
-  const [loadingEliminar, setLoadingEliminar] = useState(false)
-  const [verRecurrentes, setVerRecurrentes] = useState(true)
-  const [verNuevas, setVerNuevas]           = useState(true)
-  const [tareaDetalle, setTareaDetalle] = useState(null)
+  const [loadingEliminar, setLoadingEliminar]       = useState(false)
+  const [verRecurrentes, setVerRecurrentes]         = useState(true)
+  const [verNuevas, setVerNuevas]                   = useState(true)
+  const [tareaDetalle, setTareaDetalle]             = useState(null)
 
-  console.log('Profile departamento:', profile?.departamento)
-  console.log('Profile rol:', profile?.rol)
   const { data: tareas = [], isLoading } = useQuery({
     queryKey: ['tareas', cicloSeleccionado?.id, profile?.departamento],
     enabled:  !!cicloSeleccionado?.id && !!profile?.departamento,
@@ -102,11 +102,9 @@ export default function Tareas({ cicloSeleccionado }) {
         .select('*')
         .eq('ciclo_id', cicloSeleccionado.id)
         .order('fecha_termino', { ascending: true })
-
       if (profile?.rol !== 'gerente') {
         query = query.eq('departamento', profile?.departamento)
       }
-      
       const { data, error } = await query
       if (error) throw error
       return data ?? []
@@ -120,6 +118,7 @@ export default function Tareas({ cicloSeleccionado }) {
     if (filtroArea !== 'todas' && t.area !== filtroArea) return false
     return true
   })
+
   const tareasRecurrentes = tareasFiltradas.filter(t => t.template_id)
   const tareasNuevas      = tareasFiltradas.filter(t => !t.template_id)
 
@@ -134,18 +133,14 @@ export default function Tareas({ cicloSeleccionado }) {
     try {
       await supabase.from('evidencias').delete().eq('task_id', eliminando)
       await supabase.from('task_completions').delete().eq('task_id', eliminando)
-
       const { error } = await supabase.from('tasks').delete().eq('id', eliminando)
       if (error) throw error
-
-      // Si se marcó eliminar recurrente, desactivar la plantilla
       if (eliminarRecurrente && tareaAEliminar?.template_id) {
         await supabase
           .from('task_templates')
           .update({ activo: false })
           .eq('id', tareaAEliminar.template_id)
       }
-
       queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
       setEliminando(null)
       setEliminarRecurrente(false)
@@ -156,10 +151,22 @@ export default function Tareas({ cicloSeleccionado }) {
     }
   }
 
-  const tituloCiclo    = cicloSeleccionado
-    ? `${MESES[cicloSeleccionado.mes - 1]} ${cicloSeleccionado.anio}`
-    : ''
+  function nombreCierre(mes, anio) {
+    if (mes === 1) return `Cierre de Diciembre ${anio - 1}`
+    return `Cierre de ${MESES[mes - 2]} ${anio}`
+  }
+
+  const tituloCiclo    = cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : ''
+  const esCicloCerrado = cicloSeleccionado?.estado === 'cerrado'
   const tareaAEliminar = tareas.find(t => t.id === eliminando)
+
+  function handleClickTarea(tarea) {
+    if (esCicloCerrado || tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada') {
+      setTareaDetalle(tarea)
+    } else {
+      setTareaActiva(tarea)
+    }
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -173,18 +180,20 @@ export default function Tareas({ cicloSeleccionado }) {
             {' · '}{tareasFiltradas.length} tareas
           </p>
         </div>
-        <button
-          onClick={() => setMostrarNueva(true)}
-          className="flex items-center gap-2 bg-green-700 hover:bg-green-600
-                     text-white text-sm font-medium px-4 py-2 rounded-lg transition"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Nueva tarea</span>
-        </button>
+        {!esCicloCerrado && (
+          <button
+            onClick={() => setMostrarNueva(true)}
+            className="flex items-center gap-2 bg-green-700 hover:bg-green-600
+                       text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Nueva tarea</span>
+          </button>
+        )}
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-4">
         <button
           onClick={() => setSoloMias(!soloMias)}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition
@@ -193,7 +202,6 @@ export default function Tareas({ cicloSeleccionado }) {
           <Filter className="w-4 h-4" />
           Solo mis tareas
         </button>
-
         <select
           value={filtroArea}
           onChange={e => setFiltroArea(e.target.value)}
@@ -204,104 +212,93 @@ export default function Tareas({ cicloSeleccionado }) {
           ))}
         </select>
       </div>
-      
-    
 
-{/* Lista */}
-{isLoading ? (
-  <div className="flex justify-center py-16">
-    <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-  </div>
-) : tareasFiltradas.length === 0 ? (
-  <div className="text-center py-16 text-gray-500">No hay tareas con ese filtro</div>
-) : (
-  <div className="space-y-6">
+      {/* Banner ciclo cerrado */}
+      {esCicloCerrado && (
+        <div className="flex items-center gap-2 bg-gray-800 border border-gray-700
+                        rounded-xl px-4 py-3 mb-6 text-sm text-gray-400">
+          <Lock className="w-4 h-4 shrink-0" />
+          Este cierre está cerrado — solo lectura. No se pueden agregar ni modificar tareas.
+        </div>
+      )}
 
-    {/* Tareas recurrentes */}
-    {tareasRecurrentes.length > 0 && (
-      <div>
-        <button
-          onClick={() => setVerRecurrentes(!verRecurrentes)}
-          className="flex items-center gap-2 mb-3 group w-full"
-        >
-          <RefreshCw className="w-4 h-4 text-blue-400" />
-          <span className="text-sm font-semibold text-gray-300">
-            Tareas recurrentes
-          </span>
-          <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
-            {tareasRecurrentes.length}
-          </span>
-          <span className="ml-auto text-gray-600">
-            {verRecurrentes
-              ? <ChevronUp className="w-4 h-4" />
-              : <ChevronDown className="w-4 h-4" />}
-          </span>
-        </button>
-        {verRecurrentes && (
-          <div className="space-y-3">
-            {tareasRecurrentes.map(tarea => (
-              <TareaItem
-                key={tarea.id}
-                tarea={tarea}
-                profile={profile}
-                onClickTarea={() => {
-                    if (tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada') {
-                        setTareaDetalle(tarea)
-                    } else {
-                        setTareaActiva(tarea)
-                    }
-                }}
-                onEliminar={() => setEliminando(tarea.id)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    )}
+      {/* Lista */}
+      {isLoading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : tareasFiltradas.length === 0 ? (
+        <div className="text-center py-16 text-gray-500">No hay tareas con ese filtro</div>
+      ) : (
+        <div className="space-y-6">
 
-    {/* Tareas nuevas del ciclo */}
-    {tareasNuevas.length > 0 && (
-      <div>
-        <button
-          onClick={() => setVerNuevas(!verNuevas)}
-          className="flex items-center gap-2 mb-3 group w-full"
-        >
-          <Sparkles className="w-4 h-4 text-amber-400" />
-          <span className="text-sm font-semibold text-gray-300">
-            Tareas del ciclo
-          </span>
-          <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
-            {tareasNuevas.length}
-          </span>
-          <span className="ml-auto text-gray-600">
-            {verNuevas
-              ? <ChevronUp className="w-4 h-4" />
-              : <ChevronDown className="w-4 h-4" />}
-          </span>
-        </button>
-        {verNuevas && (
-          <div className="space-y-3">
-            {tareasNuevas.map(tarea => (
-              <TareaItem
-                key={tarea.id}
-                tarea={tarea}
-                profile={profile}
-                onClickTarea={() => {
-                    if (tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada') {
-                        setTareaDetalle(tarea)
-                    } else {
-                            setTareaActiva(tarea)
-                        }
-                    }}
-                onEliminar={() => setEliminando(tarea.id)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    )}
-  </div>
-)}
+          {/* Cierre del mes */}
+          {tareasRecurrentes.length > 0 && (
+            <div>
+              <button
+                onClick={() => setVerRecurrentes(!verRecurrentes)}
+                className="flex items-center gap-2 mb-3 w-full"
+              >
+                <RefreshCw className="w-4 h-4 text-blue-400" />
+                <span className="text-sm font-semibold text-gray-300">{tituloCiclo}</span>
+                <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
+                  {tareasRecurrentes.length}
+                </span>
+                <span className="ml-auto text-gray-600">
+                  {verRecurrentes ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </span>
+              </button>
+              {verRecurrentes && (
+                <div className="space-y-3">
+                  {tareasRecurrentes.map(tarea => (
+                    <TareaItem
+                      key={tarea.id}
+                      tarea={tarea}
+                      profile={profile}
+                      onClickTarea={() => handleClickTarea(tarea)}
+                      onEliminar={esCicloCerrado ? null : () => setEliminando(tarea.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tareas del mes calendario */}
+          {tareasNuevas.length > 0 && (
+            <div>
+              <button
+                onClick={() => setVerNuevas(!verNuevas)}
+                className="flex items-center gap-2 mb-3 w-full"
+              >
+                <Sparkles className="w-4 h-4 text-amber-400" />
+                <span className="text-sm font-semibold text-gray-300">
+                  Tareas de {MESES[new Date().getMonth()]} {new Date().getFullYear()}
+                </span>
+                <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
+                  {tareasNuevas.length}
+                </span>
+                <span className="ml-auto text-gray-600">
+                  {verNuevas ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </span>
+              </button>
+              {verNuevas && (
+                <div className="space-y-3">
+                  {tareasNuevas.map(tarea => (
+                    <TareaItem
+                      key={tarea.id}
+                      tarea={tarea}
+                      profile={profile}
+                      onClickTarea={() => handleClickTarea(tarea)}
+                      onEliminar={esCicloCerrado ? null : () => setEliminando(tarea.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal completar */}
       {tareaActiva && (
@@ -334,18 +331,13 @@ export default function Tareas({ cicloSeleccionado }) {
               </div>
               <h3 className="text-white font-semibold">¿Eliminar tarea?</h3>
             </div>
-
             <p className="text-gray-400 text-sm mb-2">Se eliminará permanentemente:</p>
             <p className="text-white text-sm font-medium bg-gray-800 rounded-lg px-3 py-2 mb-4">
               {tareaAEliminar?.nombre_tarea}
             </p>
-
-            {/* Casilla recurrente — solo si tiene template_id */}
             {tareaAEliminar?.template_id && (
               <label className={`flex items-start gap-3 rounded-xl px-4 py-3 mb-4 cursor-pointer border transition
-                ${eliminarRecurrente
-                  ? 'bg-red-950 border-red-700'
-                  : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
+                ${eliminarRecurrente ? 'bg-red-950 border-red-700' : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
               >
                 <input
                   type="checkbox"
@@ -361,13 +353,11 @@ export default function Tareas({ cicloSeleccionado }) {
                 </div>
               </label>
             )}
-
             <p className="text-gray-500 text-xs mb-6">
               {eliminarRecurrente
                 ? 'Se eliminará del ciclo actual y no se generará en futuros ciclos.'
                 : 'Solo se eliminará del ciclo actual. Los ciclos futuros no se verán afectados.'}
             </p>
-
             <div className="flex gap-3">
               <button
                 onClick={() => { setEliminando(null); setEliminarRecurrente(false) }}
@@ -392,13 +382,14 @@ export default function Tareas({ cicloSeleccionado }) {
           </div>
         </div>
       )}
+
       {/* Panel detalle tarea */}
-{tareaDetalle && (
-  <DetalleTareaPanel
-    tarea={tareaDetalle}
-    onClose={() => setTareaDetalle(null)}
-  />
-)}
+      {tareaDetalle && (
+        <DetalleTareaPanel
+          tarea={tareaDetalle}
+          onClose={() => setTareaDetalle(null)}
+        />
+      )}
     </div>
   )
 }
