@@ -231,7 +231,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-800/30">
           <div className="flex items-center gap-2">
             <RefreshCw className="w-4 h-4 text-blue-400" />
-            <h2 className="text-white font-semibold">{tituloCiclo}</h2>
+            <h2 className="text-white font-semibold">Tareas recurrentes</h2>
             {esCicloCerrado
               ? <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">🔒 cerrado</span>
               : <span className="text-xs text-green-400 bg-green-900/30 px-2 py-0.5 rounded-full">● activo</span>}
@@ -279,7 +279,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400" />
               <h2 className="text-white font-semibold">
-                Tareas de {MESES[new Date().getMonth()]} {new Date().getFullYear()}
+                Tareas de {MESES[new Date().getMonth()]} {new Date().getFullYear()} ✨
               </h2>
             </div>
             <span className={`text-2xl font-bold ${textoAdic}`}>{adicPct}%</span>
