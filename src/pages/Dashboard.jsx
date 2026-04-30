@@ -80,7 +80,11 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
         no_completada:         'bg-gray-900 text-gray-600',
       }[tarea.estado] ?? 'bg-gray-800 text-gray-300'
 
-  const label = esFueraPlazo ? 'Fuera de plazo' : tarea.estado.replace(/_/g, ' ')
+  const label = esFueraPlazo ? 'Fuera de plazo'
+    : tarea.estado === 'con_atraso' ? 'No completada'
+    : tarea.estado === 'no_completada' ? 'No completada'
+    : tarea.estado === 'completada_con_atraso' ? 'Con atraso'
+    : tarea.estado.replace(/_/g, ' ')
 
   return (
     <div
