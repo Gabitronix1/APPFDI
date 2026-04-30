@@ -382,7 +382,6 @@ function DashboardAdmin({ tareas, cicloSeleccionado, profile, isLoading }) {
     })
     .sort((a, b) => a.pct - b.pct || b.pendientes - a.pendientes || a.nombre.localeCompare(b.nombre))
 
-  const tareasRecurrentes = tareas.filter(t => getTipoTarea(t) === 'recurrente')
   const tareasCiclo = tareas.filter(t => getTipoTarea(t) === 'ciclo')
 
   const { data: historial = [] } = useQuery({
