@@ -10,6 +10,7 @@ import Register from './pages/Register'
 import Proyectos from './pages/Proyectos'
 import DashboardGerente from './pages/DashboardGerente'
 import DetalleDepto from './pages/DetalleDepto'
+import DetalleIntegrante from './pages/DetalleIntegrante'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
@@ -92,6 +93,12 @@ function AppInner() {
         <Route path="/gerente/depto/:depto" element={
           <PrivateRoute>
             <DetalleDepto />
+          </PrivateRoute>
+        } />
+
+        <Route path="/integrantes/:integranteSlug" element={
+          <PrivateRoute>
+            <DetalleIntegrante cicloSeleccionado={cicloSeleccionado} />
           </PrivateRoute>
         } />
 
