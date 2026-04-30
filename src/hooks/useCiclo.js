@@ -97,28 +97,33 @@ export function useEliminarCiclo() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (cicloId) => {
-      // 1. Obtener IDs de tareas del ciclo
-      const { data: tareasDelCiclo } = await supabase
+      console.log('Eliminando cicloId:', cicloId)
+      
+      const { data: tareasDelCiclo, error: errTareas } = await supabase
         .from('tasks')
         .select('id')
         .eq('ciclo_id', cicloId)
+      
+      console.log('Tareas encontradas:', tareasDelCiclo)
+      console.log('Error tareas:', errTareas)
 
       const taskIds = tareasDelCiclo?.map(t => t.id) ?? []
+      console.log('TaskIds:', taskIds)
 
-      // 2. Borrar evidencias y completions si hay tareas
       if (taskIds.length > 0) {
         await supabase.from('evidencias').delete().in('task_id', taskIds)
         await supabase.from('task_completions').delete().in('task_id', taskIds)
       }
 
-      // 3. Borrar tareas
       await supabase.from('tasks').delete().eq('ciclo_id', cicloId)
 
-      // 4. Borrar ciclo
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('monthly_cycles')
         .delete()
         .eq('id', cicloId)
+      
+      console.log('Resultado eliminar ciclo:', data, error)
+      
       if (error) throw error
     },
     onSuccess: () => {
