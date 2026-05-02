@@ -29,10 +29,11 @@ function formatFecha(fechaStr) {
 }
 
 const ESTADO_CONFIG = {
-  completada:            { color: 'text-green-400',  bg: 'bg-green-900/30 border-green-800',   icono: CheckCircle2, label: 'Completada a tiempo' },
-  completada_con_atraso: { color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-800', icono: Clock,        label: 'Completada con atraso' },
-  con_atraso:            { color: 'text-red-400',    bg: 'bg-red-900/30 border-red-800',       icono: AlertCircle,  label: 'No completada — Atrasada' },
+  completada:            { color: 'text-green-400',  bg: 'bg-green-900/30 border-green-800',   icono: CheckCircle2, label: 'Completada' },
+  completada_con_atraso: { color: 'text-yellow-400', bg: 'bg-yellow-900/30 border-yellow-800', icono: Clock,        label: 'Entregada' },
+  con_atraso:            { color: 'text-red-400',    bg: 'bg-red-900/30 border-red-800',       icono: AlertCircle,  label: 'Atrasada' },
   no_completada:         { color: 'text-gray-500',   bg: 'bg-gray-800/50 border-gray-700',     icono: AlertCircle,  label: 'No completada' },
+  pendiente:             { color: 'text-gray-400',   bg: 'bg-gray-800/50 border-gray-700',     icono: Clock,        label: 'Pendiente' },
 }
 
 // ─── COMPONENTE DE AJUSTE DE CALIFICACIÓN ─────────────────────────────────────
