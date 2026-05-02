@@ -266,15 +266,15 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard icon={ListChecks} label="Total" value={tareasCierre.length} color="bg-blue-700" sub="tareas del cierre" />
             <StatCard
-              icon={CheckCircle2} label="Completadas" value={completadas} color="bg-green-700" sub="100%"
+              icon={CheckCircle2} label="Completadas" value={cierreCompletadas} color="bg-green-700" sub="100%"
               onClick={!esCicloCerrado ? () => setModalFiltro('completadas') : undefined}
             />
             <StatCard
-              icon={Clock} label="Entregadas" value={conAtraso} color="bg-yellow-700" sub="Menor a 100%"
+              icon={Clock} label="Entregadas" value={cierreAtraso} color="bg-yellow-700" sub="Menor a 100%"
               onClick={!esCicloCerrado ? () => setModalFiltro('atraso') : undefined}
             />
             <StatCard
-              icon={AlertCircle} label="Sin completar" value={atrasadas + noCompletadas + pendientes}
+              icon={AlertCircle} label="Sin completar" value={cierrePendientes + cierreAtrasadas + cierreNoComp}
               color="bg-red-700" sub={`${cierrePendientes} pend. · ${cierreAtrasadas + cierreNoComp} vencidas`}
               onClick={!esCicloCerrado ? () => setModalFiltro('sinCompletar') : undefined}
             />
