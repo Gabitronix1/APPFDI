@@ -20,12 +20,10 @@ function nombreCierre(mes, anio) {
 
 const ESTADO_STYLES = {
   pendiente:             { badge: 'bg-gray-700 text-gray-300',     label: 'Pendiente' },
-  en_progreso:           { badge: 'bg-blue-800 text-blue-300',     label: 'En progreso' },
+  con_atraso:            { badge: 'bg-red-900 text-red-300',       label: 'Atrasada' },
   completada:            { badge: 'bg-green-800 text-green-300',   label: 'Completada' },
-  completada_con_atraso: { badge: 'bg-yellow-900 text-yellow-300', label: 'Completada con atraso' },
-  con_atraso:            { badge: 'bg-red-900 text-red-300',       label: 'No completada' },
+  completada_con_atraso: { badge: 'bg-yellow-900 text-yellow-300', label: 'Entregada' },
   no_completada:         { badge: 'bg-gray-800 text-gray-500',     label: 'No completada' },
-  fuera_de_plazo:        { badge: 'bg-orange-900 text-orange-300', label: 'Fuera de plazo' },
 }
 
 function PctBadge({ pct }) {
@@ -65,10 +63,10 @@ function TareaItem({ tarea, onClick, esCicloCerrado }) {
       <div className="shrink-0">
         {tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso'
           ? <CheckCircle2 className="w-5 h-5 text-green-500" />
+          : tarea.estado === 'con_atraso' && !esCicloCerrado
+          ? <AlertCircle className="w-5 h-5 text-red-400" />
           : tarea.estado === 'no_completada' || tarea.estado === 'con_atraso'
           ? <AlertCircle className="w-5 h-5 text-gray-500" />
-          : esFueraPlazo
-          ? <AlertCircle className="w-5 h-5 text-orange-400" />
           : <Clock className="w-5 h-5 text-gray-500" />}
       </div>
       <div className="flex-1 min-w-0">

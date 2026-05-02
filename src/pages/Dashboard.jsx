@@ -72,19 +72,20 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
   }[tarea.alerta] ?? 'border-gray-800'
 
   const badge = esFueraPlazo ? 'bg-orange-900 text-orange-300'
-    : {
-        pendiente:             'bg-gray-800 text-gray-300',
-        en_progreso:           'bg-blue-900 text-blue-300',
-        con_atraso:            'bg-red-900 text-red-300',
-        completada_con_atraso: 'bg-yellow-900 text-yellow-300',
-        no_completada:         'bg-gray-900 text-gray-600',
-      }[tarea.estado] ?? 'bg-gray-800 text-gray-300'
+  : {
+      pendiente:             'bg-gray-800 text-gray-300',
+      con_atraso:            'bg-red-900 text-red-300',
+      completada_con_atraso: 'bg-yellow-900 text-yellow-300',
+      no_completada:         'bg-gray-800 text-gray-500',
+    }[tarea.estado] ?? 'bg-gray-800 text-gray-300'
 
-  const label = esFueraPlazo ? 'Fuera de plazo'
-    : tarea.estado === 'con_atraso' ? 'No completada'
-    : tarea.estado === 'no_completada' ? 'No completada'
-    : tarea.estado === 'completada_con_atraso' ? 'Con atraso'
-    : tarea.estado.replace(/_/g, ' ')
+const label = esFueraPlazo ? 'Fuera de plazo'
+  : tarea.estado === 'con_atraso'            ? 'Atrasada'
+  : tarea.estado === 'no_completada'         ? 'No completada'
+  : tarea.estado === 'completada_con_atraso' ? 'Entregada'
+  : tarea.estado === 'completada'            ? 'Completada'
+  : tarea.estado === 'pendiente'             ? 'Pendiente'
+  : tarea.estado.replace(/_/g, ' ')
 
   return (
     <div
@@ -265,15 +266,15 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard icon={ListChecks} label="Total" value={tareasCierre.length} color="bg-blue-700" sub="tareas del cierre" />
             <StatCard
-              icon={CheckCircle2} label="Completadas" value={cierreCompletadas} color="bg-green-700" sub="En fecha"
+              icon={CheckCircle2} label="Completadas" value={completadas} color="bg-green-700" sub="100%"
               onClick={!esCicloCerrado ? () => setModalFiltro('completadas') : undefined}
             />
             <StatCard
-              icon={Clock} label="Con atraso" value={cierreAtraso} color="bg-yellow-700" sub="Completadas tarde"
+              icon={Clock} label="Entregadas" value={conAtraso} color="bg-yellow-700" sub="Menor a 100%"
               onClick={!esCicloCerrado ? () => setModalFiltro('atraso') : undefined}
             />
             <StatCard
-              icon={AlertCircle} label="Sin completar" value={cierrePendientes + cierreAtrasadas + cierreNoComp}
+              icon={AlertCircle} label="Sin completar" value={atrasadas + noCompletadas + pendientes}
               color="bg-red-700" sub={`${cierrePendientes} pend. · ${cierreAtrasadas + cierreNoComp} vencidas`}
               onClick={!esCicloCerrado ? () => setModalFiltro('sinCompletar') : undefined}
             />
@@ -436,7 +437,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
         <ModalListaTareas
           titulo={
             modalFiltro === 'completadas'  ? `Completadas en fecha (${cierreCompletadas})`
-            : modalFiltro === 'atraso'     ? `Completadas con atraso (${cierreAtraso})`
+            : modalFiltro === 'atraso'     ? `Entregadas — menor a 100% (${cierreAtraso})`
             : `Sin completar (${cierrePendientes + cierreAtrasadas + cierreNoComp})`
           }
           tareas={tareasCierre.filter(t =>
