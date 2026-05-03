@@ -625,8 +625,8 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
           <div className="space-y-3">
             {misPendientesActivas.map(tarea => (
               <TareaRow key={tarea.id} tarea={tarea}
-                esCicloCerrado={esCicloCerrado}
-                onClick={() => handleClickTarea(tarea)} />
+                esCicloCerrado={false}
+                onClick={() => onClickTarea(tarea)} />
             ))}
           </div>
         )}
