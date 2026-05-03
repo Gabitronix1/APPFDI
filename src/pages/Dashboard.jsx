@@ -63,29 +63,29 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
     tarea.alerta === 'fuera_de_plazo' &&
     tarea.estado !== 'completada' &&
     tarea.estado !== 'completada_con_atraso'
-   const borderColor = esCicloCerrado
+  const borderColor = esCicloCerrado
     ? 'border-gray-800'
-     : {
-    ok:             'border-gray-800',
-    por_vencer:     'border-amber-500',
-    fuera_de_plazo: 'border-red-500',
-  }[tarea.alerta] ?? 'border-gray-800'
+    : {
+        ok:             'border-gray-800',
+        por_vencer:     'border-amber-500',
+        fuera_de_plazo: 'border-red-500',
+      }[tarea.alerta] ?? 'border-gray-800'
 
   const badge = esFueraPlazo ? 'bg-orange-900 text-orange-300'
-  : {
-      pendiente:             'bg-gray-800 text-gray-300',
-      con_atraso:            'bg-red-900 text-red-300',
-      completada_con_atraso: 'bg-yellow-900 text-yellow-300',
-      no_completada:         'bg-gray-800 text-gray-500',
-    }[tarea.estado] ?? 'bg-gray-800 text-gray-300'
+    : {
+        pendiente:             'bg-gray-800 text-gray-300',
+        con_atraso:            'bg-red-900 text-red-300',
+        completada_con_atraso: 'bg-yellow-900 text-yellow-300',
+        no_completada:         'bg-gray-800 text-gray-500',
+      }[tarea.estado] ?? 'bg-gray-800 text-gray-300'
 
-const label = esFueraPlazo ? 'Fuera de plazo'
-  : tarea.estado === 'con_atraso'            ? 'Atrasada'
-  : tarea.estado === 'no_completada'         ? 'No completada'
-  : tarea.estado === 'completada_con_atraso' ? 'Entregada'
-  : tarea.estado === 'completada'            ? 'Completada'
-  : tarea.estado === 'pendiente'             ? 'Pendiente'
-  : tarea.estado.replace(/_/g, ' ')
+  const label = esFueraPlazo ? 'Fuera de plazo'
+    : tarea.estado === 'con_atraso'            ? 'Atrasada'
+    : tarea.estado === 'no_completada'         ? 'No completada'
+    : tarea.estado === 'completada_con_atraso' ? 'Entregada'
+    : tarea.estado === 'completada'            ? 'Completada'
+    : tarea.estado === 'pendiente'             ? 'Pendiente'
+    : tarea.estado.replace(/_/g, ' ')
 
   return (
     <div
@@ -157,11 +157,9 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
   const [tareaDetalle, setTareaDetalle] = useState(null)
   const [tareaActiva, setTareaActiva]   = useState(null)
 
-  // Separar tareas por tipo
-  const tareasCierre     = tareas.filter(t => t.tipo_tarea === 'cierre' || t.template_id)
+  const tareasCierre      = tareas.filter(t => t.tipo_tarea === 'cierre' || t.template_id)
   const tareasAdicionales = tareas.filter(t => t.tipo_tarea === 'adicional' && !t.template_id)
 
-  // Métricas del cierre
   const cierreCompletadas = tareasCierre.filter(t => t.estado === 'completada').length
   const cierreAtraso      = tareasCierre.filter(t => t.estado === 'completada_con_atraso').length
   const cierrePendientes  = tareasCierre.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
@@ -170,13 +168,17 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
   const cierrePct         = tareasCierre.length
     ? Math.round(((cierreCompletadas + cierreAtraso) / tareasCierre.length) * 100) : 0
 
-  // Métricas adicionales
+  // Calidad promedio cierre
+  const cierreConPct  = tareasCierre.filter(t => t.porcentaje_cumplimiento !== null)
+  const cierrePctCal  = cierreConPct.length
+    ? Math.round(cierreConPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / cierreConPct.length)
+    : null
+
   const adicCompletadas = tareasAdicionales.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
   const adicPendientes  = tareasAdicionales.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
   const adicPct         = tareasAdicionales.length
     ? Math.round((adicCompletadas / tareasAdicionales.length) * 100) : 0
 
-  // Mi equipo — por integrante
   const porIntegrante = tareas.reduce((acc, t) => {
     const nombre = t.responsable_nombre ?? 'Sin asignar'
     if (!acc[nombre]) acc[nombre] = { total: 0, completadas: 0, pendientes: 0, atrasadas: 0, fueraPlazo: 0 }
@@ -188,7 +190,6 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
     return acc
   }, {})
 
-  // Historial 12 meses
   const { data: historial = [] } = useQuery({
     queryKey: ['historial-admin', profile?.departamento],
     queryFn: async () => {
@@ -208,17 +209,15 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           .eq('departamento', profile?.departamento)
         if (!tareasHist?.length) continue
         const comp = tareasHist.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
+        const conPct = tareasHist.filter(t => t.porcentaje_cumplimiento !== null)
         results.push({
           mes: nombreCierre(c.mes, c.anio).replace('Cierre de ', ''),
           pct: Math.round((comp / tareasHist.length) * 100),
           completadas: comp,
           total: tareasHist.length,
-
-          pctPromedio: (() => {
-          const conPct = tareasHist.filter(t => t.porcentaje_cumplimiento !== null)
-          if (!conPct.length) return Math.round((comp / tareasHist.length) * 100)
-          return Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
-          })()
+          pctPromedio: conPct.length
+            ? Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
+            : Math.round((comp / tareasHist.length) * 100)
         })
       }
       return results.reverse()
@@ -243,7 +242,6 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
 
       {/* ── BLOQUE CIERRE ─────────────────────────────────────── */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-        {/* Header cierre */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-800/30">
           <div className="flex items-center gap-2">
             <RefreshCw className="w-4 h-4 text-blue-400" />
@@ -255,46 +253,36 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           <span className={`text-2xl font-bold ${textoCierre}`}>{cierrePct}%</span>
         </div>
 
-        {/* Barra progreso cierre */}
         <div className="px-6 py-4">
+          {/* Barra completadas */}
           <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden mb-2">
-            <div
-              className={`h-3 rounded-full transition-all duration-700 ${colorCierre}`}
-              style={{ width: `${cierrePct}%` }}
-            />
+            <div className={`h-3 rounded-full transition-all duration-700 ${colorCierre}`}
+              style={{ width: `${cierrePct}%` }} />
           </div>
-
-          {/* Segunda barra calidad */}
-          {(() => {
-            const conPct = tareasCierre.filter(t => t.porcentaje_cumplimiento !== null)
-            const pctCal = conPct.length
-              ? Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
-              : null
-            return pctCal !== null ? (
-              <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden mb-2">
-                <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
-                  style={{ width: `${pctCal}%` }} />
-              </div>
-            ) : null
-          })()}
-
+          {/* Barra calidad */}
+          {cierrePctCal !== null && (
+            <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden mb-2">
+              <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
+                style={{ width: `${cierrePctCal}%` }} />
+            </div>
+          )}
           <div className="flex items-center gap-4 mb-3">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-0.5 bg-green-500 inline-block rounded" />
               <span className="text-xs text-gray-600">Tareas completadas</span>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-0.5 bg-yellow-500 inline-block rounded" />
-              <span className="text-xs text-gray-600">Calidad promedio</span>
-            </div>
-        </div>
+            {cierrePctCal !== null && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-0.5 bg-yellow-500 inline-block rounded" />
+                <span className="text-xs text-gray-600">Calidad promedio: <span className="text-yellow-400">{cierrePctCal}%</span></span>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            {cierreCompletadas + cierreAtraso} de {tareasCierre.length} tareas completadas
+            {cierreAtraso > 0 && <span className="text-yellow-600 ml-2">({cierreAtraso} entregadas)</span>}
+          </p>
 
-        <p className="text-xs text-gray-500 mb-4">
-          {cierreCompletadas + cierreAtraso} de {tareasCierre.length} tareas completadas
-          {cierreAtraso > 0 && <span className="text-yellow-600 ml-2">({cierreAtraso} entregadas)</span>}
-        </p>
-
-          {/* 4 stats del cierre */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatCard icon={ListChecks} label="Total" value={tareasCierre.length} color="bg-blue-700" sub="tareas del cierre" />
             <StatCard
@@ -330,10 +318,8 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           </div>
           <div className="px-6 py-4">
             <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden mb-3">
-              <div
-                className={`h-2 rounded-full transition-all duration-700 ${colorAdic}`}
-                style={{ width: `${adicPct}%` }}
-              />
+              <div className={`h-2 rounded-full transition-all duration-700 ${colorAdic}`}
+                style={{ width: `${adicPct}%` }} />
             </div>
             <div className="flex gap-4">
               <span className="text-xs text-green-400">✓ {adicCompletadas} completadas</span>
@@ -355,14 +341,13 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
             .sort((a, b) => {
               const pctA = a[1].total ? (a[1].completadas / a[1].total) : 0
               const pctB = b[1].total ? (b[1].completadas / b[1].total) : 0
-              return pctA - pctB // menor primero
+              return pctA - pctB
             })
             .map(([nombre, stats]) => {
               const pct   = stats.total ? Math.round((stats.completadas / stats.total) * 100) : 0
               const color = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
               const texto = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
               const iniciales = nombre.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)
-
               return (
                 <div
                   key={nombre}
@@ -371,12 +356,9 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
                   })}
                   className="flex items-center gap-4 px-6 py-4 hover:bg-gray-800/40 cursor-pointer transition group"
                 >
-                  {/* Avatar */}
                   <div className="w-9 h-9 rounded-full bg-blue-900 flex items-center justify-center shrink-0">
                     <span className="text-blue-300 text-sm font-bold">{iniciales}</span>
                   </div>
-
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1.5">
                       <p className="text-white text-sm font-medium">{nombre.split(' ')[0]} {nombre.split(' ')[1]}</p>
@@ -398,7 +380,6 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
                       )}
                     </div>
                   </div>
-
                   <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-gray-300 transition shrink-0" />
                 </div>
               )
@@ -409,10 +390,20 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
       {/* ── TENDENCIA 12 MESES ────────────────────────────────── */}
       {historial.length > 1 && (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-          <div className="flex items-center gap-2 mb-5">
+          <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-green-400" />
             <h2 className="text-white font-semibold">Tendencia de cumplimiento</h2>
             <span className="text-xs text-gray-500 ml-1">— últimos {historial.length} cierres</span>
+            <div className="ml-auto flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-0.5 bg-green-500 inline-block" />
+                <span className="text-xs text-gray-500">Tareas completadas</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-0.5 bg-yellow-500 inline-block" />
+                <span className="text-xs text-gray-500">Calidad promedio</span>
+              </div>
+            </div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={historial} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
@@ -430,35 +421,28 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
                             <span className="text-gray-400 text-xs">{p.name}:</span>
                             <span className="text-white font-bold text-sm">{p.value}%</span>
-                        </div>
-                      ))}
-                      <p className="text-gray-600 text-xs mt-1 border-t border-gray-700 pt-1">
-                        {payload[0]?.payload.completadas}/{payload[0]?.payload.total} tareas
-                      </p>
-                    </div>
-                  )
-                }
-                return null
-              }}
+                          </div>
+                        ))}
+                        <p className="text-gray-600 text-xs mt-1 border-t border-gray-700 pt-1">
+                          {payload[0]?.payload.completadas}/{payload[0]?.payload.total} tareas
+                        </p>
+                      </div>
+                    )
+                  }
+                  return null
+                }}
               />
               <Line type="monotone" dataKey="pct" stroke="#22C55E" strokeWidth={2}
                 dot={{ fill: '#22C55E', r: 4 }} activeDot={{ r: 6, fill: '#16A34A' }} name="% Tareas completadas" />
-              <Line
-                type="monotone"
-                dataKey="pctPromedio"
-                stroke="#EAB308"
-                strokeWidth={2}
-                strokeDasharray="4 4"
-                dot={{ fill: '#EAB308', r: 3 }}
-                activeDot={{ r: 5, fill: '#CA8A04' }}
-                name="Cumplimiento promedio"
-              />
+              <Line type="monotone" dataKey="pctPromedio" stroke="#EAB308" strokeWidth={2}
+                strokeDasharray="4 4" dot={{ fill: '#EAB308', r: 3 }} activeDot={{ r: 5, fill: '#CA8A04' }}
+                name="Calidad promedio" />
             </LineChart>
           </ResponsiveContainer>
         </div>
       )}
 
-      {/* ── MIS TAREAS PENDIENTES (si el admin tiene) ─────────── */}
+      {/* ── MIS TAREAS PENDIENTES ─────────────────────────────── */}
       {(() => {
         const misTareasPendientes = tareas.filter(t =>
           t.responsable_nombre === profile?.nombre &&
@@ -527,11 +511,12 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
   const misAtrasadas         = misTareas.filter(t => t.estado === 'con_atraso').length
   const miPct                = misTareas.length
     ? Math.round(((misCompletadas + misCompletadasAtraso) / misTareas.length) * 100) : 0
+
   const miPctCalidad = (() => {
-  const conPct = misTareas.filter(t => t.porcentaje_cumplimiento !== null)
-  if (!conPct.length) return null
-  return Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
-})()
+    const conPct = misTareas.filter(t => t.porcentaje_cumplimiento !== null)
+    if (!conPct.length) return null
+    return Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
+  })()
 
   const misPendientesActivas = misTareas.filter(t =>
     t.estado !== 'completada' && t.estado !== 'completada_con_atraso' && t.estado !== 'no_completada'
@@ -566,36 +551,38 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
             {miPct}%
           </span>
         </div>
-        <div className="w-full bg-gray-800 rounded-full h-4 overflow-hidden">
+        {/* Barra completadas */}
+        <div className="w-full bg-gray-800 rounded-full h-4 overflow-hidden mb-2">
           <div
             className={`h-4 rounded-full transition-all duration-700 ${miPct === 100 ? 'bg-green-500' : miPct > 50 ? 'bg-amber-500' : 'bg-red-500'}`}
             style={{ width: `${miPct}%` }}
           />
         </div>
+        {/* Barra calidad */}
         {miPctCalidad !== null && (
           <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden mb-2">
             <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
               style={{ width: `${miPctCalidad}%` }} />
-            </div>
-        </div>
-      )}
-      <div className="flex items-center justify-between mt-1">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-0.5 bg-green-500 inline-block rounded" />
-            <span className="text-xs text-gray-600">Completadas</span>
-        </div>
-        {miPctCalidad !== null && (
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-0.5 bg-yellow-500 inline-block rounded" />
-            <span className="text-xs text-gray-600">Calidad: <span className="text-yellow-400">{miPctCalidad}%</span></span>
           </div>
         )}
+        <div className="flex items-center justify-between mt-1">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-0.5 bg-green-500 inline-block rounded" />
+              <span className="text-xs text-gray-600">Completadas</span>
+            </div>
+            {miPctCalidad !== null && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-0.5 bg-yellow-500 inline-block rounded" />
+                <span className="text-xs text-gray-600">Calidad: <span className="text-yellow-400">{miPctCalidad}%</span></span>
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-gray-500">
+            Equipo: <span className="text-gray-400">{pctEquipo}%</span>
+          </p>
+        </div>
       </div>
-      <p className="text-xs text-gray-500">
-        Equipo: <span className="text-gray-400">{pctEquipo}%</span>
-      </p>
-    </div>
 
       {/* Stats personales */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -754,8 +741,6 @@ export default function Dashboard({ cicloSeleccionado }) {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-
-      {/* Header */}
       <div className="flex items-start justify-between mb-8">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -768,7 +753,6 @@ export default function Dashboard({ cicloSeleccionado }) {
             {esAdmin ? 'Vista de administrador' : 'Vista personal'} · {tituloCiclo}
           </p>
         </div>
-        {/* Fecha de hoy */}
         <div className="flex items-center gap-2 bg-gray-900 border border-gray-800 rounded-xl px-4 py-2 shrink-0">
           <Calendar className="w-4 h-4 text-gray-500" />
           <span className="text-gray-300 text-sm">{formatFechaHoy()}</span>
