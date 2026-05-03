@@ -204,7 +204,6 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
         const { data: tareasHist } = await supabase
           .from('v_tareas_ciclo_activo')
           .select('estado, porcentaje_cumplimiento')
-          .select('estado')
           .eq('ciclo_id', c.id)
           .eq('departamento', profile?.departamento)
         if (!tareasHist?.length) continue
@@ -221,6 +220,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           return Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
           })()
         })
+      }
       return results
     }
   })
