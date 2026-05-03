@@ -416,7 +416,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
               }}
               />
               <Line type="monotone" dataKey="pct" stroke="#22C55E" strokeWidth={2}
-                dot={{ fill: '#22C55E', r: 4 }} activeDot={{ r: 6, fill: '#16A34A' }} />
+                dot={{ fill: '#22C55E', r: 4 }} activeDot={{ r: 6, fill: '#16A34A' }} name="% Tareas completadas" />
               <Line
                 type="monotone"
                 dataKey="pctPromedio"
