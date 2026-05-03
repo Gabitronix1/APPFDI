@@ -257,16 +257,42 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
 
         {/* Barra progreso cierre */}
         <div className="px-6 py-4">
-          <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden mb-3">
+          <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden mb-2">
             <div
               className={`h-3 rounded-full transition-all duration-700 ${colorCierre}`}
               style={{ width: `${cierrePct}%` }}
             />
           </div>
-          <p className="text-xs text-gray-500 mb-4">
-            {cierreCompletadas + cierreAtraso} de {tareasCierre.length} tareas completadas
-            {cierreAtraso > 0 && <span className="text-yellow-600 ml-2">({cierreAtraso} entregadas)</span>}
-          </p>
+
+          {/* Segunda barra calidad */}
+          {(() => {
+            const conPct = tareasCierre.filter(t => t.porcentaje_cumplimiento !== null)
+            const pctCal = conPct.length
+              ? Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
+              : null
+            return pctCal !== null ? (
+              <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden mb-2">
+                <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
+                  style={{ width: `${pctCal}%` }} />
+              </div>
+            ) : null
+          })()}
+
+          <div className="flex items-center gap-4 mb-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-0.5 bg-green-500 inline-block rounded" />
+              <span className="text-xs text-gray-600">Tareas completadas</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-0.5 bg-yellow-500 inline-block rounded" />
+              <span className="text-xs text-gray-600">Calidad promedio</span>
+            </div>
+        </div>
+
+        <p className="text-xs text-gray-500 mb-4">
+          {cierreCompletadas + cierreAtraso} de {tareasCierre.length} tareas completadas
+          {cierreAtraso > 0 && <span className="text-yellow-600 ml-2">({cierreAtraso} entregadas)</span>}
+        </p>
 
           {/* 4 stats del cierre */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -501,6 +527,11 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
   const misAtrasadas         = misTareas.filter(t => t.estado === 'con_atraso').length
   const miPct                = misTareas.length
     ? Math.round(((misCompletadas + misCompletadasAtraso) / misTareas.length) * 100) : 0
+  const miPctCalidad = (() => {
+  const conPct = misTareas.filter(t => t.porcentaje_cumplimiento !== null)
+  if (!conPct.length) return null
+  return Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
+})()
 
   const misPendientesActivas = misTareas.filter(t =>
     t.estado !== 'completada' && t.estado !== 'completada_con_atraso' && t.estado !== 'no_completada'
@@ -541,15 +572,29 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
             style={{ width: `${miPct}%` }}
           />
         </div>
-        <div className="flex items-center justify-between mt-2">
-          <p className="text-xs text-gray-500">
-            {misCompletadas + misCompletadasAtraso} de {misTareas.length} tareas completadas
-          </p>
-          <p className="text-xs text-gray-500">
-            Equipo: <span className="text-gray-400">{pctEquipo}%</span>
-          </p>
+        {miPctCalidad !== null && (
+          <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden mb-2">
+            <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
+              style={{ width: `${miPctCalidad}%` }} />
         </div>
+      )}
+      <div className="flex items-center justify-between mt-1">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-0.5 bg-green-500 inline-block rounded" />
+            <span className="text-xs text-gray-600">Completadas</span>
+        </div>
+        {miPctCalidad !== null && (
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-0.5 bg-yellow-500 inline-block rounded" />
+            <span className="text-xs text-gray-600">Calidad: <span className="text-yellow-400">{miPctCalidad}%</span></span>
+          </div>
+        )}
       </div>
+      <p className="text-xs text-gray-500">
+        Equipo: <span className="text-gray-400">{pctEquipo}%</span>
+      </p>
+    </div>
 
       {/* Stats personales */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
