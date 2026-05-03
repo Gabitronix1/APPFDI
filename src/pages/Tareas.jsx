@@ -31,9 +31,11 @@ function TareaItem({ tarea, profile, onClickTarea, onEliminar, esCicloCerrado })
     tarea.alerta === 'fuera_de_plazo' &&
     tarea.estado !== 'completada' &&
     tarea.estado !== 'completada_con_atraso'
-  const estilos = esFueraPlazo
-    ? ESTADO_STYLES.fuera_de_plazo
+  
+   const estilos = esFueraPlazo
+    ? { badge: 'bg-orange-900 text-orange-300', label: 'Fuera de plazo' }
     : ESTADO_STYLES[tarea.estado] ?? ESTADO_STYLES.pendiente
+  
   const borde = esCicloCerrado
     ? 'border-gray-800'
     : ALERTA_BORDER[tarea.alerta] ?? 'border-gray-800'
