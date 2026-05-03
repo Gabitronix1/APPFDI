@@ -259,7 +259,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           </div>
           <p className="text-xs text-gray-500 mb-4">
             {cierreCompletadas + cierreAtraso} de {tareasCierre.length} tareas completadas
-            {cierreAtraso > 0 && <span className="text-yellow-600 ml-2">({cierreAtraso} con atraso)</span>}
+            {cierreAtraso > 0 && <span className="text-yellow-600 ml-2">({cierreAtraso} entregadas)</span>}
           </p>
 
           {/* 4 stats del cierre */}
@@ -289,7 +289,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400" />
               <h2 className="text-white font-semibold">
-                Tareas de {MESES[new Date().getMonth()]} {new Date().getFullYear()} ✨
+                Tareas de {MESES[(cicloSeleccionado?.mes_calendario ?? new Date().getMonth() + 1) - 1]} {cicloSeleccionado?.anio_calendario ?? new Date().getFullYear()} ✨
               </h2>
             </div>
             <span className={`text-2xl font-bold ${textoAdic}`}>{adicPct}%</span>
