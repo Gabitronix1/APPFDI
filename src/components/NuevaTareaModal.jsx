@@ -4,20 +4,21 @@ import { supabase } from '../lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { X, Plus } from 'lucide-react'
 
-
 export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, departamentoForzado }) {
   const { user, profile } = useAuth()
 
-  const deptoActivo = departamentoForzado ?? profile?.departamento
+  const deptoActivo  = departamentoForzado ?? profile?.departamento
+  const esUsuario    = profile?.rol === 'usuario'
+  const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente'
 
   const [form, setForm] = useState({
-    nombre_tarea:   '',
-    area:           '',
-    condicion:      'dia_real',
-    fecha_inicio:   '',
-    fecha_termino:  '',
-    responsable_id: '',
-    observaciones:  '',
+    nombre_tarea:      '',
+    area:              '',
+    condicion:         'dia_real',
+    fecha_inicio:      '',
+    fecha_termino:     '',
+    responsable_id:    esUsuario ? user.id : '',
+    observaciones:     '',
     guardar_plantilla: false,
   })
   const [loading, setLoading] = useState(false)
@@ -25,6 +26,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
 
   const { data: usuarios = [] } = useQuery({
     queryKey: ['usuarios-depto', deptoActivo],
+    enabled: esAdminOGerente,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('users')
@@ -52,35 +54,34 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     setError('')
 
     try {
-      // 1. Insertar tarea en el ciclo actual
       const { error: errTarea } = await supabase
         .from('tasks')
         .insert({
-          ciclo_id:       cicloSeleccionado.id,
-          responsable_id: form.responsable_id,
-          nombre_tarea:   form.nombre_tarea.trim(),
-          area:           form.area || 'Otro',
-          departamento: deptoActivo,
-          condicion:      form.condicion,
-          fecha_inicio:   form.fecha_inicio || form.fecha_termino,
-          fecha_termino:  form.fecha_termino,
-          estado:         'pendiente',
-          observaciones:  form.observaciones.trim() || null,
+          ciclo_id:        cicloSeleccionado.id,
+          responsable_id:  form.responsable_id,
+          nombre_tarea:    form.nombre_tarea.trim(),
+          area:            form.area || 'General',
+          departamento:    deptoActivo,
+          condicion:       form.condicion,
+          fecha_inicio:    form.fecha_inicio || form.fecha_termino,
+          fecha_termino:   form.fecha_termino,
+          estado:          'pendiente',
+          observaciones:   form.observaciones.trim() || null,
           tipo_tarea:      'adicional',
           mes_calendario:  new Date().getMonth() + 1,
           anio_calendario: new Date().getFullYear(),
         })
       if (errTarea) throw errTarea
 
-      // 2. Si se marcó guardar como plantilla
-      if (form.guardar_plantilla && profile?.rol === 'admin') {
+      // Guardar como plantilla — admin, gerente y usuario
+      if (form.guardar_plantilla) {
         const diaDelMes = new Date(form.fecha_termino + 'T12:00:00').getDate()
         await supabase
           .from('task_templates')
           .insert({
             nombre_tarea:   form.nombre_tarea.trim(),
-            area:           form.area || 'Otro',
-            departamento: deptoActivo,
+            area:           form.area || 'General',
+            departamento:   deptoActivo,
             condicion:      form.condicion,
             dia_del_mes:    diaDelMes,
             responsable_id: form.responsable_id,
@@ -97,6 +98,9 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     }
   }
 
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
   return (
     <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 px-0 sm:px-4">
       <div className="bg-gray-900 border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg p-6 max-h-[90vh] overflow-y-auto">
@@ -106,9 +110,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           <div>
             <h2 className="text-white font-semibold text-lg">Nueva tarea</h2>
             <p className="text-gray-400 text-sm">
-              {['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
-              ][cicloSeleccionado.mes - 1]} {cicloSeleccionado.anio}
+              {MESES[cicloSeleccionado.mes - 1]} {cicloSeleccionado.anio}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition">
@@ -148,24 +150,31 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             />
           </div>
 
-          {/* Responsable */}
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">
-              Responsable <span className="text-red-400">*</span>
-            </label>
-            <select
-              name="responsable_id"
-              value={form.responsable_id}
-              onChange={handleChange}
-              className="w-full bg-gray-800 border border-gray-700 text-gray-300 
-                         rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-green-500"
-            >
-              <option value="">Seleccionar responsable...</option>
-              {usuarios.map(u => (
-                <option key={u.id} value={u.id}>{u.nombre} — {u.cargo}</option>
-              ))}
-            </select>
-          </div>
+          {/* Responsable — solo admin y gerente pueden elegir */}
+          {esAdminOGerente ? (
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">
+                Responsable <span className="text-red-400">*</span>
+              </label>
+              <select
+                name="responsable_id"
+                value={form.responsable_id}
+                onChange={handleChange}
+                className="w-full bg-gray-800 border border-gray-700 text-gray-300
+                           rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-green-500"
+              >
+                <option value="">Seleccionar responsable...</option>
+                {usuarios.map(u => (
+                  <option key={u.id} value={u.id}>{u.nombre} — {u.cargo}</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5">
+              <p className="text-xs text-gray-500 mb-0.5">Responsable</p>
+              <p className="text-white text-sm font-medium">{profile?.nombre}</p>
+            </div>
+          )}
 
           {/* Fechas */}
           <div className="grid grid-cols-2 gap-3">
@@ -209,22 +218,20 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             />
           </div>
 
-          {/* Guardar como plantilla — solo admin */}
-          {(profile?.rol === 'admin' || profile?.rol === 'gerente') && (
-            <label className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3 cursor-pointer">
-              <input
-                type="checkbox"
-                name="guardar_plantilla"
-                checked={form.guardar_plantilla}
-                onChange={handleChange}
-                className="w-4 h-4 accent-green-500"
-              />
-              <div>
-                <p className="text-sm text-white">Guardar como plantilla recurrente</p>
-                <p className="text-xs text-gray-500">Se repetirá automáticamente cada mes</p>
-              </div>
-            </label>
-          )}
+          {/* Guardar como plantilla — todos los roles */}
+          <label className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3 cursor-pointer">
+            <input
+              type="checkbox"
+              name="guardar_plantilla"
+              checked={form.guardar_plantilla}
+              onChange={handleChange}
+              className="w-4 h-4 accent-green-500"
+            />
+            <div>
+              <p className="text-sm text-white">Guardar como plantilla recurrente</p>
+              <p className="text-xs text-gray-500">Se repetirá automáticamente cada mes</p>
+            </div>
+          </label>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
 
