@@ -291,7 +291,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
               <h2 className="text-white font-semibold">
                 {tareasAdicionales[0]?.mes_calendario
                   ? `Tareas de ${MESES[tareasAdicionales[0].mes_calendario - 1]} ${tareasAdicionales[0].anio_calendario}`
-                  : Tareas de ${MESES[new Date().getMonth()]} ${new Date().getFullYear()}`} ✨
+                  : `Tareas de ${MESES[new Date().getMonth()]} ${new Date().getFullYear()}`} ✨
               </h2>
             </div>
             <span className={`text-2xl font-bold ${textoAdic}`}>{adicPct}%</span>
