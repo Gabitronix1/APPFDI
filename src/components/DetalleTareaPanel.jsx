@@ -59,6 +59,12 @@ function AjusteCalificacion({ comp, tareaId, onGuardado }) {
         .eq('id', comp.id)
 
       if (error) throw error
+
+      const nuevoEstado = nuevoPct === 100 ? 'completada' : 'completada_con_atraso'
+      await supabase
+        .from('tasks')
+        .update({ estado: nuevoEstado })
+        .eq('id', tareaId)
       setExito(true)
       setAbierto(false)
       setTimeout(() => { setExito(false); onGuardado() }, 1000)
