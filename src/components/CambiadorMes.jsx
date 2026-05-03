@@ -35,10 +35,14 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
   const esActivo  = cicloSeleccionado.estado === 'activo'
 
   // Próximo mes para nuevo cierre
-  const hoy = new Date()
-  let mesNext  = hoy.getMonth() + 2
-  let anioNext = hoy.getFullYear()
-  if (mesNext > 12) { mesNext -= 12; anioNext++ }
+// Buscar el primer mes que no existe, empezando desde el mes siguiente al último ciclo
+  const ciclosOrdenados = [...ciclos].sort((a, b) => 
+    a.anio !== b.anio ? a.anio - b.anio : a.mes - b.mes
+  )
+  const ultimoCiclo = ciclosOrdenados[ciclosOrdenados.length - 1]
+  let mesNext  = ultimoCiclo ? ultimoCiclo.mes + 1 : new Date().getMonth() + 2
+  let anioNext = ultimoCiclo ? ultimoCiclo.anio : new Date().getFullYear()
+  if (mesNext > 12) { mesNext = 1; anioNext++ }
   while (ciclos.some(c => c.mes === mesNext && c.anio === anioNext)) {
     mesNext++
     if (mesNext > 12) { mesNext = 1; anioNext++ }
