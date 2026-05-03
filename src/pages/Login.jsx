@@ -9,7 +9,7 @@ export default function Login() {
   const location     = useLocation()
   const mensajeExito = location.state?.mensaje
 
-  const [email, setEmail]       = useState('')
+  const [usuario, setUsuario]   = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
@@ -18,9 +18,10 @@ export default function Login() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await signIn(email, password)
+    const emailCompleto = `${usuario.trim()}@isidorachile.cl`
+    const { error } = await signIn(emailCompleto, password)
     if (error) {
-      setError('Email o contraseña incorrectos')
+      setError('Usuario o contraseña incorrectos')
       setLoading(false)
     } else {
       navigate('/')
@@ -62,19 +63,26 @@ export default function Login() {
             </div>
           )}
 
+          {/* Usuario */}
           <div className="mb-4">
-            <label className="block text-sm text-gray-400 mb-1">Email corporativo</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5
-                         text-white focus:outline-none focus:border-green-500 transition"
-              placeholder="usuario@isidorachile.cl"
-              required
-            />
+            <label className="block text-sm text-gray-400 mb-1">Usuario corporativo</label>
+            <div className="flex items-center bg-gray-800 border border-gray-700 rounded-lg
+                            focus-within:border-green-500 transition overflow-hidden">
+              <input
+                type="text"
+                value={usuario}
+                onChange={e => setUsuario(e.target.value)}
+                className="flex-1 bg-transparent px-4 py-2.5 text-white focus:outline-none"
+                placeholder="usuario"
+                required
+              />
+              <span className="px-3 py-2.5 text-gray-500 text-sm border-l border-gray-700 shrink-0">
+                @isidorachile.cl
+              </span>
+            </div>
           </div>
 
+          {/* Contraseña */}
           <div className="mb-6">
             <label className="block text-sm text-gray-400 mb-1">Contraseña</label>
             <input
