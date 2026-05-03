@@ -195,8 +195,8 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
       const { data: ciclosHist } = await supabase
         .from('monthly_cycles')
         .select('id, mes, anio')
-        .order('anio', { ascending: true })
-        .order('mes', { ascending: true })
+        .order('anio', { ascending: false })
+        .order('mes', { ascending: false })
         .limit(12)
       if (!ciclosHist?.length) return []
       const results = []
@@ -221,7 +221,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           })()
         })
       }
-      return results
+      return results.reverse()
     }
   })
 
