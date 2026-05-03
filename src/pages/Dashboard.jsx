@@ -576,6 +576,7 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
           <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden mb-2">
             <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
               style={{ width: `${miPctCalidad}%` }} />
+            </div>
         </div>
       )}
       <div className="flex items-center justify-between mt-1">
