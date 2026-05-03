@@ -203,6 +203,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
       for (const c of ciclosHist) {
         const { data: tareasHist } = await supabase
           .from('v_tareas_ciclo_activo')
+          .select('estado, porcentaje_cumplimiento')
           .select('estado')
           .eq('ciclo_id', c.id)
           .eq('departamento', profile?.departamento)
@@ -213,8 +214,13 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           pct: Math.round((comp / tareasHist.length) * 100),
           completadas: comp,
           total: tareasHist.length,
+
+          pctPromedio: (() => {
+          const conPct = tareasHist.filter(t => t.porcentaje_cumplimiento !== null)
+          if (!conPct.length) return Math.round((comp / tareasHist.length) * 100)
+          return Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
+          })()
         })
-      }
       return results
     }
   })
@@ -392,17 +398,35 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
                   if (active && payload?.length) {
                     return (
                       <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 shadow-xl">
-                        <p className="text-gray-400 text-xs mb-1">{label}</p>
-                        <p className="text-white font-bold text-lg">{payload[0].value}%</p>
-                        <p className="text-gray-500 text-xs">{payload[0].payload.completadas}/{payload[0].payload.total} tareas</p>
-                      </div>
-                    )
-                  }
-                  return null
-                }}
+                        <p className="text-gray-400 text-xs mb-2">{label}</p>
+                        {payload.map((p, i) => (
+                          <div key={i} className="flex items-center gap-2 mb-1">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
+                            <span className="text-gray-400 text-xs">{p.name}:</span>
+                            <span className="text-white font-bold text-sm">{p.value}%</span>
+                        </div>
+                      ))}
+                      <p className="text-gray-600 text-xs mt-1 border-t border-gray-700 pt-1">
+                        {payload[0]?.payload.completadas}/{payload[0]?.payload.total} tareas
+                      </p>
+                    </div>
+                  )
+                }
+                return null
+              }}
               />
               <Line type="monotone" dataKey="pct" stroke="#22C55E" strokeWidth={2}
                 dot={{ fill: '#22C55E', r: 4 }} activeDot={{ r: 6, fill: '#16A34A' }} />
+              <Line
+                type="monotone"
+                dataKey="pctPromedio"
+                stroke="#EAB308"
+                strokeWidth={2}
+                strokeDasharray="4 4"
+                dot={{ fill: '#EAB308', r: 3 }}
+                activeDot={{ r: 5, fill: '#CA8A04' }}
+                name="Cumplimiento promedio"
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
