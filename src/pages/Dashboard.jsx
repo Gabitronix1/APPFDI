@@ -289,7 +289,9 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-400" />
               <h2 className="text-white font-semibold">
-                Tareas de {MESES[(cicloSeleccionado?.mes_calendario ?? new Date().getMonth() + 1) - 1]} {cicloSeleccionado?.anio_calendario ?? new Date().getFullYear()} ✨
+                {tareasAdicionales[0]?.mes_calendario
+                  ? `Tareas de ${MESES[tareasAdicionales[0].mes_calendario - 1]} ${tareasAdicionales[0].anio_calendario}`
+      `           : Tareas de ${MESES[new Date().getMonth()]} ${new Date().getFullYear()}`} ✨
               </h2>
             </div>
             <span className={`text-2xl font-bold ${textoAdic}`}>{adicPct}%</span>
