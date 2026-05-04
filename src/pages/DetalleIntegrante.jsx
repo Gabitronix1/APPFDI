@@ -91,7 +91,7 @@ function TareaItem({ tarea, onClick, esCicloCerrado }) {
   )
 }
 
-export default function DetalleIntegrante() {
+export default function DetalleIntegrante({ cicloSeleccionado }) {
   const { nombre }   = useParams()
   const navigate     = useNavigate()
   const location     = useLocation()
@@ -99,29 +99,17 @@ export default function DetalleIntegrante() {
   const { profile }  = useAuth()
   const nombreReal   = decodeURIComponent(nombre)
   const cicloId      = location.state?.cicloId
+  const ciclo = cicloSeleccionado
 
   const [tareaActiva, setTareaActiva]   = useState(null)
   const [tareaDetalle, setTareaDetalle] = useState(null)
 
-  // Ciclo activo
-  const { data: ciclo } = useQuery({
-    queryKey: ['ciclo-activo'],
-    queryFn: async () => {
-      if (cicloId) {
-        const { data } = await supabase
-          .from('monthly_cycles').select('*').eq('id', cicloId).single()
-        return data
-      }
-      const { data } = await supabase
-        .from('monthly_cycles').select('*').eq('estado', 'activo').single()
-      return data
-    }
-  })
+  
 
   // Tareas del integrante
   const { data: tareas = [], isLoading } = useQuery({
-    queryKey: ['tareas-integrante', nombreReal, ciclo?.id],
-    enabled: !!ciclo?.id,
+    queryKey: ['tareas-integrante', nombreReal, cicloSeleccionado?.id],
+    enabled: !!cicloSeleccionado?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('v_tareas_ciclo_activo')
