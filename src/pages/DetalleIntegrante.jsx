@@ -147,7 +147,9 @@ export default function DetalleIntegrante({ cicloSeleccionado }) {
   const colorBarra  = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
 
   function handleClickTarea(tarea) {
-    if (tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada' || tarea.estado === 'con_atraso') {
+    if (tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada') {
+      setTareaDetalle(tarea)
+    } else if (ciclo?.estado === 'cerrado') {
       setTareaDetalle(tarea)
     } else {
       setTareaActiva(tarea)
