@@ -50,10 +50,6 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
 
   async function handleCompletar(e) {
     e.preventDefault()
-    if (!comentario.trim()) {
-      setError('El comentario es obligatorio')
-      return
-    }
     setLoading(true)
     setError('')
 
