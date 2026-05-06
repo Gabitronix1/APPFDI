@@ -27,7 +27,7 @@ const ALERTA_BORDER = {
   fuera_de_plazo: 'border-red-500',
 }
 
-function TareaItem({ tarea, profile, onClickTarea, onEliminar, esCicloCerrado }) {
+function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCicloCerrado }) {
   const esFueraPlazo = !esCicloCerrado &&
     tarea.alerta === 'fuera_de_plazo' &&
     tarea.estado !== 'completada' &&
