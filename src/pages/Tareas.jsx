@@ -3,9 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TaskModal from '../components/TaskModal'
-import { CheckCircle2, Clock, AlertCircle, Filter, Plus, Trash2, RefreshCw, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react'
+import { CheckCircle2, Clock, AlertCircle, Filter, Plus, Trash2, RefreshCw, Sparkles, ChevronDown, ChevronUp, Lock, Pencil } from 'lucide-react'
 import NuevaTareaModal from '../components/NuevaTareaModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
+import EditarTareaModal from '../components/EditarTareaModal'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -71,6 +72,14 @@ function TareaItem({ tarea, profile, onClickTarea, onEliminar, esCicloCerrado })
         <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${estilos.badge}`}>
           {estilos.label}
         </span>
+        {!esCicloCerrado && (
+          <button
+            onClick={e => { e.stopPropagation(); onEditar?.() }}
+            className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+        )}
         {profile?.rol === 'admin' && onEliminar && (
           <button
             onClick={e => { e.stopPropagation(); onEliminar() }}
@@ -97,6 +106,7 @@ export default function Tareas({ cicloSeleccionado }) {
   const [verRecurrentes, setVerRecurrentes]         = useState(true)
   const [verNuevas, setVerNuevas]                   = useState(true)
   const [tareaDetalle, setTareaDetalle]             = useState(null)
+  const [editando, setEditando] = useState(null)
 
   const { data: tareas = [], isLoading } = useQuery({
     queryKey: ['tareas', cicloSeleccionado?.id, profile?.departamento],
@@ -262,6 +272,7 @@ export default function Tareas({ cicloSeleccionado }) {
                       profile={profile}
                       esCicloCerrado={esCicloCerrado}
                       onClickTarea={() => handleClickTarea(tarea)}
+                      onEditar={() => setEditando(tarea)}
                       onEliminar={esCicloCerrado ? null : () => setEliminando(tarea.id)}
                     />
                   ))}
@@ -297,6 +308,7 @@ export default function Tareas({ cicloSeleccionado }) {
                       profile={profile}
                       esCicloCerrado={esCicloCerrado}
                       onClickTarea={() => handleClickTarea(tarea)}
+                      onEditar={() => setEditando(tarea)}
                       onEliminar={esCicloCerrado ? null : () => setEliminando(tarea.id)}
                     />
                   ))}
@@ -388,6 +400,14 @@ export default function Tareas({ cicloSeleccionado }) {
             </div>
           </div>
         </div>
+      )}
+
+      {editando && (
+        <EditarTareaModal
+          tarea={editando}
+          cicloId={cicloSeleccionado?.id}
+          onClose={() => setEditando(null)}
+        />
       )}
 
       {/* Panel detalle tarea */}
