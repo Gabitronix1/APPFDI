@@ -110,7 +110,7 @@ export function calcularFechasTarea(template, mes, anio) {
 }
 
 // Obtiene el N-ésimo día hábil de un mes
-function getNesimoHabilDelMes(mes, anio, n, feriados) {
+export function getNesimoHabilDelMes(mes, anio, n, feriados) {
   let count = 0
   const d = new Date(anio, mes - 1, 1)
 
