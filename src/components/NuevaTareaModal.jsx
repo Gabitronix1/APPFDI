@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { X, Plus } from 'lucide-react'
+import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } from '../lib/feriados'
 
 export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, departamentoForzado }) {
   const { user, profile } = useAuth()
 
-  const deptoActivo  = departamentoForzado ?? profile?.departamento
-  const esUsuario    = profile?.rol === 'usuario'
+  const deptoActivo     = departamentoForzado ?? profile?.departamento
+  const esUsuario       = profile?.rol === 'usuario'
   const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente'
 
   const [form, setForm] = useState({
@@ -20,6 +21,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     responsable_id:    esUsuario ? user.id : '',
     observaciones:     '',
     guardar_plantilla: false,
+    dia_habil_fijo:    false,
+    dia_habil_num:     '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
@@ -39,6 +42,31 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     }
   })
 
+  // Calcular fecha automática cuando se activa día hábil fijo
+  useEffect(() => {
+    if (!form.dia_habil_fijo || !form.dia_habil_num) return
+    const num = parseInt(form.dia_habil_num)
+    if (isNaN(num) || num < 1 || num > 23) return
+
+    // Calcular para el próximo mes
+    const hoy   = new Date()
+    let mes     = hoy.getMonth() + 2 // próximo mes (1-based)
+    let anio    = hoy.getFullYear()
+    if (mes > 12) { mes = 1; anio++ }
+
+    const feriados = getFeriadosDelAnio(anio)
+    const feriadosAnt = getFeriadosDelAnio(anio - 1)
+    const feriadosComb = new Set([...feriados, ...feriadosAnt])
+
+    try {
+      const fecha = getNesimoHabilDelMes(mes, anio, num, feriadosComb)
+      const fechaStr = fecha.toISOString().split('T')[0]
+      setForm(prev => ({ ...prev, fecha_termino: fechaStr, condicion: 'habil' }))
+    } catch (e) {
+      // número muy alto para el mes
+    }
+  }, [form.dia_habil_fijo, form.dia_habil_num])
+
   function handleChange(e) {
     const { name, value, type, checked } = e.target
     setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
@@ -49,6 +77,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     if (!form.nombre_tarea.trim()) { setError('El nombre es obligatorio'); return }
     if (!form.fecha_termino)       { setError('La fecha de término es obligatoria'); return }
     if (!form.responsable_id)      { setError('Asigna un responsable'); return }
+    if (form.dia_habil_fijo && !form.dia_habil_num) { setError('Ingresa el número de día hábil'); return }
 
     setLoading(true)
     setError('')
@@ -62,7 +91,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           nombre_tarea:    form.nombre_tarea.trim(),
           area:            form.area || 'General',
           departamento:    deptoActivo,
-          condicion:       form.condicion,
+          condicion:       form.dia_habil_fijo ? 'habil' : form.condicion,
           fecha_inicio:    form.fecha_inicio || form.fecha_termino,
           fecha_termino:   form.fecha_termino,
           estado:          'pendiente',
@@ -73,16 +102,17 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         })
       if (errTarea) throw errTarea
 
-      // Guardar como plantilla — admin, gerente y usuario
       if (form.guardar_plantilla) {
-        const diaDelMes = new Date(form.fecha_termino + 'T12:00:00').getDate()
+        const diaDelMes = form.dia_habil_fijo
+          ? parseInt(form.dia_habil_num)
+          : new Date(form.fecha_termino + 'T12:00:00').getDate()
         await supabase
           .from('task_templates')
           .insert({
             nombre_tarea:   form.nombre_tarea.trim(),
             area:           form.area || 'General',
             departamento:   deptoActivo,
-            condicion:      form.condicion,
+            condicion:      form.dia_habil_fijo ? 'habil' : form.condicion,
             dia_del_mes:    diaDelMes,
             responsable_id: form.responsable_id,
             activo:         true,
@@ -100,6 +130,13 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
 
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+  // Calcular nombre del próximo mes para la leyenda
+  const hoy = new Date()
+  let mesNext = hoy.getMonth() + 2
+  let anioNext = hoy.getFullYear()
+  if (mesNext > 12) { mesNext = 1; anioNext++ }
+  const nombreProxMes = `${MESES[mesNext - 1]} ${anioNext}`
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 px-0 sm:px-4">
@@ -150,7 +187,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             />
           </div>
 
-          {/* Responsable — solo admin y gerente pueden elegir */}
+          {/* Responsable */}
           {esAdminOGerente ? (
             <div>
               <label className="block text-sm text-gray-400 mb-1">
@@ -176,33 +213,91 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             </div>
           )}
 
-          {/* Fechas */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Casilla día hábil fijo */}
+          <label className={`flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer border transition
+            ${form.dia_habil_fijo
+              ? 'bg-blue-950/40 border-blue-700'
+              : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
+          >
+            <input
+              type="checkbox"
+              name="dia_habil_fijo"
+              checked={form.dia_habil_fijo}
+              onChange={handleChange}
+              className="mt-0.5 w-4 h-4 accent-blue-500 shrink-0"
+            />
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Fecha inicio</label>
-              <input
-                name="fecha_inicio"
-                type="date"
-                value={form.fecha_inicio}
-                onChange={handleChange}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
-                           text-white text-sm focus:outline-none focus:border-green-500"
-              />
+              <p className="text-sm text-white">Tarea con día hábil definido</p>
+              <p className="text-xs text-gray-500">La fecha se calculará automáticamente cada mes</p>
             </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                Fecha término <span className="text-red-400">*</span>
-              </label>
-              <input
-                name="fecha_termino"
-                type="date"
-                value={form.fecha_termino}
-                onChange={handleChange}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
-                           text-white text-sm focus:outline-none focus:border-green-500"
-              />
+          </label>
+
+          {/* Campo día hábil — aparece si casilla marcada */}
+          {form.dia_habil_fijo && (
+            <div className="bg-blue-950/20 border border-blue-800/50 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <label className="block text-sm text-gray-400 mb-1">
+                    Día hábil del mes <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    name="dia_habil_num"
+                    type="number"
+                    min="1"
+                    max="23"
+                    value={form.dia_habil_num}
+                    onChange={handleChange}
+                    placeholder="Ej: 3"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
+                               text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm text-gray-400 mb-1">Fecha calculada</label>
+                  <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5">
+                    <p className="text-white text-sm">
+                      {form.fecha_termino || <span className="text-gray-600">—</span>}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              {form.fecha_termino && (
+                <p className="text-xs text-blue-400">
+                  📅 Fecha calculada para {nombreProxMes}. Se recalculará automáticamente cada mes si es recurrente.
+                </p>
+              )}
             </div>
-          </div>
+          )}
+
+          {/* Fechas manuales — solo si NO hay día hábil fijo */}
+          {!form.dia_habil_fijo && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Fecha inicio</label>
+                <input
+                  name="fecha_inicio"
+                  type="date"
+                  value={form.fecha_inicio}
+                  onChange={handleChange}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
+                             text-white text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">
+                  Fecha término <span className="text-red-400">*</span>
+                </label>
+                <input
+                  name="fecha_termino"
+                  type="date"
+                  value={form.fecha_termino}
+                  onChange={handleChange}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
+                             text-white text-sm focus:outline-none focus:border-green-500"
+                />
+              </div>
+            </div>
+          )}
 
           {/* Observaciones */}
           <div>
@@ -218,7 +313,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             />
           </div>
 
-          {/* Guardar como plantilla — todos los roles */}
+          {/* Guardar como plantilla */}
           <label className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3 cursor-pointer">
             <input
               type="checkbox"
