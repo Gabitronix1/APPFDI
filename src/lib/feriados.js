@@ -119,5 +119,5 @@ export function getNesimoHabilDelMes(mes, anio, n, feriados) {
     if (count < n) d.setDate(d.getDate() + 1)
   }
 
-  return ajustarAlDiaHabilSiguiente(d, feriados)
+  return d
 }
