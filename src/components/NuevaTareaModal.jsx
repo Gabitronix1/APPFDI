@@ -112,27 +112,26 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
 
   // Preview de fechas para semanal/quincenal
   const hoy = new Date()
-  let mesNext  = hoy.getMonth() + 2
-  let anioNext = hoy.getFullYear()
-  if (mesNext > 12) { mesNext = 1; anioNext++ }
+  const esCicloActivo = cicloSeleccionado?.estado === 'activo'
+  const mesCiclo  = cicloSeleccionado?.mes
+  const anioCiclo = cicloSeleccionado?.anio
 
-  const feriadosNext    = getFeriadosDelAnio(anioNext)
-  const feriadosAntNext = getFeriadosDelAnio(anioNext - 1)
-  const feriadosCombNext = new Set([...feriadosNext, ...feriadosAntNext])
+  const feriadosCiclo     = getFeriadosDelAnio(anioCiclo)
+  const feriadosAntCiclo  = getFeriadosDelAnio(anioCiclo - 1)
+  const feriadosCombCiclo = new Set([...feriadosCiclo, ...feriadosAntCiclo])
+  const nombreMesCiclo    = `${MESES[mesCiclo - 1]} ${anioCiclo}`
 
-  const fechasSemanales   = form.frecuencia === 'semanal'
-    ? calcularFechasSemanales(parseInt(form.dia_semana), mesNext, anioNext, feriadosCombNext)
+  const fechasSemanales = form.frecuencia === 'semanal'
+    ? calcularFechasSemanales(parseInt(form.dia_semana), mesCiclo, anioCiclo, feriadosCombCiclo, esCicloActivo)
     : []
-
   const fechasQuincenales = form.frecuencia === 'quincenal'
     ? calcularFechasQuincenales(
         parseInt(form.dia_quincena_1),
         parseInt(form.dia_quincena_2),
-        mesNext, anioNext, feriadosCombNext
+        mesCiclo, anioCiclo, feriadosCombCiclo, esCicloActivo
       )
     : []
-
-  const nombreProxMes = `${MESES[mesNext - 1]} ${anioNext}`
+  const nombreMesCiclo = `${MESES[mesCiclo - 1]} ${anioCiclo}`
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -395,7 +394,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
               {fechasSemanales.length > 0 && (
                 <div>
                   <p className="text-xs text-gray-500 mb-2">
-                    Se crearán {fechasSemanales.length} tareas para {nombreProxMes}:
+                    Se crearán {fechasSemanales.length} tareas para {nombreMesCiclo}:
                   </p>
                   <div className="space-y-1">
                     {fechasSemanales.map((f, i) => (
@@ -439,7 +438,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
               {fechasQuincenales.length === 2 && (
                 <div>
                   <p className="text-xs text-gray-500 mb-2">
-                    Se crearán 2 tareas para {nombreProxMes}:
+                    Se crearán 2 tareas para {nombreMesCiclo}:
                   </p>
                   <div className="space-y-1">
                     {fechasQuincenales.map((f, i) => (
@@ -504,7 +503,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                   </div>
                   {form.fecha_termino && (
                     <p className="text-xs text-blue-400">
-                      📅 Fecha calculada para {nombreProxMes}. Si cae en finde o feriado se ajusta al siguiente hábil.
+                      📅 Fecha calculada para {nombreMesCiclo}. Si cae en finde o feriado se ajusta al siguiente hábil.
                     </p>
                   )}
                 </div>
