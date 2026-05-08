@@ -10,8 +10,8 @@ const MESES = [
 
 // Nombre de display: mes N → "Cierre de [mes N-1]"
 function nombreCierre(mes, anio) {
-  if (mes === 1) return `Cierre de Diciembre ${anio - 1}`
-  return `Cierre de ${MESES[mes - 2]} ${anio}`
+  function nombreCierre(mes, anio) {
+    return `${MESES[mes - 1]} ${anio}`
 }
 
 export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
@@ -56,7 +56,7 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
   if (confirmando.tipo === 'crear') {
     crearCiclo({ mes: confirmando.mes, anio: confirmando.anio }, {
       onSuccess: (nuevoCiclo) => {
-        mostrarExito(`${nombreCierre(confirmando.mes, confirmando.anio)} creado`)
+        mostrarExito(`${(confirmando.mes, confirmando.anio)} creado`)
         setConfirmando(null)
         onCambiarCiclo(nuevoCiclo)
       }
@@ -90,14 +90,14 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
           disabled={!anterior}
           className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
                      transition disabled:opacity-30 disabled:cursor-not-allowed"
-          title={anterior ? `← ${nombreCierre(anterior.mes, anterior.anio)}` : ''}
+          title={anterior ? `← ${(anterior.mes, anterior.anio)}` : ''}
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
 
         {/* Nombre del cierre */}
         <span className="px-2 text-sm font-medium text-white min-w-[120px] sm:min-w-[180px] text-center">
-          {nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio)}
+          {(cicloSeleccionado.mes, cicloSeleccionado.anio)}
           {esActivo
             ? <span className="ml-1.5 text-xs text-green-400">● activo</span>
             : <span className="ml-1.5 text-xs text-gray-600">🔒 cerrado</span>}
@@ -109,7 +109,7 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
           disabled={!siguiente}
           className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
                      transition disabled:opacity-30 disabled:cursor-not-allowed"
-          title={siguiente ? `${nombreCierre(siguiente.mes, siguiente.anio)} →` : ''}
+          title={siguiente ? `${(siguiente.mes, siguiente.anio)} →` : ''}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -129,7 +129,7 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
             <button
               onClick={() => setConfirmando({ tipo: 'crear', mes: mesNext, anio: anioNext })}
               className="p-1.5 rounded-md text-green-400 hover:text-green-300 hover:bg-gray-700 transition"
-              title={`Crear ${nombreCierre(mesNext, anioNext)}`}
+              title={`Crear ${(mesNext, anioNext)}`}
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -143,7 +143,7 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
           <div className="flex items-center gap-2 bg-gray-800 border border-gray-700
                           text-gray-400 text-xs px-4 py-2 rounded-full shadow-lg">
             <Lock className="w-3 h-3" />
-            Estás viendo {nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio)} — solo lectura
+            Estás viendo {(cicloSeleccionado.mes, cicloSeleccionado.anio)} — solo lectura
           </div>
         </div>
       )}
@@ -154,8 +154,8 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-white font-semibold text-lg mb-2">
               {confirmando.tipo === 'crear'
-                ? `¿Crear ${nombreCierre(confirmando.mes, confirmando.anio)}?`
-                : `¿Eliminar ${nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio)}?`}
+                ? `¿Crear ${(confirmando.mes, confirmando.anio)}?`
+                : `¿Eliminar ${(cicloSeleccionado.mes, cicloSeleccionado.anio)}?`}
             </h3>
             <p className="text-gray-400 text-sm mb-6">
               {confirmando.tipo === 'crear'
