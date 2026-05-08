@@ -344,7 +344,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
 
       {/* ── BLOQUE CIERRE ─────────────────────────────────────── */}
       <BloqueMetricas
-        titulo={nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio)}
+        titulo={cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : '—'}
         icono={<RefreshCw className="w-4 h-4" />}
         iconoColor="text-blue-400"
         accentColor="text-green-400 bg-green-900/30"
@@ -357,7 +357,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
       {/* ── BLOQUE RECURRENTES DEL MES ────────────────────────── */}
       {tareasRecurrentes.length > 0 && (
         <BloqueMetricas
-          titulo={`Recurrentes de ${tituloCiclo}`}
+          titulo={`Recurrentes de ${tituloCiclo || '...'}`}
           icono={<CalendarClock className="w-4 h-4" />}
           iconoColor="text-purple-400"
           accentColor="text-purple-400 bg-purple-900/30"
@@ -369,7 +369,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
       {/* ── BLOQUE PUNTUALES ──────────────────────────────────── */}
       {tareasPuntuales.length > 0 && (
         <BloqueMetricas
-          titulo={`Tareas puntuales de ${tituloCiclo}`}
+          titulo={`Tareas puntuales de ${tituloCiclo || '...'}`}
           icono={<Sparkles className="w-4 h-4" />}
           iconoColor="text-amber-400"
           accentColor="text-amber-400 bg-amber-900/30"
