@@ -186,6 +186,9 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           dia_del_mes:    form.frecuencia === 'semanal'
                             ? parseInt(form.dia_semana)
                             : parseInt(form.dia_quincena_1),
+          dia_del_mes_2:   form.frecuencia === 'quincenal'
+                            ? parseInt(form.dia_quincena_2)
+                            : null,
           responsable_id: form.responsable_id,
           tipo:           'recurrente_mes',
           frecuencia:     form.frecuencia,
