@@ -131,7 +131,6 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         mesCiclo, anioCiclo, feriadosCombCiclo, esCicloActivo
       )
     : []
-  const nombreMesCiclo = `${MESES[mesCiclo - 1]} ${anioCiclo}`
 
   async function handleSubmit(e) {
     e.preventDefault()
