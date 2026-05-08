@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useQuery } from '@tanstack/react-query'
-import { X, Plus } from 'lucide-react'
+import { X, Plus, RefreshCw, Sparkles, CalendarClock } from 'lucide-react'
 import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente } from '../lib/feriados'
+
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+               'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, departamentoForzado }) {
   const { user, profile } = useAuth()
@@ -15,6 +18,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
   const [form, setForm] = useState({
     nombre_tarea:      '',
     area:              '',
+    tipo:              'puntual',
+    frecuencia:        'mensual',
     condicion:         'dia_real',
     fecha_inicio:      '',
     fecha_termino:     '',
@@ -46,26 +51,23 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
   useEffect(() => {
     if (!form.dia_habil_fijo || !form.dia_habil_num) return
     const num = parseInt(form.dia_habil_num)
-    if (isNaN(num) || num < 1 || num > 31) return  // 👈 reemplaza el que dice > 23
+    if (isNaN(num) || num < 1 || num > 31) return
 
-    // Calcular para el próximo mes
-    const hoy   = new Date()
-    let mes     = hoy.getMonth() + 2 // próximo mes (1-based)
-    let anio    = hoy.getFullYear()
+    const hoy  = new Date()
+    let mes    = hoy.getMonth() + 2
+    let anio   = hoy.getFullYear()
     if (mes > 12) { mes = 1; anio++ }
 
-    const feriados = getFeriadosDelAnio(anio)
+    const feriados    = getFeriadosDelAnio(anio)
     const feriadosAnt = getFeriadosDelAnio(anio - 1)
     const feriadosComb = new Set([...feriados, ...feriadosAnt])
 
     try {
       const fechaBase = new Date(anio, mes - 1, num, 12, 0, 0)
-      const fecha = ajustarAlDiaHabilSiguiente(fechaBase, feriadosComb)
-      const fechaStr = `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
+      const fecha     = ajustarAlDiaHabilSiguiente(fechaBase, feriadosComb)
+      const fechaStr  = `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
       setForm(prev => ({ ...prev, fecha_termino: fechaStr, condicion: 'habil' }))
-    } catch (e) {
-      // error
-    }
+    } catch (e) {}
   }, [form.dia_habil_fijo, form.dia_habil_num])
 
   function handleChange(e) {
@@ -98,6 +100,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           estado:          'pendiente',
           observaciones:   form.observaciones.trim() || null,
           tipo_tarea:      'adicional',
+          tipo:            form.tipo,
+          frecuencia:      form.tipo === 'recurrente_mes' ? form.frecuencia : null,
           mes_calendario:  new Date().getMonth() + 1,
           anio_calendario: new Date().getFullYear(),
         })
@@ -116,6 +120,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             condicion:      form.dia_habil_fijo ? 'habil' : form.condicion,
             dia_del_mes:    diaDelMes,
             responsable_id: form.responsable_id,
+            tipo:           form.tipo,
+            frecuencia:     form.tipo === 'recurrente_mes' ? form.frecuencia : null,
             activo:         true,
           })
       }
@@ -129,12 +135,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     }
   }
 
-  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-
-  // Calcular nombre del próximo mes para la leyenda
   const hoy = new Date()
-  let mesNext = hoy.getMonth() + 2
+  let mesNext  = hoy.getMonth() + 2
   let anioNext = hoy.getFullYear()
   if (mesNext > 12) { mesNext = 1; anioNext++ }
   const nombreProxMes = `${MESES[mesNext - 1]} ${anioNext}`
@@ -188,6 +190,81 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             />
           </div>
 
+          {/* Tipo de tarea */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Tipo de tarea</label>
+            <div className="grid grid-cols-3 gap-2">
+
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, tipo: 'cierre' }))}
+                className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border text-xs font-medium transition
+                  ${form.tipo === 'cierre'
+                    ? 'bg-blue-950/50 border-blue-600 text-blue-300'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
+              >
+                <RefreshCw className="w-4 h-4" />
+                Cierre
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, tipo: 'recurrente_mes' }))}
+                className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border text-xs font-medium transition
+                  ${form.tipo === 'recurrente_mes'
+                    ? 'bg-purple-950/50 border-purple-600 text-purple-300'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
+              >
+                <CalendarClock className="w-4 h-4" />
+                Recurrente
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setForm(prev => ({ ...prev, tipo: 'puntual' }))}
+                className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border text-xs font-medium transition
+                  ${form.tipo === 'puntual'
+                    ? 'bg-amber-950/50 border-amber-600 text-amber-300'
+                    : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
+              >
+                <Sparkles className="w-4 h-4" />
+                Puntual
+              </button>
+
+            </div>
+            <p className="text-xs text-gray-600 mt-1.5">
+              {form.tipo === 'cierre'        && 'Tarea del proceso de cierre del mes anterior'}
+              {form.tipo === 'recurrente_mes' && 'Se repite mensualmente, dentro del mes actual'}
+              {form.tipo === 'puntual'        && 'Tarea específica de este mes, no se repite'}
+            </p>
+          </div>
+
+          {/* Frecuencia — solo si recurrente_mes */}
+          {form.tipo === 'recurrente_mes' && (
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Frecuencia</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: 'mensual',   label: 'Mensual' },
+                  { value: 'quincenal', label: 'Quincenal' },
+                  { value: 'semanal',   label: 'Semanal' },
+                ].map(op => (
+                  <button
+                    key={op.value}
+                    type="button"
+                    onClick={() => setForm(prev => ({ ...prev, frecuencia: op.value }))}
+                    className={`py-2 rounded-lg border text-xs font-medium transition
+                      ${form.frecuencia === op.value
+                        ? 'bg-purple-950/50 border-purple-600 text-purple-300'
+                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Responsable */}
           {esAdminOGerente ? (
             <div>
@@ -233,13 +310,13 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             </div>
           </label>
 
-          {/* Campo día hábil — aparece si casilla marcada */}
+          {/* Campo día hábil */}
           {form.dia_habil_fijo && (
             <div className="bg-blue-950/20 border border-blue-800/50 rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-3">
                 <div className="flex-1">
                   <label className="block text-sm text-gray-400 mb-1">
-                    Día hábil del mes <span className="text-red-400">*</span>
+                    Día del mes <span className="text-red-400">*</span>
                   </label>
                   <input
                     name="dia_habil_num"
@@ -248,7 +325,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                     max="31"
                     value={form.dia_habil_num}
                     onChange={handleChange}
-                    placeholder="Ej: 3"
+                    placeholder="Ej: 8"
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
                                text-white text-sm focus:outline-none focus:border-blue-500"
                   />
@@ -264,13 +341,13 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
               </div>
               {form.fecha_termino && (
                 <p className="text-xs text-blue-400">
-                  📅 Fecha calculada para {nombreProxMes}. Se recalculará automáticamente cada mes si es recurrente.
+                  📅 Fecha calculada para {nombreProxMes}. Si cae en finde o feriado se ajusta al siguiente hábil.
                 </p>
               )}
             </div>
           )}
 
-          {/* Fechas manuales — solo si NO hay día hábil fijo */}
+          {/* Fechas manuales */}
           {!form.dia_habil_fijo && (
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -315,7 +392,11 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           </div>
 
           {/* Guardar como plantilla */}
-          <label className="flex items-center gap-3 bg-gray-800 rounded-lg px-4 py-3 cursor-pointer">
+          <label className={`flex items-center gap-3 rounded-lg px-4 py-3 cursor-pointer border transition
+            ${form.guardar_plantilla
+              ? 'bg-green-950/40 border-green-700'
+              : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
+          >
             <input
               type="checkbox"
               name="guardar_plantilla"
@@ -341,6 +422,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             <Plus className="w-4 h-4" />
             {loading ? 'Creando...' : 'Crear tarea'}
           </button>
+
         </form>
       </div>
     </div>
