@@ -83,22 +83,22 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
 
   return (
     <>
-      <div className="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg p-1">
+      <div e="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg p-1">
 
         {/* Retroceder */}
         <button
           onClick={() => anterior && onCambiarCiclo(anterior)}
           disabled={!anterior}
-          className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
+          e="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
                      transition disabled:opacity-30 disabled:cursor-not-allowed"
           title={anterior ? `← ${(anterior.mes, anterior.anio)}` : ''}
         >
-          <ChevronLeft className="w-4 h-4" />
+          <ChevronLeft e="w-4 h-4" />
         </button>
 
         {/* Nombre del cierre */}
         <span className="px-2 text-sm font-medium text-white min-w-[120px] sm:min-w-[180px] text-center">
-          {(cicloSeleccionado.mes, cicloSeleccionado.anio)}
+          {nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio)}
           {esActivo
             ? <span className="ml-1.5 text-xs text-green-400">● activo</span>
             : <span className="ml-1.5 text-xs text-gray-600">🔒 cerrado</span>}
