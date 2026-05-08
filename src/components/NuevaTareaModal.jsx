@@ -97,6 +97,17 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     }
   })
 
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  const esCicloActivo = cicloSeleccionado?.estado === 'activo'
+  const mesCiclo      = cicloSeleccionado?.mes
+  const anioCiclo     = cicloSeleccionado?.anio
+
+  const feriadosCiclo     = getFeriadosDelAnio(anioCiclo)
+  const feriadosAntCiclo  = getFeriadosDelAnio(anioCiclo - 1)
+  const feriadosCombCiclo = new Set([...feriadosCiclo, ...feriadosAntCiclo])
+  const nombreMesCiclo    = `${MESES[mesCiclo - 1]} ${anioCiclo}`
+
   useEffect(() => {
     if (!form.dia_habil_fijo || !form.dia_habil_num) return
     if (form.frecuencia !== 'mensual' && form.tipo !== 'cierre') return
@@ -119,17 +130,6 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  const hoy = new Date()
-  hoy.setHours(0, 0, 0, 0)
-  const esCicloActivo = cicloSeleccionado?.estado === 'activo'
-  const mesCiclo      = cicloSeleccionado?.mes
-  const anioCiclo     = cicloSeleccionado?.anio
-
-  const feriadosCiclo     = getFeriadosDelAnio(anioCiclo)
-  const feriadosAntCiclo  = getFeriadosDelAnio(anioCiclo - 1)
-  const feriadosCombCiclo = new Set([...feriadosCiclo, ...feriadosAntCiclo])
-  const nombreMesCiclo    = `${MESES[mesCiclo - 1]} ${anioCiclo}`
-
   const fechasSemanales = form.tipo === 'recurrente_mes' && form.frecuencia === 'semanal'
     ? calcularFechasSemanales(parseInt(form.dia_semana), mesCiclo, anioCiclo, feriadosCombCiclo, esCicloActivo)
     : []
@@ -145,8 +145,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     e.preventDefault()
     if (!form.nombre_tarea.trim()) { setError('El nombre es obligatorio'); return }
     if (!form.responsable_id)      { setError('Asigna un responsable'); return }
-    if (form.tipo !== 'recurrente_mes' ||
-        form.frecuencia === 'mensual') {
+    if (form.tipo !== 'recurrente_mes' || form.frecuencia === 'mensual') {
       if (!form.fecha_termino) { setError('La fecha de término es obligatoria'); return }
     }
     if (form.dia_habil_fijo && !form.dia_habil_num) { setError('Ingresa el número de día hábil'); return }
@@ -168,8 +167,33 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           return
         }
 
+        // 1. Crear plantilla primero para obtener su id
+        const { data: plantilla, error: errPlant } = await supabase
+          .from('task_templates')
+          .insert({
+            nombre_tarea:   form.nombre_tarea.trim(),
+            area:           form.area || 'General',
+            departamento:   deptoActivo,
+            condicion:      'habil',
+            dia_del_mes:    form.frecuencia === 'semanal'
+                              ? parseInt(form.dia_semana)
+                              : parseInt(form.dia_quincena_1),
+            dia_del_mes_2:  form.frecuencia === 'quincenal'
+                              ? parseInt(form.dia_quincena_2)
+                              : null,
+            responsable_id: form.responsable_id,
+            tipo:           'recurrente_mes',
+            frecuencia:     form.frecuencia,
+            activo:         true,
+          })
+          .select()
+          .single()
+        if (errPlant) throw errPlant
+
+        // 2. Crear tareas con template_id
         const tareas = fechas.map(f => ({
           ciclo_id:        cicloSeleccionado.id,
+          template_id:     plantilla.id,
           responsable_id:  form.responsable_id,
           nombre_tarea:    form.nombre_tarea.trim(),
           area:            form.area || 'General',
@@ -190,24 +214,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         const { error: errTareas } = await supabase.from('tasks').insert(tareas)
         if (errTareas) throw errTareas
 
-        await supabase.from('task_templates').insert({
-          nombre_tarea:   form.nombre_tarea.trim(),
-          area:           form.area || 'General',
-          departamento:   deptoActivo,
-          condicion:      'habil',
-          dia_del_mes:    form.frecuencia === 'semanal'
-                            ? parseInt(form.dia_semana)
-                            : parseInt(form.dia_quincena_1),
-          dia_del_mes_2:  form.frecuencia === 'quincenal'
-                            ? parseInt(form.dia_quincena_2)
-                            : null,
-          responsable_id: form.responsable_id,
-          tipo:           'recurrente_mes',
-          frecuencia:     form.frecuencia,
-          activo:         true,
-        })
-
       } else {
+        // Tarea única (cierre, puntual, recurrente mensual)
         const { error: errTarea } = await supabase.from('tasks').insert({
           ciclo_id:        cicloSeleccionado.id,
           responsable_id:  form.responsable_id,
@@ -228,6 +236,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         })
         if (errTarea) throw errTarea
 
+        // Guardar plantilla si es cierre o recurrente mensual
         if (form.tipo === 'cierre' || form.tipo === 'recurrente_mes') {
           const diaDelMes = form.dia_habil_fijo
             ? parseInt(form.dia_habil_num)
