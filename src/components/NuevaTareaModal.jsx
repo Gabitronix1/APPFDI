@@ -450,29 +450,26 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                   />
                 </div>
               </div>
-              {fechasQuincenales.length === 2 && (
+              {fechasQuincenales.length > 0 && (
                 <div>
                   <p className="text-xs text-gray-500 mb-2">
-                    Se crearán 2 tareas para {nombreMesCiclo}:
+                    Se crearán {fechasQuincenales.length} tareas para {nombreMesCiclo}:
                   </p>
                   <div className="space-y-1">
                     {fechasQuincenales.map((f, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
-                        <span className="text-xs text-purple-300">{fechaStr(f)}</span>
+                        <span className="text-xs text-purple-300">
                           {fechaStr(f.inicio)} → {fechaStr(f.termino)}
                         </span>
-                          {f.inicio > hoy
-                            ? <span className="text-xs text-gray-600">🔒 bloqueada</span>
-                            : <span className="text-xs text-green-500">● activa</span>}
-                        </div>
-                      ))}
-                  </div>
+                        {f.inicio > hoy
+                          ? <span className="text-xs text-gray-600">🔒 bloqueada</span>
+                          : <span className="text-xs text-green-500">● activa</span>}
+                      </div>
+                    ))}
+                   </div>
                 </div>
               )}
-            </div>
-          )}
-
           {/* Mensual / cierre / puntual — fechas normales */}
           {(form.tipo !== 'recurrente_mes' ||
             form.frecuencia === 'mensual') && (
