@@ -114,11 +114,12 @@ export function getNesimoHabilDelMes(mes, anio, n, feriados) {
   let count = 0
   let dia = 1
 
-  while (count < n) {
+  while (true) {
     const d = new Date(anio, mes - 1, dia, 12, 0, 0)
-    if (esDiaHabil(d, feriados)) count++
-    if (count < n) dia++
+    if (esDiaHabil(d, feriados)) {
+      count++
+      if (count === n) return d
+    }
+    dia++
   }
-
-  return new Date(anio, mes - 1, dia, 12, 0, 0)
 }
