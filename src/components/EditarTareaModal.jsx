@@ -15,6 +15,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const [nombre,       setNombre]       = useState(tarea.nombre_tarea)
   const [area,         setArea]         = useState(tarea.area ?? '')
   const [observaciones,setObservaciones]= useState(tarea.observaciones ?? '')
+  const [reasignando, setReasignando] = useState(false)
   const [responsableId,setResponsableId]= useState(tarea.responsable_id ?? '')
   const [fechaTermino, setFechaTermino] = useState(tarea.fecha_termino)
   const [diaHabilFijo, setDiaHabilFijo] = useState(tarea.condicion === 'habil')
