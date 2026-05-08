@@ -170,8 +170,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           tipo:            'recurrente_mes',
           frecuencia:      form.frecuencia,
           serie_id:        serieId,
-          mes_calendario:  mesNext,
-          anio_calendario: anioNext,
+          mes_calendario:  mesCiclo,
+          anio_calendario: anioCiclo,
         }))
 
         const { error: errTareas } = await supabase.from('tasks').insert(tareas)
