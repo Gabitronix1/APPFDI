@@ -57,7 +57,7 @@ export function getFeriadosDelAnio(anio) {
 
 export function esDiaHabil(fecha, feriados) {
   const dia = fecha.getDay()
-  const key = fecha.toISOString().split('T')[0]
+  const key = `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
   return dia !== 0 && dia !== 6 && !feriados.has(key)
 }
 
@@ -112,7 +112,7 @@ export function calcularFechasTarea(template, mes, anio) {
 // Obtiene el N-ésimo día hábil de un mes
 export function getNesimoHabilDelMes(mes, anio, n, feriados) {
   let count = 0
-  const d = new Date(anio, mes - 1, 1)
+  const d = new Date(anio, mes - 1, 1, 12, 0, 0)
 
   while (count < n) {
     if (esDiaHabil(d, feriados)) count++
