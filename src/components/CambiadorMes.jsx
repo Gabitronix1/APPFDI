@@ -10,8 +10,7 @@ const MESES = [
 
 // Nombre de display: mes N → "Cierre de [mes N-1]"
 function nombreCierre(mes, anio) {
-  function nombreCierre(mes, anio) {
-    return `${MESES[mes - 1]} ${anio}`
+  return `${MESES[mes - 1]} ${anio}`
 }
 
 export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
