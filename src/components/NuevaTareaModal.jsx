@@ -31,12 +31,25 @@ function calcularFechasSemanales(diaSemana, mes, anio, feriados) {
   return fechas
 }
 
-function calcularFechasQuincenales(dia1, dia2, mes, anio, feriados) {
-  const f1 = ajustarAlDiaHabilSiguiente(new Date(anio, mes - 1, dia1, 12, 0, 0), feriados)
-  const f2 = ajustarAlDiaHabilSiguiente(new Date(anio, mes - 1, dia2, 12, 0, 0), feriados)
-  return [f1, f2]
-}
+function calcularFechasQuincenales(dia1, dia2, mes, anio, feriados, desdeHoy = false) {
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+  const d1 = parseInt(dia1)
+  const d2 = parseInt(dia2)
+  if (isNaN(d1) || isNaN(d2)) return []
 
+  const termino1 = ajustarAlDiaHabilSiguiente(new Date(anio, mes - 1, d1, 12, 0, 0), feriados)
+  const termino2 = ajustarAlDiaHabilSiguiente(new Date(anio, mes - 1, d2, 12, 0, 0), feriados)
+
+  const inicio1 = new Date(anio, mes - 1, 1, 12, 0, 0)
+  const inicio2 = new Date(termino1)
+  inicio2.setDate(inicio2.getDate() + 1)
+
+  return [
+    { inicio: inicio1, termino: termino1 },
+    { inicio: inicio2, termino: termino2 },
+  ].filter(f => !desdeHoy || f.termino >= hoy)
+}
 function fechaStr(fecha) {
   return `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
 }
@@ -162,8 +175,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           area:            form.area || 'General',
           departamento:    deptoActivo,
           condicion:       'habil',
-          fecha_inicio:    fechaStr(fecha),
-          fecha_termino:   fechaStr(fecha),
+          fecha_inicio:    form.frecuencia === 'quincenal' ? fechaStr(f.inicio) : fechaStr(f),
+          fecha_termino:   form.frecuencia === 'quincenal' ? fechaStr(f.termino) : fechaStr(f),
           estado:          'pendiente',
           observaciones:   form.observaciones.trim() || null,
           tipo_tarea:      'adicional',
@@ -419,7 +432,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             <div className="bg-purple-950/20 border border-purple-800/50 rounded-xl p-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Primera quincena — día</label>
+                  <label className="block text-sm text-gray-400 mb-1">1ª quincena — día de término</label>
                   <input
                     name="dia_quincena_1" type="number" min="1" max="15"
                     value={form.dia_quincena_1} onChange={handleChange}
@@ -428,7 +441,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Segunda quincena — día</label>
+                  <label className="block text-sm text-gray-400 mb-1">2ª quincena — día de término</label>
                   <input
                     name="dia_quincena_2" type="number" min="16" max="31"
                     value={form.dia_quincena_2} onChange={handleChange}
@@ -447,11 +460,13 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                       <div key={i} className="flex items-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
                         <span className="text-xs text-purple-300">{fechaStr(f)}</span>
-                        {f > hoy
-                          ? <span className="text-xs text-gray-600">🔒 bloqueada hasta esa fecha</span>
-                          : <span className="text-xs text-green-500">● activa</span>}
-                      </div>
-                    ))}
+                          {fechaStr(f.inicio)} → {fechaStr(f.termino)}
+                        </span>
+                          {f.inicio > hoy
+                            ? <span className="text-xs text-gray-600">🔒 bloqueada</span>
+                            : <span className="text-xs text-green-500">● activa</span>}
+                        </div>
+                      ))}
                   </div>
                 </div>
               )}
