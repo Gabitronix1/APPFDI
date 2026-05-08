@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import {
   CheckCircle2, Clock, AlertCircle, ListChecks, TrendingUp,
-  User, Users, RefreshCw, Sparkles, X, Calendar, ChevronRight
+  User, Users, RefreshCw, Sparkles, X, Calendar, ChevronRight, CalendarClock
 } from 'lucide-react'
 import { useState } from 'react'
 import TaskModal from '../components/TaskModal'
@@ -18,6 +18,12 @@ const MESES = [
 
 const DIAS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
 
+// Nombre del ciclo: ahora es solo el mes y año
+function nombreCiclo(mes, anio) {
+  return `${MESES[mes - 1]} ${anio}`
+}
+
+// Nombre del cierre (mes anterior) para el bloque de cierre
 function nombreCierre(mes, anio) {
   if (mes === 1) return `Cierre de Diciembre ${anio - 1}`
   return `Cierre de ${MESES[mes - 2]} ${anio}`
@@ -63,6 +69,7 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
     tarea.alerta === 'fuera_de_plazo' &&
     tarea.estado !== 'completada' &&
     tarea.estado !== 'completada_con_atraso'
+
   const borderColor = esCicloCerrado
     ? 'border-gray-800'
     : {
@@ -87,6 +94,13 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
     : tarea.estado === 'pendiente'             ? 'Pendiente'
     : tarea.estado.replace(/_/g, ' ')
 
+  // Ícono según tipo
+  const icono = tarea.tipo === 'cierre'
+    ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+    : tarea.tipo === 'recurrente_mes'
+    ? <CalendarClock className="w-3 h-3 text-purple-400 shrink-0" />
+    : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+
   return (
     <div
       onClick={onClick}
@@ -95,9 +109,7 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          {tarea.template_id
-            ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
-            : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+          {icono}
           <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
         </div>
         <p className="text-gray-500 text-xs mt-0.5">{tarea.area} · Vence {tarea.fecha_termino}</p>
@@ -131,8 +143,10 @@ function ModalListaTareas({ titulo, tareas, onClose, onClickTarea }) {
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  {tarea.template_id
+                  {tarea.tipo === 'cierre'
                     ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+                    : tarea.tipo === 'recurrente_mes'
+                    ? <CalendarClock className="w-3 h-3 text-purple-400 shrink-0" />
                     : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
                   <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
                 </div>
@@ -149,35 +163,117 @@ function ModalListaTareas({ titulo, tareas, onClose, onClickTarea }) {
   )
 }
 
+// ─── BLOQUE GENÉRICO REUTILIZABLE ─────────────────────────────────────────────
+function BloqueMetricas({
+  titulo, icono, iconoColor, accentColor, tareas, esCicloCerrado,
+  onClickTarea, mostrarStatCards = false, onModalFiltro
+}) {
+  const completadas = tareas.filter(t => t.estado === 'completada').length
+  const atraso      = tareas.filter(t => t.estado === 'completada_con_atraso').length
+  const pendientes  = tareas.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
+  const atrasadas   = tareas.filter(t => t.estado === 'con_atraso').length
+  const noComp      = tareas.filter(t => t.estado === 'no_completada').length
+  const pct         = tareas.length ? Math.round(((completadas + atraso) / tareas.length) * 100) : 0
+
+  const conPctArr = tareas.filter(t => t.porcentaje_cumplimiento !== null)
+  const pctCal    = conPctArr.length
+    ? Math.round(conPctArr.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPctArr.length)
+    : null
+
+  const colorBarra = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
+  const colorTexto = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+      <div className={`flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-800/30`}>
+        <div className="flex items-center gap-2">
+          <span className={iconoColor}>{icono}</span>
+          <h2 className="text-white font-semibold">{titulo}</h2>
+          {esCicloCerrado
+            ? <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">🔒 cerrado</span>
+            : <span className={`text-xs px-2 py-0.5 rounded-full ${accentColor}`}>● activo</span>}
+        </div>
+        <span className={`text-2xl font-bold ${colorTexto}`}>{pct}%</span>
+      </div>
+
+      <div className="px-6 py-4">
+        <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden mb-2">
+          <div className={`h-3 rounded-full transition-all duration-700 ${colorBarra}`}
+            style={{ width: `${pct}%` }} />
+        </div>
+        {pctCal !== null && (
+          <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden mb-2">
+            <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
+              style={{ width: `${pctCal}%` }} />
+          </div>
+        )}
+        <div className="flex items-center gap-4 mb-3">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-0.5 bg-green-500 inline-block rounded" />
+            <span className="text-xs text-gray-600">Tareas completadas</span>
+          </div>
+          {pctCal !== null && (
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-0.5 bg-yellow-500 inline-block rounded" />
+              <span className="text-xs text-gray-600">Calidad promedio: <span className="text-yellow-400">{pctCal}%</span></span>
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 mb-4">
+          {completadas + atraso} de {tareas.length} tareas completadas
+          {atraso > 0 && <span className="text-yellow-600 ml-2">({atraso} entregadas)</span>}
+        </p>
+
+        {mostrarStatCards && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <StatCard icon={ListChecks} label="Total" value={tareas.length} color="bg-blue-700" sub="tareas" />
+            <StatCard
+              icon={CheckCircle2} label="Completadas" value={completadas} color="bg-green-700" sub="100%"
+              onClick={!esCicloCerrado && onModalFiltro ? () => onModalFiltro('completadas') : undefined}
+            />
+            <StatCard
+              icon={Clock} label="Entregadas" value={atraso} color="bg-yellow-700" sub="Menor a 100%"
+              onClick={!esCicloCerrado && onModalFiltro ? () => onModalFiltro('atraso') : undefined}
+            />
+            <StatCard
+              icon={AlertCircle} label="Sin completar" value={pendientes + atrasadas + noComp}
+              color="bg-red-700" sub={`${pendientes} pend. · ${atrasadas + noComp} vencidas`}
+              onClick={!esCicloCerrado && onModalFiltro ? () => onModalFiltro('sinCompletar') : undefined}
+            />
+          </div>
+        )}
+
+        {!mostrarStatCards && (
+          <div className="flex gap-4">
+            <span className="text-xs text-green-400">✓ {completadas + atraso} completadas</span>
+            <span className="text-xs text-amber-400">⏳ {pendientes} pendientes</span>
+            <span className="text-xs text-gray-500">{tareas.length} total</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── DASHBOARD ADMIN ──────────────────────────────────────────────────────────
 function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, profile, esCicloCerrado }) {
-  const navigate     = useNavigate()
-  const queryClient  = useQueryClient()
+  const navigate    = useNavigate()
+  const queryClient = useQueryClient()
   const [modalFiltro, setModalFiltro]   = useState(null)
   const [tareaDetalle, setTareaDetalle] = useState(null)
   const [tareaActiva, setTareaActiva]   = useState(null)
 
-  const tareasCierre      = tareas.filter(t => t.tipo_tarea === 'cierre' || t.template_id)
-  const tareasAdicionales = tareas.filter(t => t.tipo_tarea === 'adicional' && !t.template_id)
+  // ── Separar los 3 tipos ──────────────────────────────────────────────────
+  const tareasCierre       = tareas.filter(t => t.tipo === 'cierre')
+  const tareasRecurrentes  = tareas.filter(t => t.tipo === 'recurrente_mes')
+  const tareasPuntuales    = tareas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id))
 
+  // Para el modal de filtro del bloque cierre
   const cierreCompletadas = tareasCierre.filter(t => t.estado === 'completada').length
   const cierreAtraso      = tareasCierre.filter(t => t.estado === 'completada_con_atraso').length
   const cierrePendientes  = tareasCierre.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
   const cierreAtrasadas   = tareasCierre.filter(t => t.estado === 'con_atraso').length
   const cierreNoComp      = tareasCierre.filter(t => t.estado === 'no_completada').length
-  const cierrePct         = tareasCierre.length
-    ? Math.round(((cierreCompletadas + cierreAtraso) / tareasCierre.length) * 100) : 0
-
-  // Calidad promedio cierre
-  const cierreConPct  = tareasCierre.filter(t => t.porcentaje_cumplimiento !== null)
-  const cierrePctCal  = cierreConPct.length
-    ? Math.round(cierreConPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / cierreConPct.length)
-    : null
-
-  const adicCompletadas = tareasAdicionales.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
-  const adicPendientes  = tareasAdicionales.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
-  const adicPct         = tareasAdicionales.length
-    ? Math.round((adicCompletadas / tareasAdicionales.length) * 100) : 0
 
   const porIntegrante = tareas.reduce((acc, t) => {
     const nombre = t.responsable_nombre ?? 'Sin asignar'
@@ -208,10 +304,10 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           .eq('ciclo_id', c.id)
           .eq('departamento', profile?.departamento)
         if (!tareasHist?.length) continue
-        const comp = tareasHist.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
+        const comp   = tareasHist.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
         const conPct = tareasHist.filter(t => t.porcentaje_cumplimiento !== null)
         results.push({
-          mes: nombreCierre(c.mes, c.anio).replace('Cierre de ', ''),
+          mes: nombreCiclo(c.mes, c.anio),
           pct: Math.round((comp / tareasHist.length) * 100),
           completadas: comp,
           total: tareasHist.length,
@@ -232,102 +328,54 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
     }
   }
 
-  const colorCierre = cierrePct === 100 ? 'bg-green-500' : cierrePct > 60 ? 'bg-amber-500' : 'bg-red-500'
-  const textoCierre = cierrePct === 100 ? 'text-green-400' : cierrePct > 60 ? 'text-amber-400' : 'text-red-400'
-  const colorAdic   = adicPct === 100 ? 'bg-green-500' : adicPct > 60 ? 'bg-amber-500' : 'bg-red-500'
-  const textoAdic   = adicPct === 100 ? 'text-green-400' : adicPct > 60 ? 'text-amber-400' : 'text-red-400'
+  // Tareas del modal de filtro (solo cierre)
+  const tareasFiltroModal = tareasCierre.filter(t =>
+    modalFiltro === 'completadas'  ? t.estado === 'completada'
+    : modalFiltro === 'atraso'     ? t.estado === 'completada_con_atraso'
+    : ['con_atraso','no_completada','pendiente','en_progreso'].includes(t.estado)
+  )
+
+  const tituloModal = modalFiltro === 'completadas' ? `Completadas en fecha (${cierreCompletadas})`
+    : modalFiltro === 'atraso' ? `Entregadas — menor a 100% (${cierreAtraso})`
+    : `Sin completar (${cierrePendientes + cierreAtrasadas + cierreNoComp})`
 
   return (
     <div className="space-y-6">
 
       {/* ── BLOQUE CIERRE ─────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-800/30">
-          <div className="flex items-center gap-2">
-            <RefreshCw className="w-4 h-4 text-blue-400" />
-            <h2 className="text-white font-semibold">Tareas recurrentes</h2>
-            {esCicloCerrado
-              ? <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">🔒 cerrado</span>
-              : <span className="text-xs text-green-400 bg-green-900/30 px-2 py-0.5 rounded-full">● activo</span>}
-          </div>
-          <span className={`text-2xl font-bold ${textoCierre}`}>{cierrePct}%</span>
-        </div>
+      <BloqueMetricas
+        titulo={nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio)}
+        icono={<RefreshCw className="w-4 h-4" />}
+        iconoColor="text-blue-400"
+        accentColor="text-green-400 bg-green-900/30"
+        tareas={tareasCierre}
+        esCicloCerrado={esCicloCerrado}
+        mostrarStatCards
+        onModalFiltro={setModalFiltro}
+      />
 
-        <div className="px-6 py-4">
-          {/* Barra completadas */}
-          <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden mb-2">
-            <div className={`h-3 rounded-full transition-all duration-700 ${colorCierre}`}
-              style={{ width: `${cierrePct}%` }} />
-          </div>
-          {/* Barra calidad */}
-          {cierrePctCal !== null && (
-            <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden mb-2">
-              <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
-                style={{ width: `${cierrePctCal}%` }} />
-            </div>
-          )}
-          <div className="flex items-center gap-4 mb-3">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-0.5 bg-green-500 inline-block rounded" />
-              <span className="text-xs text-gray-600">Tareas completadas</span>
-            </div>
-            {cierrePctCal !== null && (
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-0.5 bg-yellow-500 inline-block rounded" />
-                <span className="text-xs text-gray-600">Calidad promedio: <span className="text-yellow-400">{cierrePctCal}%</span></span>
-              </div>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 mb-4">
-            {cierreCompletadas + cierreAtraso} de {tareasCierre.length} tareas completadas
-            {cierreAtraso > 0 && <span className="text-yellow-600 ml-2">({cierreAtraso} entregadas)</span>}
-          </p>
+      {/* ── BLOQUE RECURRENTES DEL MES ────────────────────────── */}
+      {tareasRecurrentes.length > 0 && (
+        <BloqueMetricas
+          titulo={`Recurrentes de ${tituloCiclo}`}
+          icono={<CalendarClock className="w-4 h-4" />}
+          iconoColor="text-purple-400"
+          accentColor="text-purple-400 bg-purple-900/30"
+          tareas={tareasRecurrentes}
+          esCicloCerrado={esCicloCerrado}
+        />
+      )}
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatCard icon={ListChecks} label="Total" value={tareasCierre.length} color="bg-blue-700" sub="tareas del cierre" />
-            <StatCard
-              icon={CheckCircle2} label="Completadas" value={cierreCompletadas} color="bg-green-700" sub="100%"
-              onClick={!esCicloCerrado ? () => setModalFiltro('completadas') : undefined}
-            />
-            <StatCard
-              icon={Clock} label="Entregadas" value={cierreAtraso} color="bg-yellow-700" sub="Menor a 100%"
-              onClick={!esCicloCerrado ? () => setModalFiltro('atraso') : undefined}
-            />
-            <StatCard
-              icon={AlertCircle} label="Sin completar" value={cierrePendientes + cierreAtrasadas + cierreNoComp}
-              color="bg-red-700" sub={`${cierrePendientes} pend. · ${cierreAtrasadas + cierreNoComp} vencidas`}
-              onClick={!esCicloCerrado ? () => setModalFiltro('sinCompletar') : undefined}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── BLOQUE ADICIONALES ────────────────────────────────── */}
-      {tareasAdicionales.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800 bg-gray-800/30">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <h2 className="text-white font-semibold">
-                {tareasAdicionales[0]?.mes_calendario
-                  ? `Tareas de ${MESES[tareasAdicionales[0].mes_calendario - 1]} ${tareasAdicionales[0].anio_calendario}`
-                  : `Tareas de ${MESES[new Date().getMonth()]} ${new Date().getFullYear()}`} ✨
-              </h2>
-            </div>
-            <span className={`text-2xl font-bold ${textoAdic}`}>{adicPct}%</span>
-          </div>
-          <div className="px-6 py-4">
-            <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden mb-3">
-              <div className={`h-2 rounded-full transition-all duration-700 ${colorAdic}`}
-                style={{ width: `${adicPct}%` }} />
-            </div>
-            <div className="flex gap-4">
-              <span className="text-xs text-green-400">✓ {adicCompletadas} completadas</span>
-              <span className="text-xs text-amber-400">⏳ {adicPendientes} pendientes</span>
-              <span className="text-xs text-gray-500">{tareasAdicionales.length} total</span>
-            </div>
-          </div>
-        </div>
+      {/* ── BLOQUE PUNTUALES ──────────────────────────────────── */}
+      {tareasPuntuales.length > 0 && (
+        <BloqueMetricas
+          titulo={`Tareas puntuales de ${tituloCiclo}`}
+          icono={<Sparkles className="w-4 h-4" />}
+          iconoColor="text-amber-400"
+          accentColor="text-amber-400 bg-amber-900/30"
+          tareas={tareasPuntuales}
+          esCicloCerrado={esCicloCerrado}
+        />
       )}
 
       {/* ── MI EQUIPO HOY ─────────────────────────────────────── */}
@@ -344,9 +392,9 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
               return pctA - pctB
             })
             .map(([nombre, stats]) => {
-              const pct   = stats.total ? Math.round((stats.completadas / stats.total) * 100) : 0
-              const color = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
-              const texto = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
+              const pct      = stats.total ? Math.round((stats.completadas / stats.total) * 100) : 0
+              const color    = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
+              const texto    = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
               const iniciales = nombre.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)
               return (
                 <div
@@ -393,7 +441,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-green-400" />
             <h2 className="text-white font-semibold">Tendencia de cumplimiento</h2>
-            <span className="text-xs text-gray-500 ml-1">— últimos {historial.length} cierres</span>
+            <span className="text-xs text-gray-500 ml-1">— últimos {historial.length} meses</span>
             <div className="ml-auto flex items-center gap-4">
               <div className="flex items-center gap-1.5">
                 <span className="w-3 h-0.5 bg-green-500 inline-block" />
@@ -461,7 +509,8 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
             <div className="space-y-3">
               {misTareasPendientes.map(tarea => (
                 <TareaRow key={tarea.id} tarea={tarea}
-                  onClick={() => !esCicloCerrado && handleClickTarea(tarea)} />
+                  onClick={() => !esCicloCerrado && handleClickTarea(tarea)}
+                  esCicloCerrado={esCicloCerrado} />
               ))}
             </div>
           </div>
@@ -471,16 +520,8 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
       {/* Modales */}
       {modalFiltro && (
         <ModalListaTareas
-          titulo={
-            modalFiltro === 'completadas'  ? `Completadas en fecha (${cierreCompletadas})`
-            : modalFiltro === 'atraso'     ? `Entregadas — menor a 100% (${cierreAtraso})`
-            : `Sin completar (${cierrePendientes + cierreAtrasadas + cierreNoComp})`
-          }
-          tareas={tareasCierre.filter(t =>
-            modalFiltro === 'completadas'  ? t.estado === 'completada'
-            : modalFiltro === 'atraso'     ? t.estado === 'completada_con_atraso'
-            : ['con_atraso','no_completada','pendiente','en_progreso'].includes(t.estado)
-          )}
+          titulo={tituloModal}
+          tareas={tareasFiltroModal}
           onClose={() => setModalFiltro(null)}
           onClickTarea={handleClickTarea}
         />
@@ -518,6 +559,11 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
     return Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
   })()
 
+  // Separar mis tareas por tipo
+  const misCierre      = misTareas.filter(t => t.tipo === 'cierre')
+  const misRecurrentes = misTareas.filter(t => t.tipo === 'recurrente_mes')
+  const misPuntuales   = misTareas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id))
+
   const misPendientesActivas = misTareas.filter(t =>
     t.estado !== 'completada' && t.estado !== 'completada_con_atraso' && t.estado !== 'no_completada'
   )
@@ -551,14 +597,12 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
             {miPct}%
           </span>
         </div>
-        {/* Barra completadas */}
         <div className="w-full bg-gray-800 rounded-full h-4 overflow-hidden mb-2">
           <div
             className={`h-4 rounded-full transition-all duration-700 ${miPct === 100 ? 'bg-green-500' : miPct > 50 ? 'bg-amber-500' : 'bg-red-500'}`}
             style={{ width: `${miPct}%` }}
           />
         </div>
-        {/* Barra calidad */}
         {miPctCalidad !== null && (
           <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden mb-2">
             <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
@@ -586,10 +630,10 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
 
       {/* Stats personales */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={ListChecks}   label="Mis tareas"    value={misTareas.length}                      color="bg-blue-700"  sub="este cierre" />
-        <StatCard icon={CheckCircle2} label="Completadas"   value={misCompletadas + misCompletadasAtraso}  color="bg-green-700" sub={`${miPct}% del total`} />
-        <StatCard icon={Clock}        label="Pendientes"    value={misPendientes}                         color="bg-amber-600" sub="Por completar" />
-        <StatCard icon={AlertCircle}  label="Sin completar" value={misAtrasadas}                          color="bg-red-700"   sub="Vencidas" />
+        <StatCard icon={ListChecks}   label="Mis tareas"    value={misTareas.length}                     color="bg-blue-700"  sub="este mes" />
+        <StatCard icon={CheckCircle2} label="Completadas"   value={misCompletadas + misCompletadasAtraso} color="bg-green-700" sub={`${miPct}% del total`} />
+        <StatCard icon={Clock}        label="Pendientes"    value={misPendientes}                        color="bg-amber-600" sub="Por completar" />
+        <StatCard icon={AlertCircle}  label="Sin completar" value={misAtrasadas}                         color="bg-red-700"   sub="Vencidas" />
       </div>
 
       {/* Mi % de responsabilidad */}
@@ -620,8 +664,10 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
                 <div key={t.id} className="flex items-center justify-between gap-4 py-2 border-b border-gray-800/50 last:border-0">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      {t.template_id
+                      {t.tipo === 'cierre'
                         ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+                        : t.tipo === 'recurrente_mes'
+                        ? <CalendarClock className="w-3 h-3 text-purple-400 shrink-0" />
                         : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
                       <p className="text-gray-300 text-sm truncate">{t.nombre_tarea}</p>
                     </div>
@@ -638,11 +684,16 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
         </div>
       )}
 
-      {/* Mis tareas pendientes */}
+      {/* Mis tareas pendientes — agrupadas por tipo */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
         <div className="flex items-center gap-2 mb-5">
           <User className="w-5 h-5 text-green-400" />
           <h2 className="text-white font-semibold">Mis tareas pendientes</h2>
+          {misPendientesActivas.length > 0 && (
+            <span className="text-xs bg-amber-900 text-amber-300 px-2 py-0.5 rounded-full font-medium">
+              {misPendientesActivas.length}
+            </span>
+          )}
         </div>
         {isLoading ? (
           <div className="flex justify-center py-8">
@@ -652,15 +703,52 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
           <div className="text-center py-8">
             <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto mb-3" />
             <p className="text-gray-300 font-medium">¡Todo al día!</p>
-            <p className="text-gray-500 text-sm">No tienes tareas pendientes este ciclo</p>
+            <p className="text-gray-500 text-sm">No tienes tareas pendientes este mes</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {misPendientesActivas.map(tarea => (
-              <TareaRow key={tarea.id} tarea={tarea}
-                esCicloCerrado={false}
-                onClick={() => onClickTarea(tarea)} />
-            ))}
+          <div className="space-y-5">
+            {/* Cierre */}
+            {misPendientesActivas.filter(t => t.tipo === 'cierre').length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <RefreshCw className="w-3 h-3 text-blue-400" />
+                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Cierre</span>
+                </div>
+                <div className="space-y-2">
+                  {misPendientesActivas.filter(t => t.tipo === 'cierre').map(tarea => (
+                    <TareaRow key={tarea.id} tarea={tarea} onClick={() => onClickTarea(tarea)} esCicloCerrado={false} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Recurrentes del mes */}
+            {misPendientesActivas.filter(t => t.tipo === 'recurrente_mes').length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <CalendarClock className="w-3 h-3 text-purple-400" />
+                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Recurrentes del mes</span>
+                </div>
+                <div className="space-y-2">
+                  {misPendientesActivas.filter(t => t.tipo === 'recurrente_mes').map(tarea => (
+                    <TareaRow key={tarea.id} tarea={tarea} onClick={() => onClickTarea(tarea)} esCicloCerrado={false} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Puntuales */}
+            {misPendientesActivas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id)).length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Puntuales</span>
+                </div>
+                <div className="space-y-2">
+                  {misPendientesActivas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id)).map(tarea => (
+                    <TareaRow key={tarea.id} tarea={tarea} onClick={() => onClickTarea(tarea)} esCicloCerrado={false} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -682,7 +770,7 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
             </div>
             <div className="space-y-3">
               {misCompletadasAll.map(tarea => (
-                <TareaRow key={tarea.id} tarea={tarea} onClick={() => setTareaDetalle(tarea)} />
+                <TareaRow key={tarea.id} tarea={tarea} onClick={() => setTareaDetalle(tarea)} esCicloCerrado={false} />
               ))}
             </div>
           </div>
@@ -735,7 +823,7 @@ export default function Dashboard({ cicloSeleccionado }) {
     }
   })
 
-  const tituloCiclo    = cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : ''
+  const tituloCiclo    = cicloSeleccionado ? nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio) : ''
   const esCicloCerrado = cicloSeleccionado?.estado === 'cerrado'
   const esAdmin        = profile?.rol === 'admin'
 
