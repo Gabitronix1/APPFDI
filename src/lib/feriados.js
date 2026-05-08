@@ -112,12 +112,13 @@ export function calcularFechasTarea(template, mes, anio) {
 // Obtiene el N-ésimo día hábil de un mes
 export function getNesimoHabilDelMes(mes, anio, n, feriados) {
   let count = 0
-  const d = new Date(anio, mes - 1, 1, 12, 0, 0)
+  let dia = 1
 
   while (count < n) {
+    const d = new Date(anio, mes - 1, dia, 12, 0, 0)
     if (esDiaHabil(d, feriados)) count++
-    if (count < n) d.setDate(d.getDate() + 1)
+    if (count < n) dia++
   }
 
-  return d
+  return new Date(anio, mes - 1, dia, 12, 0, 0)
 }
