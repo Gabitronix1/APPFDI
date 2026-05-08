@@ -197,6 +197,8 @@ export default function Tareas({ cicloSeleccionado }) {
   const [verPuntuales, setVerPuntuales]             = useState(true)
   const [tareaDetalle, setTareaDetalle]             = useState(null)
   const [editando, setEditando]                     = useState(null)
+  const [tareasSerieSeleccionadas, setTareasSerieSeleccionadas] = useState([])
+  const [tareasSerieDelCiclo, setTareasSerieDelCiclo]           = useState([])
 
   const { data: tareas = [], isLoading } = useQuery({
     queryKey: ['tareas', cicloSeleccionado?.id, profile?.departamento],
@@ -270,42 +272,55 @@ export default function Tareas({ cicloSeleccionado }) {
     }
   }
 
+  async function handleAbrirEliminar(tareaId) {  // 👈 acá
+    setEliminando(tareaId)
+    const tarea = tareas.find(t => t.id === tareaId)
+    if (tarea?.serie_id) {
+      const { data } = await supabase
+        .from('tasks')
+        .select('id, nombre_tarea, fecha_termino, fecha_inicio, estado')
+        .eq('serie_id', tarea.serie_id)
+        .eq('ciclo_id', cicloSeleccionado.id)
+        .order('fecha_termino', { ascending: true })
+      const serie = data ?? []
+      setTareasSerieDelCiclo(serie)
+      setTareasSerieSeleccionadas([tareaId])
+    } else {
+      setTareasSerieDelCiclo([])
+      setTareasSerieSeleccionadas([])
+    }
+  }
+
   async function handleEliminar() {
   if (!eliminando) return
   setLoadingEliminar(true)
   try {
-    if (eliminarSerie && tareaAEliminar?.serie_id) {
-      // Buscar todas las tareas de la serie en este ciclo
-      const { data: tareaserie } = await supabase
-        .from('tasks')
-        .select('id')
-        .eq('serie_id', tareaAEliminar.serie_id)
-        .eq('ciclo_id', cicloSeleccionado.id)
-      const ids = tareaserie?.map(t => t.id) ?? []
-      if (ids.length > 0) {
-        await supabase.from('evidencias').delete().in('task_id', ids)
-        await supabase.from('task_completions').delete().in('task_id', ids)
-        await supabase.from('tasks').delete().in('id', ids)
-      }
-    } else {
-      await supabase.from('evidencias').delete().eq('task_id', eliminando)
-      await supabase.from('task_completions').delete().eq('task_id', eliminando)
-      await supabase.from('tasks').delete().eq('id', eliminando)
-    }
+    const idsAEliminar = tareaAEliminar?.serie_id && tareasSerieSeleccionadas.length > 0
+      ? tareasSerieSeleccionadas
+      : [eliminando]
+
+    await supabase.from('evidencias').delete().in('task_id', idsAEliminar)
+    await supabase.from('task_completions').delete().in('task_id', idsAEliminar)
+    await supabase.from('tasks').delete().in('id', idsAEliminar)
+
     if (eliminarRecurrente && tareaAEliminar?.template_id) {
-      await supabase.from('task_templates').update({ activo: false }).eq('id', tareaAEliminar.template_id)
+      await supabase.from('task_templates')
+        .update({ activo: false })
+        .eq('id', tareaAEliminar.template_id)
     }
+
     queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
     setEliminando(null)
     setEliminarRecurrente(false)
     setEliminarSerie(false)
+    setTareasSerieSeleccionadas([])
+    setTareasSerieDelCiclo([])
   } catch (err) {
     console.error('Error al eliminar:', err)
   } finally {
     setLoadingEliminar(false)
   }
 }
-
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
 
@@ -439,7 +454,7 @@ export default function Tareas({ cicloSeleccionado }) {
             esCicloCerrado={esCicloCerrado}
             onClickTarea={handleClickTarea}
             onEditar={setEditando}
-            onEliminar={setEliminando}
+            onEliminar={handleAbrirEliminar}
           />
 
           <GrupoTareas
@@ -453,7 +468,7 @@ export default function Tareas({ cicloSeleccionado }) {
             esCicloCerrado={esCicloCerrado}
             onClickTarea={handleClickTarea}
             onEditar={setEditando}
-            onEliminar={setEliminando}
+            onEliminar={handleAbrirEliminar}
           />
 
           <GrupoTareas
@@ -467,7 +482,7 @@ export default function Tareas({ cicloSeleccionado }) {
             esCicloCerrado={esCicloCerrado}
             onClickTarea={handleClickTarea}
             onEditar={setEditando}
-            onEliminar={setEliminando}
+            onEliminar={handleAbrirEliminar}
           />
 
         </div>
@@ -494,85 +509,140 @@ export default function Tareas({ cicloSeleccionado }) {
         />
       )}
 
-      {/* Modal confirmar eliminación */}
       {eliminando && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-red-900/40 rounded-xl">
-                <Trash2 className="w-5 h-5 text-red-400" />
-              </div>
-              <h3 className="text-white font-semibold">¿Eliminar tarea?</h3>
-            </div>
-            <p className="text-gray-400 text-sm mb-2">Se eliminará permanentemente:</p>
-            <p className="text-white text-sm font-medium bg-gray-800 rounded-lg px-3 py-2 mb-4">
-              {tareaAEliminar?.nombre_tarea}
-            </p>
-            {tareaAEliminar?.template_id && (
-              <label className={`flex items-start gap-3 rounded-xl px-4 py-3 mb-4 cursor-pointer border transition
-                ${eliminarRecurrente ? 'bg-red-950 border-red-700' : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={eliminarRecurrente}
-                  onChange={e => setEliminarRecurrente(e.target.checked)}
-                  className="mt-0.5 accent-red-500 w-4 h-4 shrink-0"
-                />
-                <div>
-                  <p className="text-sm text-white font-medium">Eliminar también de ciclos futuros</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    La tarea dejará de generarse automáticamente en próximos meses
-                  </p>
-                </div>
-              </label>
-            )}
-            {tareaAEliminar?.serie_id && (
-              <label className={`flex items-start gap-3 rounded-xl px-4 py-3 mb-4 cursor-pointer border transition
-                ${eliminarSerie ? 'bg-red-950 border-red-700' : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={eliminarSerie}
-                  onChange={e => setEliminarSerie(e.target.checked)}
-                  className="mt-0.5 accent-red-500 w-4 h-4 shrink-0"
-                />
-                <div>
-                  <p className="text-sm text-white font-medium">Eliminar toda la serie</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    Se eliminarán todas las tareas de esta serie en el ciclo actual
-                  </p>
-              </div>
-            </label>
-            )}
-            <p className="text-gray-500 text-xs mb-6">
-              {eliminarRecurrente
-                ? 'Se eliminará del ciclo actual y no se generará en futuros ciclos.'
-                : 'Solo se eliminará del ciclo actual. Los ciclos futuros no se verán afectados.'}
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => { setEliminando(null); setEliminarRecurrente(false); setEliminarSerie(false) }}
-                disabled={loadingEliminar}
-                className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300
-                           py-2.5 rounded-xl text-sm transition disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleEliminar}
-                disabled={loadingEliminar}
-                className="flex-1 flex items-center justify-center gap-2 bg-red-700
-                           hover:bg-red-600 text-white py-2.5 rounded-xl text-sm
-                           font-semibold transition disabled:opacity-50"
-              >
-                {loadingEliminar
-                  ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Eliminando...</>
-                  : <><Trash2 className="w-4 h-4" /> Eliminar</>}
-              </button>
-            </div>
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+    <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="p-2 bg-red-900/40 rounded-xl">
+          <Trash2 className="w-5 h-5 text-red-400" />
+        </div>
+        <h3 className="text-white font-semibold">¿Eliminar tarea?</h3>
+      </div>
+      <p className="text-gray-400 text-sm mb-2">Se eliminará permanentemente:</p>
+      <p className="text-white text-sm font-medium bg-gray-800 rounded-lg px-3 py-2 mb-4">
+        {tareaAEliminar?.nombre_tarea}
+      </p>
+
+      {/* Selector de tareas de la serie */}
+      {tareaAEliminar?.serie_id && tareasSerieDelCiclo.length > 1 && (
+        <div className="mb-4">
+          <p className="text-xs text-gray-400 mb-2 font-medium">
+            Selecciona las tareas a eliminar este mes:
+          </p>
+          <div className="space-y-1.5">
+            {tareasSerieDelCiclo.map(t => {
+              const seleccionada = tareasSerieSeleccionadas.includes(t.id)
+              const bloqueada    = eliminarRecurrente // si elimina futuros, están todas forzadas
+              return (
+                <label
+                  key={t.id}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition
+                    ${seleccionada
+                      ? 'bg-red-950/50 border-red-700'
+                      : 'bg-gray-800 border-gray-700 hover:border-gray-600'}
+                    ${bloqueada ? 'opacity-60 cursor-not-allowed' : ''}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={seleccionada}
+                    disabled={bloqueada}
+                    onChange={() => {
+                      if (bloqueada) return
+                      setTareasSerieSeleccionadas(prev =>
+                        prev.includes(t.id)
+                          ? prev.filter(id => id !== t.id)
+                          : [...prev, t.id]
+                      )
+                    }}
+                    className="accent-red-500 w-4 h-4 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-white">{t.fecha_termino}</p>
+                    <p className="text-xs text-gray-500">
+                      {t.estado === 'completada' || t.estado === 'completada_con_atraso'
+                        ? '✅ completada'
+                        : t.estado === 'pendiente'
+                        ? '⏳ pendiente'
+                        : t.estado}
+                    </p>
+                  </div>
+                </label>
+              )
+            })}
           </div>
         </div>
       )}
+
+      {/* Eliminar de ciclos futuros */}
+      {tareaAEliminar?.template_id && (
+        <label
+          className={`flex items-start gap-3 rounded-xl px-4 py-3 mb-4 cursor-pointer border transition
+            ${eliminarRecurrente
+              ? 'bg-red-950 border-red-700'
+              : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
+        >
+          <input
+            type="checkbox"
+            checked={eliminarRecurrente}
+            onChange={e => {
+              const val = e.target.checked
+              setEliminarRecurrente(val)
+              // Si activa "futuros", seleccionar todas automáticamente
+              if (val && tareaAEliminar?.serie_id) {
+                setTareasSerieSeleccionadas(tareasSerieDelCiclo.map(t => t.id))
+              }
+            }}
+            className="mt-0.5 accent-red-500 w-4 h-4 shrink-0"
+          />
+          <div>
+            <p className="text-sm text-white font-medium">Eliminar también de ciclos futuros</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {tareaAEliminar?.serie_id
+                ? 'Se seleccionarán todas las tareas de la serie y no se generarán en próximos meses'
+                : 'La tarea dejará de generarse automáticamente en próximos meses'}
+            </p>
+          </div>
+        </label>
+      )}
+
+      <p className="text-gray-500 text-xs mb-6">
+        {eliminarRecurrente
+          ? 'Se eliminará del ciclo actual y no se generará en futuros ciclos.'
+          : tareasSerieSeleccionadas.length > 1
+          ? `Se eliminarán ${tareasSerieSeleccionadas.length} tareas de este ciclo.`
+          : 'Solo se eliminará del ciclo actual.'}
+      </p>
+
+      <div className="flex gap-3">
+        <button
+          onClick={() => {
+            setEliminando(null)
+            setEliminarRecurrente(false)
+            setEliminarSerie(false)
+            setTareasSerieSeleccionadas([])
+            setTareasSerieDelCiclo([])
+          }}
+          disabled={loadingEliminar}
+          className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300
+                     py-2.5 rounded-xl text-sm transition disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+        <button
+          onClick={handleEliminar}
+          disabled={loadingEliminar || (tareaAEliminar?.serie_id && tareasSerieSeleccionadas.length === 0)}
+          className="flex-1 flex items-center justify-center gap-2 bg-red-700
+                     hover:bg-red-600 text-white py-2.5 rounded-xl text-sm
+                     font-semibold transition disabled:opacity-50"
+        >
+          {loadingEliminar
+            ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Eliminando...</>
+            : <><Trash2 className="w-4 h-4" /> Eliminar</>}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {editando && (
         <EditarTareaModal
