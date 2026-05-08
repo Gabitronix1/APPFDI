@@ -8,9 +8,8 @@ const MESES = [
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
 
-// Nombre de display: mes N → "Cierre de [mes N-1]"
+// Nombre de display: "Mayo 2026"
 function nombreCierre(mes, anio) {
-  console.log('cicloSeleccionado:', cicloSeleccionado)
   return `${MESES[mes - 1]} ${anio}`
 }
 
@@ -30,6 +29,8 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
   )
 
   const idx       = ciclos.findIndex(c => c.id === cicloSeleccionado.id)
+  console.log('cicloSeleccionado:', cicloSeleccionado)
+  console.log('mes:', cicloSeleccionado?.mes, 'anio:', cicloSeleccionado?.anio)
   const anterior  = ciclos[idx + 1] ?? null
   const siguiente = ciclos[idx - 1] ?? null
   const esActivo  = cicloSeleccionado.estado === 'activo'
