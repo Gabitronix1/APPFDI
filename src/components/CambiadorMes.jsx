@@ -8,6 +8,7 @@ const MESES = [
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
 
+
 // Nombre de display: "Mayo 2026"
 function nombreCierre(mes, anio) {
   return `${MESES[mes - 1]} ${anio}`
