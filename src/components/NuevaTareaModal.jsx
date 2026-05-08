@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { X, Plus } from 'lucide-react'
-import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } from '../lib/feriados'
+import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente } from '../lib/feriados'
 
 export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, departamentoForzado }) {
   const { user, profile } = useAuth()
@@ -46,7 +46,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
   useEffect(() => {
     if (!form.dia_habil_fijo || !form.dia_habil_num) return
     const num = parseInt(form.dia_habil_num)
-    if (isNaN(num) || num < 1 || num > 23) return
+    if (isNaN(num) || num < 1 || num > 31) return  // 👈 reemplaza el que dice > 23
 
     // Calcular para el próximo mes
     const hoy   = new Date()
@@ -59,15 +59,12 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     const feriadosComb = new Set([...feriados, ...feriadosAnt])
 
     try {
-      const fecha = getNesimoHabilDelMes(mes, anio, num, feriadosComb)
-      console.log('mes:', mes, 'anio:', anio, 'n:', num)
-      console.log('fecha.getDate():', fecha.getDate())
-      console.log('fecha.getMonth():', fecha.getMonth() + 1)
-      console.log('fecha.getDay():', fecha.getDay()) // 0=dom, 1=lun... 6=sab
+      const fechaBase = new Date(anio, mes - 1, num, 12, 0, 0)
+      const fecha = ajustarAlDiaHabilSiguiente(fechaBase, feriadosComb)
       const fechaStr = `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
       setForm(prev => ({ ...prev, fecha_termino: fechaStr, condicion: 'habil' }))
     } catch (e) {
-      // número muy alto para el mes
+      // error
     }
   }, [form.dia_habil_fijo, form.dia_habil_num])
 
@@ -248,7 +245,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                     name="dia_habil_num"
                     type="number"
                     min="1"
-                    max="23"
+                    max="31"
                     value={form.dia_habil_num}
                     onChange={handleChange}
                     placeholder="Ej: 3"
