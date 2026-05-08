@@ -219,59 +219,59 @@ export default function DetalleIntegrante({ cicloSeleccionado }) {
       ) : (
         <div className="space-y-6">
 
-{/* Cierre */}
-{tareasCierre.length > 0 && (
-  <div>
-    <div className="flex items-center gap-2 mb-3">
-      <RefreshCw className="w-4 h-4 text-blue-400" />
-      <h3 className="text-white font-semibold text-sm">{tituloCierre}</h3>
-      <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">{tareasCierre.length}</span>
+      {/* Cierre */}
+      {tareasCierre.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <RefreshCw className="w-4 h-4 text-blue-400" />
+            <h3 className="text-white font-semibold text-sm">{tituloCierre}</h3>
+            <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">{tareasCierre.length}</span>
+        </div>
+        <div className="space-y-3">
+         {tareasCierre.map(tarea => (
+            <TareaItem key={tarea.id} tarea={tarea}
+            esCicloCerrado={ciclo?.estado === 'cerrado'}
+            onClick={() => handleClickTarea(tarea)} />
+          ))}
+      </div>
     </div>
-    <div className="space-y-3">
-      {tareasCierre.map(tarea => (
-        <TareaItem key={tarea.id} tarea={tarea}
-          esCicloCerrado={ciclo?.estado === 'cerrado'}
-          onClick={() => handleClickTarea(tarea)} />
-      ))}
-    </div>
-  </div>
-)}
+  )}
 
-{/* Recurrentes del mes */}
-{tareasRecurrentes.length > 0 && (
-  <div>
-    <div className="flex items-center gap-2 mb-3">
-      <CalendarClock className="w-4 h-4 text-purple-400" />
-      <h3 className="text-white font-semibold text-sm">Recurrentes de {tituloCiclo}</h3>
-      <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">{tareasRecurrentes.length}</span>
-    </div>
-    <div className="space-y-3">
-      {tareasRecurrentes.map(tarea => (
-        <TareaItem key={tarea.id} tarea={tarea}
-          esCicloCerrado={ciclo?.estado === 'cerrado'}
-          onClick={() => handleClickTarea(tarea)} />
-      ))}
-    </div>
-  </div>
-)}
+      {/* Recurrentes del mes */}
+      {tareasRecurrentes.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <CalendarClock className="w-4 h-4 text-purple-400" />
+            <h3 className="text-white font-semibold text-sm">Recurrentes de {tituloCiclo}</h3>
+            <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">{tareasRecurrentes.length}</span>
+          </div>
+        <div className="space-y-3">
+          {tareasRecurrentes.map(tarea => (
+            <TareaItem key={tarea.id} tarea={tarea}
+              esCicloCerrado={ciclo?.estado === 'cerrado'}
+              onClick={() => handleClickTarea(tarea)} />
+          ))}
+        </div>
+      </div>
+    )}
 
-{/* Puntuales */}
-{tareasPuntuales.length > 0 && (
-  <div>
-    <div className="flex items-center gap-2 mb-3">
-      <Sparkles className="w-4 h-4 text-amber-400" />
-      <h3 className="text-white font-semibold text-sm">Tareas puntuales de {tituloCiclo}</h3>
-      <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">{tareasPuntuales.length}</span>
+        {/* Puntuales */}
+        {tareasPuntuales.length > 0 && (
+          <div>
+           <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <h3 className="text-white font-semibold text-sm">Tareas puntuales de {tituloCiclo}</h3>
+            <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">{tareasPuntuales.length}</span>
+          </div>
+        <div className="space-y-3">
+          {tareasPuntuales.map(tarea => (
+            <TareaItem key={tarea.id} tarea={tarea}
+            esCicloCerrado={ciclo?.estado === 'cerrado'}
+            onClick={() => handleClickTarea(tarea)} />
+        ))}
+      </div>
     </div>
-    <div className="space-y-3">
-      {tareasPuntuales.map(tarea => (
-        <TareaItem key={tarea.id} tarea={tarea}
-          esCicloCerrado={ciclo?.estado === 'cerrado'}
-          onClick={() => handleClickTarea(tarea)} />
-      ))}
-    </div>
-  </div>
-)}
+  )}
 
       {/* Modales */}
       {tareaActiva && (
