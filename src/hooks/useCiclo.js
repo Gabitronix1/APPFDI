@@ -1,6 +1,38 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
-import { calcularFechasTarea } from '../lib/feriados'
+import { calcularFechasTarea, getFeriadosDelAnio, ajustarAlDiaHabilSiguiente } from '../lib/feriados'
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function generarUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16)
+  })
+}
+
+function fechaStr(fecha) {
+  return `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
+}
+
+function calcularFechasSemanales(diaSemana, mes, anio) {
+  const jsDay = parseInt(diaSemana) + 1 // JS: 1=lun...5=vie
+  const fechas = []
+  const diasEnMes = new Date(anio, mes, 0).getDate()
+  for (let d = 1; d <= diasEnMes; d++) {
+    const fecha = new Date(anio, mes - 1, d, 12, 0, 0)
+    if (fecha.getDay() === jsDay) fechas.push(fecha)
+  }
+  return fechas
+}
+
+function calcularFechasQuincenales(dia1, dia2, mes, anio, feriados) {
+  const f1 = ajustarAlDiaHabilSiguiente(new Date(anio, mes - 1, parseInt(dia1), 12, 0, 0), feriados)
+  const f2 = ajustarAlDiaHabilSiguiente(new Date(anio, mes - 1, parseInt(dia2), 12, 0, 0), feriados)
+  return [f1, f2]
+}
+
+// ── Hooks ──────────────────────────────────────────────────────────────────
 
 export function useCiclos() {
   return useQuery({
@@ -37,6 +69,7 @@ export function useCrearCiclo() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ mes, anio }) => {
+
       // 1. Cerrar ciclo activo anterior
       await supabase
         .from('monthly_cycles')
@@ -59,10 +92,78 @@ export function useCrearCiclo() {
         .eq('activo', true)
       if (errPlant) throw errPlant
 
-      // 4. Calcular fechas y generar tareas
-      const tareas = plantillas.map(p => {
+      // 4. Preparar feriados del mes
+      const feriados    = getFeriadosDelAnio(anio)
+      const feriadosAnt = getFeriadosDelAnio(anio - 1)
+      const feriadosComb = new Set([...feriados, ...feriadosAnt])
+
+      // 5. Generar tareas según tipo y frecuencia
+      const tareas = []
+
+      for (const p of plantillas) {
+
+        // ── Semanal → N tareas con serie_id ──────────────────
+        if (p.tipo === 'recurrente_mes' && p.frecuencia === 'semanal') {
+          const serieId = generarUUID()
+          const fechas  = calcularFechasSemanales(p.dia_del_mes, mes, anio)
+          for (const fecha of fechas) {
+            tareas.push({
+              ciclo_id:        ciclo.id,
+              template_id:     p.id,
+              responsable_id:  p.responsable_id,
+              nombre_tarea:    p.nombre_tarea,
+              area:            p.area,
+              departamento:    p.departamento,
+              condicion:       'habil',
+              fecha_inicio:    fechaStr(fecha),
+              fecha_termino:   fechaStr(fecha),
+              estado:          'pendiente',
+              tipo_tarea:      'adicional',
+              tipo:            'recurrente_mes',
+              frecuencia:      'semanal',
+              serie_id:        serieId,
+              mes_calendario:  mes,
+              anio_calendario: anio,
+            })
+          }
+          continue
+        }
+
+        // ── Quincenal → 2 tareas con serie_id ────────────────
+        if (p.tipo === 'recurrente_mes' && p.frecuencia === 'quincenal') {
+          const serieId = generarUUID()
+          // dia_del_mes guarda primera quincena, necesitamos segunda
+          // Para quincenal guardamos dia1 en dia_del_mes y dia2 en un campo auxiliar
+          // Por ahora asumimos dia1 y dia1+14 como convención
+          const dia1   = p.dia_del_mes
+          const dia2   = p.dia_del_mes_2 ?? (dia1 <= 15 ? dia1 + 15 : dia1)
+          const fechas = calcularFechasQuincenales(dia1, dia2, mes, anio, feriadosComb)
+          for (const fecha of fechas) {
+            tareas.push({
+              ciclo_id:        ciclo.id,
+              template_id:     p.id,
+              responsable_id:  p.responsable_id,
+              nombre_tarea:    p.nombre_tarea,
+              area:            p.area,
+              departamento:    p.departamento,
+              condicion:       'habil',
+              fecha_inicio:    fechaStr(fecha),
+              fecha_termino:   fechaStr(fecha),
+              estado:          'pendiente',
+              tipo_tarea:      'adicional',
+              tipo:            'recurrente_mes',
+              frecuencia:      'quincenal',
+              serie_id:        serieId,
+              mes_calendario:  mes,
+              anio_calendario: anio,
+            })
+          }
+          continue
+        }
+
+        // ── Mensual / cierre → 1 tarea normal ────────────────
         const { fecha_inicio, fecha_termino } = calcularFechasTarea(p, mes, anio)
-        return {
+        tareas.push({
           ciclo_id:        ciclo.id,
           template_id:     p.id,
           responsable_id:  p.responsable_id,
@@ -73,16 +174,22 @@ export function useCrearCiclo() {
           fecha_inicio,
           fecha_termino,
           estado:          'pendiente',
-          tipo_tarea:      'cierre',
+          tipo_tarea:      p.tipo === 'cierre' ? 'cierre' : 'adicional',
+          tipo:            p.tipo ?? 'cierre',
+          frecuencia:      p.frecuencia ?? null,
+          serie_id:        null,
           mes_calendario:  mes,
           anio_calendario: anio,
-        }
-      })
+        })
+      }
 
-      const { error: errTareas } = await supabase
-        .from('tasks')
-        .insert(tareas)
-      if (errTareas) throw errTareas
+      // 6. Insertar todas las tareas
+      if (tareas.length > 0) {
+        const { error: errTareas } = await supabase
+          .from('tasks')
+          .insert(tareas)
+        if (errTareas) throw errTareas
+      }
 
       return ciclo
     },
@@ -97,18 +204,12 @@ export function useEliminarCiclo() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (cicloId) => {
-      console.log('Eliminando cicloId:', cicloId)
-      
-      const { data: tareasDelCiclo, error: errTareas } = await supabase
+      const { data: tareasDelCiclo } = await supabase
         .from('tasks')
         .select('id')
         .eq('ciclo_id', cicloId)
-      
-      console.log('Tareas encontradas:', tareasDelCiclo)
-      console.log('Error tareas:', errTareas)
 
       const taskIds = tareasDelCiclo?.map(t => t.id) ?? []
-      console.log('TaskIds:', taskIds)
 
       if (taskIds.length > 0) {
         await supabase.from('evidencias').delete().in('task_id', taskIds)
@@ -117,13 +218,11 @@ export function useEliminarCiclo() {
 
       await supabase.from('tasks').delete().eq('ciclo_id', cicloId)
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('monthly_cycles')
         .delete()
         .eq('id', cicloId)
-      
-      console.log('Resultado eliminar ciclo:', data, error)
-      
+
       if (error) throw error
     },
     onSuccess: () => {
