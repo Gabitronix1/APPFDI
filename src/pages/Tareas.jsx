@@ -190,6 +190,7 @@ export default function Tareas({ cicloSeleccionado }) {
   const [mostrarNueva, setMostrarNueva]             = useState(false)
   const [eliminando, setEliminando]                 = useState(null)
   const [eliminarRecurrente, setEliminarRecurrente] = useState(false)
+  const [eliminarSerie, setEliminarSerie]           = useState(false)
   const [loadingEliminar, setLoadingEliminar]       = useState(false)
   const [verCierre, setVerCierre]                   = useState(true)
   const [verRecurrentes, setVerRecurrentes]         = useState(true)
@@ -270,25 +271,40 @@ export default function Tareas({ cicloSeleccionado }) {
   }
 
   async function handleEliminar() {
-    if (!eliminando) return
-    setLoadingEliminar(true)
-    try {
+  if (!eliminando) return
+  setLoadingEliminar(true)
+  try {
+    if (eliminarSerie && tareaAEliminar?.serie_id) {
+      // Buscar todas las tareas de la serie en este ciclo
+      const { data: tareaserie } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('serie_id', tareaAEliminar.serie_id)
+        .eq('ciclo_id', cicloSeleccionado.id)
+      const ids = tareaserie?.map(t => t.id) ?? []
+      if (ids.length > 0) {
+        await supabase.from('evidencias').delete().in('task_id', ids)
+        await supabase.from('task_completions').delete().in('task_id', ids)
+        await supabase.from('tasks').delete().in('id', ids)
+      }
+    } else {
       await supabase.from('evidencias').delete().eq('task_id', eliminando)
       await supabase.from('task_completions').delete().eq('task_id', eliminando)
-      const { error } = await supabase.from('tasks').delete().eq('id', eliminando)
-      if (error) throw error
-      if (eliminarRecurrente && tareaAEliminar?.template_id) {
-        await supabase.from('task_templates').update({ activo: false }).eq('id', tareaAEliminar.template_id)
-      }
-      queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
-      setEliminando(null)
-      setEliminarRecurrente(false)
-    } catch (err) {
-      console.error('Error al eliminar:', err)
-    } finally {
-      setLoadingEliminar(false)
+      await supabase.from('tasks').delete().eq('id', eliminando)
     }
+    if (eliminarRecurrente && tareaAEliminar?.template_id) {
+      await supabase.from('task_templates').update({ activo: false }).eq('id', tareaAEliminar.template_id)
+    }
+    queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
+    setEliminando(null)
+    setEliminarRecurrente(false)
+    setEliminarSerie(false)
+  } catch (err) {
+    console.error('Error al eliminar:', err)
+  } finally {
+    setLoadingEliminar(false)
   }
+}
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -510,6 +526,24 @@ export default function Tareas({ cicloSeleccionado }) {
                 </div>
               </label>
             )}
+            {tareaAEliminar?.serie_id && (
+              <label className={`flex items-start gap-3 rounded-xl px-4 py-3 mb-4 cursor-pointer border transition
+                ${eliminarSerie ? 'bg-red-950 border-red-700' : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={eliminarSerie}
+                  onChange={e => setEliminarSerie(e.target.checked)}
+                  className="mt-0.5 accent-red-500 w-4 h-4 shrink-0"
+                />
+                <div>
+                  <p className="text-sm text-white font-medium">Eliminar toda la serie</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Se eliminarán todas las tareas de esta serie en el ciclo actual
+                  </p>
+              </div>
+            </label>
+            )}
             <p className="text-gray-500 text-xs mb-6">
               {eliminarRecurrente
                 ? 'Se eliminará del ciclo actual y no se generará en futuros ciclos.'
@@ -517,7 +551,7 @@ export default function Tareas({ cicloSeleccionado }) {
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => { setEliminando(null); setEliminarRecurrente(false) }}
+                onClick={() => { setEliminando(null); setEliminarRecurrente(false); setEliminarSerie(false) }}
                 disabled={loadingEliminar}
                 className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300
                            py-2.5 rounded-xl text-sm transition disabled:opacity-50"
