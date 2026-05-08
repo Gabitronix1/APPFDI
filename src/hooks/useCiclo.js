@@ -27,9 +27,15 @@ function calcularFechasSemanales(diaSemana, mes, anio) {
 }
 
 function calcularFechasQuincenales(dia1, dia2, mes, anio, feriados) {
-  const f1 = ajustarAlDiaHabilSiguiente(new Date(anio, mes - 1, parseInt(dia1), 12, 0, 0), feriados)
-  const f2 = ajustarAlDiaHabilSiguiente(new Date(anio, mes - 1, parseInt(dia2), 12, 0, 0), feriados)
-  return [f1, f2]
+  const termino1 = ajustarAlDiaHabilSiguiente(new Date(anio, mes - 1, parseInt(dia1), 12, 0, 0), feriados)
+  const termino2 = ajustarAlDiaHabilSiguiente(new Date(anio, mes - 1, parseInt(dia2), 12, 0, 0), feriados)
+  const inicio1  = new Date(anio, mes - 1, 1, 12, 0, 0)
+  const inicio2  = new Date(termino1)
+  inicio2.setDate(inicio2.getDate() + 1)
+  return [
+    { inicio: inicio1, termino: termino1 },
+    { inicio: inicio2, termino: termino2 },
+  ]
 }
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
@@ -147,8 +153,8 @@ export function useCrearCiclo() {
               area:            p.area,
               departamento:    p.departamento,
               condicion:       'habil',
-              fecha_inicio:    fechaStr(fecha),
-              fecha_termino:   fechaStr(fecha),
+              fecha_inicio:    fechaStr(f.inicio),
+              fecha_termino:   fechaStr(f.termino),
               estado:          'pendiente',
               tipo_tarea:      'adicional',
               tipo:            'recurrente_mes',
