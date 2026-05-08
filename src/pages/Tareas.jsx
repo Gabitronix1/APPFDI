@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import TaskModal from '../components/TaskModal'
 import {
   CheckCircle2, Clock, AlertCircle, Filter, Plus, Trash2,
-  RefreshCw, Sparkles, ChevronDown, ChevronUp, Lock, Pencil, CalendarClock
+  RefreshCw, Sparkles, ChevronDown, ChevronUp, Lock, Pencil,
+  CalendarClock, Search, X
 } from 'lucide-react'
 import NuevaTareaModal from '../components/NuevaTareaModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
@@ -40,16 +41,28 @@ function nombreCierre(mes, anio) {
 }
 
 function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCicloCerrado }) {
-  const esFueraPlazo = !esCicloCerrado &&
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+
+  // Bloqueo para tareas de serie futura
+  const estaBloqueada = tarea.serie_id &&
+    tarea.fecha_inicio &&
+    new Date(tarea.fecha_inicio + 'T12:00:00') > hoy
+
+  const esFueraPlazo = !esCicloCerrado && !estaBloqueada &&
     tarea.alerta === 'fuera_de_plazo' &&
     tarea.estado !== 'completada' &&
     tarea.estado !== 'completada_con_atraso'
 
-  const estilos = esFueraPlazo
+  const estilos = estaBloqueada
+    ? { badge: 'bg-gray-800 text-gray-600', label: 'Bloqueada' }
+    : esFueraPlazo
     ? { badge: 'bg-orange-900 text-orange-300', label: 'Fuera de plazo' }
     : ESTADO_STYLES[tarea.estado] ?? ESTADO_STYLES.pendiente
 
-  const borde = esCicloCerrado
+  const borde = estaBloqueada
+    ? 'border-gray-800'
+    : esCicloCerrado
     ? 'border-gray-800'
     : ALERTA_BORDER[tarea.alerta] ?? 'border-gray-800'
 
@@ -59,10 +72,20 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
     ? <CalendarClock className="w-3 h-3 text-purple-400 shrink-0" />
     : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
 
+  function handleClick() {
+    if (estaBloqueada) return
+    onClickTarea()
+  }
+
   return (
-    <div className={`bg-gray-900 border ${borde} rounded-xl p-4 flex items-center gap-4 hover:bg-gray-800 transition cursor-pointer`}>
-      <div className="shrink-0 cursor-pointer" onClick={onClickTarea}>
-        {tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso'
+    <div
+      className={`bg-gray-900 border ${borde} rounded-xl p-4 flex items-center gap-4 transition
+        ${estaBloqueada ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-800 cursor-pointer'}`}
+    >
+      <div className="shrink-0" onClick={handleClick}>
+        {estaBloqueada
+          ? <Lock className="w-5 h-5 text-gray-600" />
+          : tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso'
           ? <CheckCircle2 className="w-5 h-5 text-green-500" />
           : tarea.estado === 'con_atraso' && !esCicloCerrado
           ? <AlertCircle className="w-5 h-5 text-red-400" />
@@ -71,24 +94,29 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
           : <Clock className="w-5 h-5 text-gray-500" />}
       </div>
 
-      <div className="flex-1 min-w-0 cursor-pointer" onClick={onClickTarea}>
+      <div className="flex-1 min-w-0" onClick={handleClick}>
         <div className="flex items-center gap-1.5">
           {icono}
-          <p className="text-white font-medium truncate">{tarea.nombre_tarea}</p>
+          <p className={`font-medium truncate ${estaBloqueada ? 'text-gray-500' : 'text-white'}`}>
+            {tarea.nombre_tarea}
+          </p>
         </div>
         <p className="text-gray-500 text-xs mt-0.5">
-          {tarea.responsable_nombre} · {tarea.area} · Vence {tarea.fecha_termino}
+          {tarea.responsable_nombre} · {tarea.area} ·{' '}
+          {estaBloqueada
+            ? <span className="text-gray-600">Disponible desde {tarea.fecha_inicio}</span>
+            : <>Vence {tarea.fecha_termino}</>}
         </p>
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {tarea.total_evidencias > 0 && (
+        {tarea.total_evidencias > 0 && !estaBloqueada && (
           <span className="text-xs text-gray-500">{tarea.total_evidencias} 📎</span>
         )}
         <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${estilos.badge}`}>
           {estilos.label}
         </span>
-        {!esCicloCerrado && (
+        {!esCicloCerrado && !estaBloqueada && (
           <button
             onClick={e => { e.stopPropagation(); onEditar?.() }}
             className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition"
@@ -96,7 +124,7 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
             <Pencil className="w-4 h-4" />
           </button>
         )}
-        {profile?.rol === 'admin' && onEliminar && (
+        {profile?.rol === 'admin' && onEliminar && !estaBloqueada && (
           <button
             onClick={e => { e.stopPropagation(); onEliminar() }}
             className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition"
@@ -113,6 +141,7 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
 function GrupoTareas({ titulo, icono, iconoColor, tareas, ver, onToggle, profile,
   esCicloCerrado, onClickTarea, onEditar, onEliminar }) {
   if (tareas.length === 0) return null
+  const ordenadas = [...tareas].sort((a, b) => a.nombre_tarea.localeCompare(b.nombre_tarea, 'es'))
   return (
     <div>
       <button
@@ -132,7 +161,7 @@ function GrupoTareas({ titulo, icono, iconoColor, tareas, ver, onToggle, profile
       </button>
       {ver && (
         <div className="space-y-3">
-          {tareas.map(tarea => (
+          {ordenadas.map(tarea => (
             <TareaItem
               key={tarea.id}
               tarea={tarea}
@@ -153,7 +182,9 @@ export default function Tareas({ cicloSeleccionado }) {
   const { profile }  = useAuth()
   const queryClient  = useQueryClient()
 
+  const [busqueda, setBusqueda]                     = useState('')
   const [soloMias, setSoloMias]                     = useState(false)
+  const [filtroIntegrante, setFiltroIntegrante]     = useState('todos')
   const [filtroArea, setFiltroArea]                 = useState('todas')
   const [tareaActiva, setTareaActiva]               = useState(null)
   const [mostrarNueva, setMostrarNueva]             = useState(false)
@@ -174,7 +205,7 @@ export default function Tareas({ cicloSeleccionado }) {
         .from('v_tareas_ciclo_activo')
         .select('*')
         .eq('ciclo_id', cicloSeleccionado.id)
-        .order('fecha_termino', { ascending: true })
+        .order('nombre_tarea', { ascending: true })
       if (profile?.rol !== 'gerente') {
         query = query.eq('departamento', profile?.departamento)
       }
@@ -184,15 +215,29 @@ export default function Tareas({ cicloSeleccionado }) {
     }
   })
 
+  // Integrantes únicos para el filtro
+  const integrantes = useMemo(() => {
+    const nombres = [...new Set(tareas.map(t => t.responsable_nombre).filter(Boolean))]
+    return nombres.sort((a, b) => a.localeCompare(b, 'es'))
+  }, [tareas])
+
   const areas = ['todas', ...new Set(tareas.map(t => t.area).filter(Boolean))]
 
-  const tareasFiltradas = tareas.filter(t => {
+  const tareasFiltradas = useMemo(() => tareas.filter(t => {
     if (soloMias && t.responsable_nombre !== profile?.nombre) return false
+    if (filtroIntegrante !== 'todos' && t.responsable_nombre !== filtroIntegrante) return false
     if (filtroArea !== 'todas' && t.area !== filtroArea) return false
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase()
+      return (
+        t.nombre_tarea?.toLowerCase().includes(q) ||
+        t.area?.toLowerCase().includes(q) ||
+        t.responsable_nombre?.toLowerCase().includes(q)
+      )
+    }
     return true
-  })
+  }), [tareas, soloMias, filtroIntegrante, filtroArea, busqueda, profile])
 
-  // ── 3 grupos ──────────────────────────────────────────────────────────────
   const tareasCierre      = tareasFiltradas.filter(t => t.tipo === 'cierre')
   const tareasRecurrentes = tareasFiltradas.filter(t => t.tipo === 'recurrente_mes')
   const tareasPuntuales   = tareasFiltradas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id))
@@ -201,6 +246,15 @@ export default function Tareas({ cicloSeleccionado }) {
   const tituloCierre   = cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : ''
   const esCicloCerrado = cicloSeleccionado?.estado === 'cerrado'
   const tareaAEliminar = tareas.find(t => t.id === eliminando)
+
+  const hayFiltrosActivos = busqueda || soloMias || filtroIntegrante !== 'todos' || filtroArea !== 'todas'
+
+  function limpiarFiltros() {
+    setBusqueda('')
+    setSoloMias(false)
+    setFiltroIntegrante('todos')
+    setFiltroArea('todas')
+  }
 
   function onCompletada() {
     queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
@@ -260,16 +314,54 @@ export default function Tareas({ cicloSeleccionado }) {
         )}
       </div>
 
+      {/* Buscador */}
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+        <input
+          type="text"
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+          placeholder="Buscar por nombre, área o responsable..."
+          className="w-full bg-gray-800 border border-gray-700 rounded-lg pl-9 pr-9 py-2.5
+                     text-white text-sm focus:outline-none focus:border-green-500 transition"
+        />
+        {busqueda && (
+          <button
+            onClick={() => setBusqueda('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* Filtros */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
+
+        {/* Solo mis tareas */}
         <button
-          onClick={() => setSoloMias(!soloMias)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition
+          onClick={() => { setSoloMias(!soloMias); setFiltroIntegrante('todos') }}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition
             ${soloMias ? 'bg-green-700 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'}`}
         >
           <Filter className="w-4 h-4" />
           Solo mis tareas
         </button>
+
+        {/* Filtro por integrante */}
+        <select
+          value={filtroIntegrante}
+          onChange={e => { setFiltroIntegrante(e.target.value); setSoloMias(false) }}
+          className="bg-gray-800 border border-gray-700 text-gray-300 text-sm rounded-lg px-3 py-2
+                     focus:outline-none focus:border-green-500"
+        >
+          <option value="todos">Todos los integrantes</option>
+          {integrantes.map(n => (
+            <option key={n} value={n}>{n.split(' ')[0]} {n.split(' ')[1]}</option>
+          ))}
+        </select>
+
+        {/* Filtro por área */}
         <select
           value={filtroArea}
           onChange={e => setFiltroArea(e.target.value)}
@@ -280,6 +372,18 @@ export default function Tareas({ cicloSeleccionado }) {
             <option key={a} value={a}>{a === 'todas' ? 'Todas las áreas' : a}</option>
           ))}
         </select>
+
+        {/* Limpiar filtros */}
+        {hayFiltrosActivos && (
+          <button
+            onClick={limpiarFiltros}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-gray-400
+                       hover:text-white bg-gray-800 hover:bg-gray-700 transition"
+          >
+            <X className="w-3.5 h-3.5" />
+            Limpiar
+          </button>
+        )}
       </div>
 
       {/* Banner ciclo cerrado */}
@@ -287,7 +391,7 @@ export default function Tareas({ cicloSeleccionado }) {
         <div className="flex items-center gap-2 bg-gray-800 border border-gray-700
                         rounded-xl px-4 py-3 mb-6 text-sm text-gray-400">
           <Lock className="w-4 h-4 shrink-0" />
-          Este ciclo está cerrado — solo lectura. No se pueden agregar ni modificar tareas.
+          Este ciclo está cerrado — solo lectura.
         </div>
       )}
 
@@ -297,11 +401,17 @@ export default function Tareas({ cicloSeleccionado }) {
           <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : tareasFiltradas.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">No hay tareas con ese filtro</div>
+        <div className="text-center py-16">
+          <p className="text-gray-500 mb-2">No hay tareas con ese filtro</p>
+          {hayFiltrosActivos && (
+            <button onClick={limpiarFiltros} className="text-green-400 text-sm hover:text-green-300 transition">
+              Limpiar filtros
+            </button>
+          )}
+        </div>
       ) : (
         <div className="space-y-6">
 
-          {/* ── CIERRE ──────────────────────────────────────────── */}
           <GrupoTareas
             titulo={tituloCierre}
             icono={<RefreshCw className="w-4 h-4" />}
@@ -316,7 +426,6 @@ export default function Tareas({ cicloSeleccionado }) {
             onEliminar={setEliminando}
           />
 
-          {/* ── RECURRENTES DEL MES ─────────────────────────────── */}
           <GrupoTareas
             titulo={`Recurrentes de ${tituloCiclo}`}
             icono={<CalendarClock className="w-4 h-4" />}
@@ -331,7 +440,6 @@ export default function Tareas({ cicloSeleccionado }) {
             onEliminar={setEliminando}
           />
 
-          {/* ── PUNTUALES ───────────────────────────────────────── */}
           <GrupoTareas
             titulo={`Tareas puntuales de ${tituloCiclo}`}
             icono={<Sparkles className="w-4 h-4" />}
