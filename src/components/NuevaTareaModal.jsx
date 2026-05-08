@@ -60,7 +60,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
 
     try {
       const fecha = getNesimoHabilDelMes(mes, anio, num, feriadosComb)
-      const fechaStr = fecha.toISOString().split('T')[0]
+      const fechaStr = `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
       setForm(prev => ({ ...prev, fecha_termino: fechaStr, condicion: 'habil' }))
     } catch (e) {
       // número muy alto para el mes
