@@ -209,6 +209,21 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
           {(profile?.rol === 'admin' || profile?.rol === 'gerente') && (
             <div>
               <label className="block text-sm text-gray-400 mb-1">Responsable</label>
+              {!reasignando ? (
+                <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5">
+                  <div>
+                    <p className="text-white text-sm font-medium">{tarea.responsable_nombre}</p>
+                    <p className="text-gray-500 text-xs">{tarea.responsable_cargo}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReasignando(true)}
+                    className="text-xs text-blue-400 hover:text-blue-300 transition"
+                  >
+                    Reasignar
+                </button>
+              </div>
+            ) : (
               <select
                 value={responsableId}
                 onChange={e => setResponsableId(e.target.value)}
@@ -220,8 +235,9 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                   <option key={u.id} value={u.id}>{u.nombre} — {u.cargo}</option>
                 ))}
               </select>
-            </div>
-          )}
+            )}
+          </div>
+        )}
 
           {/* Día hábil fijo — solo si no es serie semanal/quincenal */}
           {!esSerie && (
