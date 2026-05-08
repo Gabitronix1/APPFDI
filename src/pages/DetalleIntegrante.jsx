@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ChevronLeft, CheckCircle2, Clock, AlertCircle, RefreshCw, Sparkles, TrendingUp } from 'lucide-react'
+import { ChevronLeft, CheckCircle2, Clock, AlertCircle, RefreshCw, Sparkles, TrendingUp, CalendarClock } from 'lucide-react'
 import TaskModal from '../components/TaskModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
 import { useQueryClient } from '@tanstack/react-query'
@@ -12,6 +12,10 @@ const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
+
+function nombreCiclo(mes, anio) {
+  return `${MESES[mes - 1]} ${anio}`
+}
 
 function nombreCierre(mes, anio) {
   if (mes === 1) return `Cierre de Diciembre ${anio - 1}`
@@ -53,6 +57,11 @@ function TareaItem({ tarea, onClick, esCicloCerrado }) {
 
   const pct = tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso'
     ? (tarea.porcentaje_cumplimiento ?? 100) : null
+  const icono = tarea.tipo === 'cierre'
+  ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+  : tarea.tipo === 'recurrente_mes'
+  ? <CalendarClock className="w-3 h-3 text-purple-400 shrink-0" />
+  : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
 
   return (
     <div
@@ -71,9 +80,7 @@ function TareaItem({ tarea, onClick, esCicloCerrado }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          {tarea.template_id
-            ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
-            : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+          {icono}
           <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
         </div>
         <p className="text-gray-500 text-xs mt-0.5">{tarea.area} · Vence {tarea.fecha_termino}</p>
@@ -122,9 +129,10 @@ export default function DetalleIntegrante({ cicloSeleccionado }) {
     }
   })
 
-  const tareasCierre      = tareas.filter(t => t.template_id)
-  const tareasAdicionales = tareas.filter(t => !t.template_id)
-
+  const tareasCierre      = tareas.filter(t => t.tipo === 'cierre')
+  const tareasRecurrentes = tareas.filter(t => t.tipo === 'recurrente_mes')
+  const tareasPuntuales   = tareas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id))
+  
   const completadas = tareas.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
   const pct         = tareas.length ? Math.round((completadas / tareas.length) * 100) : 0
 
@@ -141,7 +149,8 @@ export default function DetalleIntegrante({ cicloSeleccionado }) {
       }, 0) / tareasConDato.length)
     : null
 
-  const tituloCiclo = ciclo ? nombreCierre(ciclo.mes, ciclo.anio) : ''
+  const tituloCiclo  = ciclo ? nombreCiclo(ciclo.mes, ciclo.anio) : ''
+  const tituloCierre = ciclo ? nombreCierre(ciclo.mes, ciclo.anio) : ''
   const iniciales   = nombreReal.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)
   const colorPct    = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
   const colorBarra  = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
@@ -210,55 +219,59 @@ export default function DetalleIntegrante({ cicloSeleccionado }) {
       ) : (
         <div className="space-y-6">
 
-          {/* Tareas del cierre */}
-          {tareasCierre.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <RefreshCw className="w-4 h-4 text-blue-400" />
-                <h3 className="text-white font-semibold text-sm">Tareas recurrentes</h3>
-                <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
-                  {tareasCierre.length}
-                </span>
-              </div>
-              <div className="space-y-3">
-                {tareasCierre.map(tarea => (
-                  <TareaItem key={tarea.id} tarea={tarea} 
-                    esCicloCerrado={ciclo?.estado === 'cerrado'}
-                    onClick={() => handleClickTarea(tarea)} />
-                ))}
-              </div>
-            </div>
-          )}
+{/* Cierre */}
+{tareasCierre.length > 0 && (
+  <div>
+    <div className="flex items-center gap-2 mb-3">
+      <RefreshCw className="w-4 h-4 text-blue-400" />
+      <h3 className="text-white font-semibold text-sm">{tituloCierre}</h3>
+      <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">{tareasCierre.length}</span>
+    </div>
+    <div className="space-y-3">
+      {tareasCierre.map(tarea => (
+        <TareaItem key={tarea.id} tarea={tarea}
+          esCicloCerrado={ciclo?.estado === 'cerrado'}
+          onClick={() => handleClickTarea(tarea)} />
+      ))}
+    </div>
+  </div>
+)}
 
-          {/* Tareas adicionales */}
-          {tareasAdicionales.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <h3 className="text-white font-semibold text-sm">
-                  Tareas de {MESES[new Date().getMonth()]} {new Date().getFullYear()}
-                </h3>
-                <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
-                  {tareasAdicionales.length}
-                </span>
-              </div>
-              <div className="space-y-3">
-                {tareasAdicionales.map(tarea => (
-                  <TareaItem key={tarea.id} tarea={tarea} 
-                    esCicloCerrado={ciclo?.estado === 'cerrado'}
-                    onClick={() => handleClickTarea(tarea)} />
-                ))}
-              </div>
-            </div>
-          )}
+{/* Recurrentes del mes */}
+{tareasRecurrentes.length > 0 && (
+  <div>
+    <div className="flex items-center gap-2 mb-3">
+      <CalendarClock className="w-4 h-4 text-purple-400" />
+      <h3 className="text-white font-semibold text-sm">Recurrentes de {tituloCiclo}</h3>
+      <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">{tareasRecurrentes.length}</span>
+    </div>
+    <div className="space-y-3">
+      {tareasRecurrentes.map(tarea => (
+        <TareaItem key={tarea.id} tarea={tarea}
+          esCicloCerrado={ciclo?.estado === 'cerrado'}
+          onClick={() => handleClickTarea(tarea)} />
+      ))}
+    </div>
+  </div>
+)}
 
-          {tareas.length === 0 && (
-            <div className="text-center py-16 text-gray-500">
-              Sin tareas asignadas en este cierre
-            </div>
-          )}
-        </div>
-      )}
+{/* Puntuales */}
+{tareasPuntuales.length > 0 && (
+  <div>
+    <div className="flex items-center gap-2 mb-3">
+      <Sparkles className="w-4 h-4 text-amber-400" />
+      <h3 className="text-white font-semibold text-sm">Tareas puntuales de {tituloCiclo}</h3>
+      <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">{tareasPuntuales.length}</span>
+    </div>
+    <div className="space-y-3">
+      {tareasPuntuales.map(tarea => (
+        <TareaItem key={tarea.id} tarea={tarea}
+          esCicloCerrado={ciclo?.estado === 'cerrado'}
+          onClick={() => handleClickTarea(tarea)} />
+      ))}
+    </div>
+  </div>
+)}
 
       {/* Modales */}
       {tareaActiva && (
