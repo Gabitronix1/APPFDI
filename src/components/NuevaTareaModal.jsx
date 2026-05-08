@@ -17,15 +17,16 @@ function generarUUID() {
   })
 }
 
-function calcularFechasSemanales(diaSemana, mes, anio, feriados) {
-  // diaSemana: 0=lun, 1=mar, 2=mie, 3=jue, 4=vie
-  const jsDay = diaSemana + 1 // JS: 1=lun...5=vie
+function calcularFechasSemanales(diaSemana, mes, anio, feriados, desdeHoy = false) {
+  const jsDay = parseInt(diaSemana) + 1
   const fechas = []
   const diasEnMes = new Date(anio, mes, 0).getDate()
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
   for (let d = 1; d <= diasEnMes; d++) {
     const fecha = new Date(anio, mes - 1, d, 12, 0, 0)
     if (fecha.getDay() === jsDay) {
-      fechas.push(fecha)
+      if (!desdeHoy || fecha >= hoy) fechas.push(fecha)
     }
   }
   return fechas
@@ -50,6 +51,7 @@ function calcularFechasQuincenales(dia1, dia2, mes, anio, feriados, desdeHoy = f
     { inicio: inicio2, termino: termino2 },
   ].filter(f => !desdeHoy || f.termino >= hoy)
 }
+
 function fechaStr(fecha) {
   return `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
 }
@@ -66,9 +68,9 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     area:           '',
     tipo:           'puntual',
     frecuencia:     'mensual',
-    dia_semana:     0, // 0=lun...4=vie
+    dia_semana:     0,
     dia_quincena_1: 1,
-    dia_quincena_2: 15,
+    dia_quincena_2: 16,
     condicion:      'dia_real',
     fecha_inicio:   '',
     fecha_termino:  '',
@@ -95,24 +97,18 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     }
   })
 
-  // Calcular fecha automática para mensual con día hábil fijo
   useEffect(() => {
     if (!form.dia_habil_fijo || !form.dia_habil_num) return
     if (form.frecuencia !== 'mensual' && form.tipo !== 'cierre') return
     const num = parseInt(form.dia_habil_num)
     if (isNaN(num) || num < 1 || num > 31) return
 
-    const hoy  = new Date()
-    let mes    = hoy.getMonth() + 2
-    let anio   = hoy.getFullYear()
-    if (mes > 12) { mes = 1; anio++ }
-
-    const feriados     = getFeriadosDelAnio(anio)
-    const feriadosAnt  = getFeriadosDelAnio(anio - 1)
+    const feriados     = getFeriadosDelAnio(anioCiclo)
+    const feriadosAnt  = getFeriadosDelAnio(anioCiclo - 1)
     const feriadosComb = new Set([...feriados, ...feriadosAnt])
 
     try {
-      const fechaBase = new Date(anio, mes - 1, num, 12, 0, 0)
+      const fechaBase = new Date(anioCiclo, mesCiclo - 1, num, 12, 0, 0)
       const fecha     = ajustarAlDiaHabilSiguiente(fechaBase, feriadosComb)
       setForm(prev => ({ ...prev, fecha_termino: fechaStr(fecha), condicion: 'habil' }))
     } catch (e) {}
@@ -123,24 +119,24 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
   }
 
-  // Preview de fechas para semanal/quincenal
   const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
   const esCicloActivo = cicloSeleccionado?.estado === 'activo'
-  const mesCiclo  = cicloSeleccionado?.mes
-  const anioCiclo = cicloSeleccionado?.anio
+  const mesCiclo      = cicloSeleccionado?.mes
+  const anioCiclo     = cicloSeleccionado?.anio
 
   const feriadosCiclo     = getFeriadosDelAnio(anioCiclo)
   const feriadosAntCiclo  = getFeriadosDelAnio(anioCiclo - 1)
   const feriadosCombCiclo = new Set([...feriadosCiclo, ...feriadosAntCiclo])
   const nombreMesCiclo    = `${MESES[mesCiclo - 1]} ${anioCiclo}`
 
-  const fechasSemanales = form.frecuencia === 'semanal'
+  const fechasSemanales = form.tipo === 'recurrente_mes' && form.frecuencia === 'semanal'
     ? calcularFechasSemanales(parseInt(form.dia_semana), mesCiclo, anioCiclo, feriadosCombCiclo, esCicloActivo)
     : []
-  const fechasQuincenales = form.frecuencia === 'quincenal'
+
+  const fechasQuincenales = form.tipo === 'recurrente_mes' && form.frecuencia === 'quincenal'
     ? calcularFechasQuincenales(
-        parseInt(form.dia_quincena_1),
-        parseInt(form.dia_quincena_2),
+        form.dia_quincena_1, form.dia_quincena_2,
         mesCiclo, anioCiclo, feriadosCombCiclo, esCicloActivo
       )
     : []
@@ -149,7 +145,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     e.preventDefault()
     if (!form.nombre_tarea.trim()) { setError('El nombre es obligatorio'); return }
     if (!form.responsable_id)      { setError('Asigna un responsable'); return }
-    if (form.frecuencia === 'mensual' || form.tipo === 'cierre' || form.tipo === 'puntual') {
+    if (form.tipo !== 'recurrente_mes' ||
+        form.frecuencia === 'mensual') {
       if (!form.fecha_termino) { setError('La fecha de término es obligatoria'); return }
     }
     if (form.dia_habil_fijo && !form.dia_habil_num) { setError('Ingresa el número de día hábil'); return }
@@ -162,13 +159,16 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         (form.frecuencia === 'semanal' || form.frecuencia === 'quincenal')
 
       if (esRecurrenteMultiple) {
-        // ── Generar múltiples tareas con serie_id ──────────────
         const serieId = generarUUID()
         const fechas  = form.frecuencia === 'semanal' ? fechasSemanales : fechasQuincenales
 
-        if (fechas.length === 0) { setError('No se pudieron calcular las fechas'); setLoading(false); return }
+        if (fechas.length === 0) {
+          setError('No se pudieron calcular las fechas — todas ya pasaron')
+          setLoading(false)
+          return
+        }
 
-        const tareas = fechas.map((fecha, i) => ({
+        const tareas = fechas.map(f => ({
           ciclo_id:        cicloSeleccionado.id,
           responsable_id:  form.responsable_id,
           nombre_tarea:    form.nombre_tarea.trim(),
@@ -190,7 +190,6 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         const { error: errTareas } = await supabase.from('tasks').insert(tareas)
         if (errTareas) throw errTareas
 
-        // Guardar plantilla para regenerar en ciclos futuros
         await supabase.from('task_templates').insert({
           nombre_tarea:   form.nombre_tarea.trim(),
           area:           form.area || 'General',
@@ -199,7 +198,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           dia_del_mes:    form.frecuencia === 'semanal'
                             ? parseInt(form.dia_semana)
                             : parseInt(form.dia_quincena_1),
-          dia_del_mes_2:   form.frecuencia === 'quincenal'
+          dia_del_mes_2:  form.frecuencia === 'quincenal'
                             ? parseInt(form.dia_quincena_2)
                             : null,
           responsable_id: form.responsable_id,
@@ -209,7 +208,6 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         })
 
       } else {
-        // ── Tarea única (cierre, puntual, recurrente mensual) ──
         const { error: errTarea } = await supabase.from('tasks').insert({
           ciclo_id:        cicloSeleccionado.id,
           responsable_id:  form.responsable_id,
@@ -225,12 +223,11 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           tipo:            form.tipo,
           frecuencia:      form.tipo === 'recurrente_mes' ? form.frecuencia : null,
           serie_id:        null,
-          mes_calendario:  new Date().getMonth() + 1,
-          anio_calendario: new Date().getFullYear(),
+          mes_calendario:  mesCiclo,
+          anio_calendario: anioCiclo,
         })
         if (errTarea) throw errTarea
 
-        // Guardar plantilla si es cierre o recurrente mensual
         if (form.tipo === 'cierre' || form.tipo === 'recurrente_mes') {
           const diaDelMes = form.dia_habil_fijo
             ? parseInt(form.dia_habil_num)
@@ -266,9 +263,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-white font-semibold text-lg">Nueva tarea</h2>
-            <p className="text-gray-400 text-sm">
-              {MESES[cicloSeleccionado.mes - 1]} {cicloSeleccionado.anio}
-            </p>
+            <p className="text-gray-400 text-sm">{nombreMesCiclo}</p>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition">
             <X className="w-5 h-5" />
@@ -308,13 +303,12 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             <label className="block text-sm text-gray-400 mb-2">Tipo de tarea</label>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { value: 'cierre',        label: 'Cierre',     icono: <RefreshCw className="w-4 h-4" />,     color: 'blue' },
+                { value: 'cierre',         label: 'Cierre',     icono: <RefreshCw className="w-4 h-4" />,     color: 'blue'   },
                 { value: 'recurrente_mes', label: 'Recurrente', icono: <CalendarClock className="w-4 h-4" />, color: 'purple' },
-                { value: 'puntual',        label: 'Puntual',    icono: <Sparkles className="w-4 h-4" />,      color: 'amber' },
+                { value: 'puntual',        label: 'Puntual',    icono: <Sparkles className="w-4 h-4" />,      color: 'amber'  },
               ].map(op => (
                 <button
-                  key={op.value}
-                  type="button"
+                  key={op.value} type="button"
                   onClick={() => setForm(prev => ({ ...prev, tipo: op.value }))}
                   className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border text-xs font-medium transition
                     ${form.tipo === op.value
@@ -335,19 +329,18 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             </p>
           </div>
 
-          {/* Frecuencia — solo recurrente */}
+          {/* Frecuencia */}
           {form.tipo === 'recurrente_mes' && (
             <div>
               <label className="block text-sm text-gray-400 mb-2">Frecuencia</label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { value: 'mensual',   label: 'Mensual' },
+                  { value: 'mensual',   label: 'Mensual'   },
                   { value: 'quincenal', label: 'Quincenal' },
-                  { value: 'semanal',   label: 'Semanal' },
+                  { value: 'semanal',   label: 'Semanal'   },
                 ].map(op => (
                   <button
-                    key={op.value}
-                    type="button"
+                    key={op.value} type="button"
                     onClick={() => setForm(prev => ({ ...prev, frecuencia: op.value }))}
                     className={`py-2 rounded-lg border text-xs font-medium transition
                       ${form.frecuencia === op.value
@@ -385,17 +378,14 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             </div>
           )}
 
-          {/* ── FECHAS SEGÚN FRECUENCIA ────────────────────────── */}
-
           {/* Semanal */}
           {form.tipo === 'recurrente_mes' && form.frecuencia === 'semanal' && (
             <div className="bg-purple-950/20 border border-purple-800/50 rounded-xl p-4 space-y-3">
-              <label className="block text-sm text-gray-400 mb-1">Día de la semana</label>
+              <label className="block text-sm text-gray-400">Día de la semana</label>
               <div className="grid grid-cols-5 gap-1.5">
                 {DIAS_SEMANA.map((dia, i) => (
                   <button
-                    key={i}
-                    type="button"
+                    key={i} type="button"
                     onClick={() => setForm(prev => ({ ...prev, dia_semana: i }))}
                     className={`py-2 rounded-lg border text-xs font-medium transition
                       ${form.dia_semana === i
@@ -417,7 +407,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                         <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
                         <span className="text-xs text-purple-300">{fechaStr(f)}</span>
                         {f > hoy
-                          ? <span className="text-xs text-gray-600">🔒 bloqueada hasta esa fecha</span>
+                          ? <span className="text-xs text-gray-600">🔒 bloqueada</span>
                           : <span className="text-xs text-green-500">● activa</span>}
                       </div>
                     ))}
@@ -432,7 +422,10 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             <div className="bg-purple-950/20 border border-purple-800/50 rounded-xl p-4 space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">1ª quincena — día de término</label>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    1ª quincena — día de término
+                  </label>
+                  <p className="text-xs text-gray-600 mb-1.5">Corre del día 1 hasta este día</p>
                   <input
                     name="dia_quincena_1" type="number" min="1" max="15"
                     value={form.dia_quincena_1} onChange={handleChange}
@@ -441,7 +434,10 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">2ª quincena — día de término</label>
+                  <label className="block text-sm text-gray-400 mb-1">
+                    2ª quincena — día de término
+                  </label>
+                  <p className="text-xs text-gray-600 mb-1.5">Corre desde el día siguiente hasta este día</p>
                   <input
                     name="dia_quincena_2" type="number" min="16" max="31"
                     value={form.dia_quincena_2} onChange={handleChange}
@@ -467,14 +463,15 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                           : <span className="text-xs text-green-500">● activa</span>}
                       </div>
                     ))}
-                   </div>
+                  </div>
                 </div>
               )}
-          {/* Mensual / cierre / puntual — fechas normales */}
-          {(form.tipo !== 'recurrente_mes' ||
-            form.frecuencia === 'mensual') && (
+            </div>
+          )}
+
+          {/* Mensual / cierre / puntual */}
+          {(form.tipo !== 'recurrente_mes' || form.frecuencia === 'mensual') && (
             <>
-              {/* Día hábil fijo */}
               <label className={`flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer border transition
                 ${form.dia_habil_fijo
                   ? 'bg-blue-950/40 border-blue-700'
@@ -571,8 +568,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           >
             <Plus className="w-4 h-4" />
             {loading ? 'Creando...' : (
-              form.frecuencia === 'semanal'   ? `Crear ${fechasSemanales.length} tareas` :
-              form.frecuencia === 'quincenal' ? 'Crear 2 tareas' :
+              form.tipo === 'recurrente_mes' && form.frecuencia === 'semanal'   ? `Crear ${fechasSemanales.length} tareas` :
+              form.tipo === 'recurrente_mes' && form.frecuencia === 'quincenal' ? `Crear ${fechasQuincenales.length} tareas` :
               'Crear tarea'
             )}
           </button>
