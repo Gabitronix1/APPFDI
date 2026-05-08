@@ -107,7 +107,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         })
       if (errTarea) throw errTarea
 
-      if (form.guardar_plantilla) {
+      if (form.tipo === 'cierre' || form.tipo === 'recurrente_mes') {
         const diaDelMes = form.dia_habil_fijo
           ? parseInt(form.dia_habil_num)
           : new Date(form.fecha_termino + 'T12:00:00').getDate()
