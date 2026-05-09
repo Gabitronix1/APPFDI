@@ -8,16 +8,14 @@ const MESES = [
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
 
-
-// Nombre de display: "Mayo 2026"
-function nombreCierre(mes, anio) {
+function nombreCiclo(mes, anio) {
   return `${MESES[mes - 1]} ${anio}`
 }
 
 export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
   const { profile }  = useAuth()
   const { data: ciclos = [] } = useCiclos()
-  const { mutate: crearCiclo,   isPending: creando }   = useCrearCiclo()
+  const { mutate: crearCiclo,    isPending: creando   } = useCrearCiclo()
   const { mutate: eliminarCiclo, isPending: eliminando } = useEliminarCiclo()
 
   const [confirmando, setConfirmando] = useState(null)
@@ -29,21 +27,17 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
     </div>
   )
 
-  const idx       = ciclos.findIndex(c => c.id === cicloSeleccionado.id)
-  console.log('cicloSeleccionado:', cicloSeleccionado)
-  console.log('mes:', cicloSeleccionado?.mes, 'anio:', cicloSeleccionado?.anio)
+  const idx      = ciclos.findIndex(c => c.id === cicloSeleccionado.id)
   const anterior  = ciclos[idx + 1] ?? null
   const siguiente = ciclos[idx - 1] ?? null
   const esActivo  = cicloSeleccionado.estado === 'activo'
 
-  // Próximo mes para nuevo cierre
-// Buscar el primer mes que no existe, empezando desde el mes siguiente al último ciclo
-  const ciclosOrdenados = [...ciclos].sort((a, b) => 
+  const ciclosOrdenados = [...ciclos].sort((a, b) =>
     a.anio !== b.anio ? a.anio - b.anio : a.mes - b.mes
   )
   const ultimoCiclo = ciclosOrdenados[ciclosOrdenados.length - 1]
   let mesNext  = ultimoCiclo ? ultimoCiclo.mes + 1 : new Date().getMonth() + 2
-  let anioNext = ultimoCiclo ? ultimoCiclo.anio : new Date().getFullYear()
+  let anioNext = ultimoCiclo ? ultimoCiclo.anio    : new Date().getFullYear()
   if (mesNext > 12) { mesNext = 1; anioNext++ }
   while (ciclos.some(c => c.mes === mesNext && c.anio === anioNext)) {
     mesNext++
@@ -52,30 +46,30 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
 
   const isPending = creando || eliminando
 
- function handleConfirmar() {
-  if (!confirmando) return
+  function handleConfirmar() {
+    if (!confirmando) return
 
-  if (confirmando.tipo === 'crear') {
-    crearCiclo({ mes: confirmando.mes, anio: confirmando.anio }, {
-      onSuccess: (nuevoCiclo) => {
-        mostrarExito(`${(confirmando.mes, confirmando.anio)} creado`)
-        setConfirmando(null)
-        onCambiarCiclo(nuevoCiclo)
-      }
-    })
-  }
+    if (confirmando.tipo === 'crear') {
+      crearCiclo({ mes: confirmando.mes, anio: confirmando.anio }, {
+        onSuccess: (nuevoCiclo) => {
+          mostrarExito(`${nombreCiclo(confirmando.mes, confirmando.anio)} creado`)
+          setConfirmando(null)
+          onCambiarCiclo(nuevoCiclo)
+        }
+      })
+    }
 
-  if (confirmando.tipo === 'eliminar') {
-    const fallback = anterior ?? siguiente
-    eliminarCiclo(cicloSeleccionado.id, {
-      onSuccess: () => {
-        mostrarExito('Cierre eliminado')
-        setConfirmando(null)
-        if (fallback) onCambiarCiclo(fallback)
-      }
-    })
+    if (confirmando.tipo === 'eliminar') {
+      const fallback = anterior ?? siguiente
+      eliminarCiclo(cicloSeleccionado.id, {
+        onSuccess: () => {
+          mostrarExito(`${nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio)} eliminado`)
+          setConfirmando(null)
+          if (fallback) onCambiarCiclo(fallback)
+        }
+      })
+    }
   }
-}
 
   function mostrarExito(msg) {
     setExito(msg)
@@ -84,22 +78,22 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
 
   return (
     <>
-      <div e="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg p-1">
+      <div className="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg p-1">
 
         {/* Retroceder */}
         <button
           onClick={() => anterior && onCambiarCiclo(anterior)}
           disabled={!anterior}
-          e="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
+          className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
                      transition disabled:opacity-30 disabled:cursor-not-allowed"
-          title={anterior ? `← ${(anterior.mes, anterior.anio)}` : ''}
+          title={anterior ? `← ${nombreCiclo(anterior.mes, anterior.anio)}` : ''}
         >
-          <ChevronLeft e="w-4 h-4" />
+          <ChevronLeft className="w-4 h-4" />
         </button>
 
-        {/* Nombre del cierre */}
+        {/* Nombre del ciclo */}
         <span className="px-2 text-sm font-medium text-white min-w-[120px] sm:min-w-[180px] text-center">
-          {nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio)}
+          {nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio)}
           {esActivo
             ? <span className="ml-1.5 text-xs text-green-400">● activo</span>
             : <span className="ml-1.5 text-xs text-gray-600">🔒 cerrado</span>}
@@ -111,27 +105,25 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
           disabled={!siguiente}
           className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
                      transition disabled:opacity-30 disabled:cursor-not-allowed"
-          title={siguiente ? `${(siguiente.mes, siguiente.anio)} →` : ''}
+          title={siguiente ? `${nombreCiclo(siguiente.mes, siguiente.anio)} →` : ''}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
 
         {profile?.rol === 'admin' && (
           <>
-            {/* Eliminar — siempre visible para admin */}
-              <button
-                onClick={() => setConfirmando({ tipo: 'eliminar' })}
-                className="p-1.5 rounded-md text-red-500 hover:text-red-400 hover:bg-gray-700 transition"
-                title="Eliminar este cierre"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+            <button
+              onClick={() => setConfirmando({ tipo: 'eliminar' })}
+              className="p-1.5 rounded-md text-red-500 hover:text-red-400 hover:bg-gray-700 transition"
+              title="Eliminar este ciclo"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
 
-            {/* Nuevo cierre */}
             <button
               onClick={() => setConfirmando({ tipo: 'crear', mes: mesNext, anio: anioNext })}
               className="p-1.5 rounded-md text-green-400 hover:text-green-300 hover:bg-gray-700 transition"
-              title={`Crear ${(mesNext, anioNext)}`}
+              title={`Crear ${nombreCiclo(mesNext, anioNext)}`}
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -145,7 +137,7 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
           <div className="flex items-center gap-2 bg-gray-800 border border-gray-700
                           text-gray-400 text-xs px-4 py-2 rounded-full shadow-lg">
             <Lock className="w-3 h-3" />
-            Estás viendo {(cicloSeleccionado.mes, cicloSeleccionado.anio)} — solo lectura
+            Estás viendo {nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio)} — solo lectura
           </div>
         </div>
       )}
@@ -156,13 +148,13 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-white font-semibold text-lg mb-2">
               {confirmando.tipo === 'crear'
-                ? `¿Crear ${(confirmando.mes, confirmando.anio)}?`
-                : `¿Eliminar ${(cicloSeleccionado.mes, cicloSeleccionado.anio)}?`}
+                ? `¿Crear ${nombreCiclo(confirmando.mes, confirmando.anio)}?`
+                : `¿Eliminar ${nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio)}?`}
             </h3>
             <p className="text-gray-400 text-sm mb-6">
               {confirmando.tipo === 'crear'
-                ? `Se generarán las tareas recurrentes del cierre con fechas según el calendario hábil chileno. El cierre actual quedará cerrado.`
-                : `Se eliminarán permanentemente todas las tareas de este cierre. Esta acción no se puede deshacer.`}
+                ? 'Se generarán las tareas recurrentes con fechas según el calendario hábil chileno. El ciclo actual quedará cerrado.'
+                : 'Se eliminarán permanentemente todas las tareas de este ciclo. Esta acción no se puede deshacer.'}
             </p>
             <div className="flex gap-3">
               <button
@@ -176,7 +168,9 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
                 disabled={isPending}
                 className={`flex-1 flex items-center justify-center gap-2 text-white
                            py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-50
-                           ${confirmando.tipo === 'eliminar' ? 'bg-red-700 hover:bg-red-600' : 'bg-green-700 hover:bg-green-600'}`}
+                           ${confirmando.tipo === 'eliminar'
+                             ? 'bg-red-700 hover:bg-red-600'
+                             : 'bg-green-700 hover:bg-green-600'}`}
               >
                 {isPending
                   ? <><Loader2 className="w-4 h-4 animate-spin" /> Procesando...</>
