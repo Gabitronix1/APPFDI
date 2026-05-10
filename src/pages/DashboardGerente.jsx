@@ -11,18 +11,16 @@ const MESES = [
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
 
-function nombreCierre(mes, anio) {
-  if (mes === 1) return `Cierre de Diciembre ${anio - 1}`
-  return `Cierre de ${MESES[mes - 2]} ${anio}`
+function nombreCiclo(mes, anio) {
+  return `${MESES[mes - 1]} ${anio}`
 }
 
 function BarraDepto({ pct, pctCalidad }) {
-  const color = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
-  const texto = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
+  const color    = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
+  const texto    = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
   const colorCal = pctCalidad === 100 ? 'text-green-400' : pctCalidad > 60 ? 'text-amber-400' : 'text-red-400'
   return (
     <div className="space-y-2">
-      {/* Barra completadas */}
       <div className="flex items-center gap-3">
         <div className="flex-1 bg-gray-800 rounded-full h-2">
           <div className={`h-2 rounded-full transition-all duration-700 ${color}`}
@@ -30,7 +28,6 @@ function BarraDepto({ pct, pctCalidad }) {
         </div>
         <span className={`text-sm font-bold w-10 text-right shrink-0 ${texto}`}>{pct}%</span>
       </div>
-      {/* Línea calidad */}
       {pctCalidad !== null && (
         <div className="flex items-center gap-3">
           <div className="flex-1 bg-gray-800 rounded-full h-1.5">
@@ -65,7 +62,7 @@ export default function DashboardGerente() {
         .from('monthly_cycles')
         .select('*')
         .order('anio', { ascending: false })
-        .order('mes', { ascending: false })
+        .order('mes',  { ascending: false })
       if (error) throw error
       return data ?? []
     }
@@ -106,7 +103,6 @@ export default function DashboardGerente() {
     }
   })
 
-  // Historial global 12 meses
   const { data: historial = [] } = useQuery({
     queryKey: ['historial-gerente'],
     queryFn: async () => {
@@ -114,7 +110,7 @@ export default function DashboardGerente() {
         .from('monthly_cycles')
         .select('id, mes, anio')
         .order('anio', { ascending: false })
-        .order('mes', { ascending: false })
+        .order('mes',  { ascending: false })
         .limit(12)
       if (!ciclosHist?.length) return []
       const results = []
@@ -124,10 +120,10 @@ export default function DashboardGerente() {
           .select('estado, porcentaje_cumplimiento')
           .eq('ciclo_id', c.id)
         if (!tareasHist?.length) continue
-        const comp = tareasHist.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
+        const comp   = tareasHist.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
         const conPct = tareasHist.filter(t => t.porcentaje_cumplimiento !== null)
         results.push({
-          mes: nombreCierre(c.mes, c.anio).replace('Cierre de ', ''),
+          mes: nombreCiclo(c.mes, c.anio),
           pct: Math.round((comp / tareasHist.length) * 100),
           pctPromedio: conPct.length
             ? Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
@@ -149,7 +145,7 @@ export default function DashboardGerente() {
   function metricasDepto(depto) {
     const tareas      = todasTareas.filter(t => t.departamento === depto)
     const completadas = tareas.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
-    const pendientes  = tareas.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
+    const pendientes  = tareas.filter(t => t.estado === 'pendiente'  || t.estado === 'en_progreso').length
     const atrasadas   = tareas.filter(t => t.estado === 'con_atraso' || t.estado === 'no_completada').length
     const pct         = tareas.length ? Math.round((completadas / tareas.length) * 100) : 0
     const conPct      = tareas.filter(t => t.porcentaje_cumplimiento !== null)
@@ -161,7 +157,7 @@ export default function DashboardGerente() {
 
   const totalTareas      = todasTareas.length
   const totalCompletadas = todasTareas.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
-  const totalPendientes  = todasTareas.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
+  const totalPendientes  = todasTareas.filter(t => t.estado === 'pendiente'  || t.estado === 'en_progreso').length
   const totalAtrasadas   = todasTareas.filter(t => t.estado === 'con_atraso' || t.estado === 'no_completada').length
   const pctGlobal        = totalTareas ? Math.round((totalCompletadas / totalTareas) * 100) : 0
   const conPctGlobal     = todasTareas.filter(t => t.porcentaje_cumplimiento !== null)
@@ -169,7 +165,7 @@ export default function DashboardGerente() {
     ? Math.round(conPctGlobal.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPctGlobal.length)
     : null
 
-  const tituloCiclo = ciclo ? nombreCierre(ciclo.mes, ciclo.anio) : ''
+  const tituloCiclo = ciclo ? nombreCiclo(ciclo.mes, ciclo.anio) : ''
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -194,7 +190,7 @@ export default function DashboardGerente() {
               disabled={!anterior}
               className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
                          transition disabled:opacity-30 disabled:cursor-not-allowed"
-              title={anterior ? `← ${nombreCierre(anterior.mes, anterior.anio)}` : ''}
+              title={anterior ? `← ${nombreCiclo(anterior.mes, anterior.anio)}` : ''}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -209,7 +205,7 @@ export default function DashboardGerente() {
               disabled={!siguiente}
               className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
                          transition disabled:opacity-30 disabled:cursor-not-allowed"
-              title={siguiente ? `${nombreCierre(siguiente.mes, siguiente.anio)} →` : ''}
+              title={siguiente ? `${nombreCiclo(siguiente.mes, siguiente.anio)} →` : ''}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -227,7 +223,9 @@ export default function DashboardGerente() {
             </p>
           </div>
           <div className="text-right">
-            <p className={`text-3xl font-bold ${pctGlobal === 100 ? 'text-green-400' : pctGlobal > 60 ? 'text-amber-400' : 'text-red-400'}`}>
+            <p className={`text-3xl font-bold ${
+              pctGlobal === 100 ? 'text-green-400' : pctGlobal > 60 ? 'text-amber-400' : 'text-red-400'
+            }`}>
               {pctGlobal}%
             </p>
             {pctCalidadGlobal !== null && (
@@ -235,14 +233,14 @@ export default function DashboardGerente() {
             )}
           </div>
         </div>
-        {/* Barra completadas */}
         <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden mb-2">
           <div
-            className={`h-3 rounded-full transition-all duration-700 ${pctGlobal === 100 ? 'bg-green-500' : pctGlobal > 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+            className={`h-3 rounded-full transition-all duration-700 ${
+              pctGlobal === 100 ? 'bg-green-500' : pctGlobal > 60 ? 'bg-amber-500' : 'bg-red-500'
+            }`}
             style={{ width: `${pctGlobal}%` }}
           />
         </div>
-        {/* Barra calidad */}
         {pctCalidadGlobal !== null && (
           <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden mb-3">
             <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
@@ -319,7 +317,6 @@ export default function DashboardGerente() {
           {Object.entries(deptos).map(([depto, miembros]) => {
             const m    = metricasDepto(depto)
             const jefe = miembros.find(u => u.rol === 'admin')
-
             return (
               <div
                 key={depto}
