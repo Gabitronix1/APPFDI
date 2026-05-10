@@ -2,8 +2,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useState } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, AlertCircle, Plus, RefreshCw, Sparkles, TrendingUp } from 'lucide-react'
+import { useParams, useNavigate } from 'react-router-dom'
+import {
+  ChevronLeft, ChevronRight, Users, CheckCircle2, Clock, AlertCircle,
+  Plus, RefreshCw, Sparkles, TrendingUp, CalendarClock, Lock
+} from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import TaskModal from '../components/TaskModal'
 import NuevaTareaModal from '../components/NuevaTareaModal'
@@ -13,6 +16,10 @@ const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
+
+function nombreCiclo(mes, anio) {
+  return `${MESES[mes - 1]} ${anio}`
+}
 
 function nombreCierre(mes, anio) {
   if (mes === 1) return `Cierre de Diciembre ${anio - 1}`
@@ -35,12 +42,111 @@ const ALERTA_BORDER = {
   fuera_de_plazo: 'border-red-500',
 }
 
+function TareaRow({ tarea, onClickTarea }) {
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+
+  const estaBloqueada = tarea.serie_id &&
+    tarea.fecha_inicio &&
+    new Date(tarea.fecha_inicio + 'T12:00:00') > hoy
+
+  const esFueraPlazo = !estaBloqueada &&
+    tarea.alerta === 'fuera_de_plazo' &&
+    tarea.estado !== 'completada' &&
+    tarea.estado !== 'completada_con_atraso'
+
+  const estilos = estaBloqueada
+    ? { badge: 'bg-gray-800 text-gray-600', label: 'Bloqueada' }
+    : esFueraPlazo
+    ? ESTADO_STYLES.fuera_de_plazo
+    : ESTADO_STYLES[tarea.estado] ?? ESTADO_STYLES.pendiente
+
+  const borde = estaBloqueada
+    ? 'border-gray-800'
+    : ALERTA_BORDER[tarea.alerta] ?? 'border-gray-800'
+
+  const esCompletada = tarea.estado === 'completada' ||
+    tarea.estado === 'completada_con_atraso' ||
+    tarea.estado === 'no_completada'
+
+  const icono = tarea.tipo === 'cierre'
+    ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+    : tarea.tipo === 'recurrente_mes'
+    ? <CalendarClock className="w-3 h-3 text-purple-400 shrink-0" />
+    : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />
+
+  return (
+    <div
+      onClick={() => !estaBloqueada && onClickTarea(tarea)}
+      className={`bg-gray-900 border ${borde} rounded-xl p-4 flex items-center gap-4 transition
+        ${estaBloqueada
+          ? 'opacity-50 cursor-not-allowed'
+          : 'cursor-pointer hover:bg-gray-800'}
+        ${esCompletada && !estaBloqueada ? 'opacity-70' : ''}`}
+    >
+      <div className="shrink-0">
+        {estaBloqueada
+          ? <Lock className="w-5 h-5 text-gray-600" />
+          : tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso'
+          ? <CheckCircle2 className="w-5 h-5 text-green-500" />
+          : esFueraPlazo
+          ? <AlertCircle className="w-5 h-5 text-orange-400" />
+          : tarea.estado === 'con_atraso'
+          ? <AlertCircle className="w-5 h-5 text-red-400" />
+          : <Clock className="w-5 h-5 text-gray-500" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          {icono}
+          <p className={`font-medium truncate ${estaBloqueada ? 'text-gray-500' : 'text-white'}`}>
+            {tarea.nombre_tarea}
+          </p>
+        </div>
+        <p className="text-gray-500 text-xs mt-0.5">
+          {tarea.responsable_nombre} · {tarea.area} ·{' '}
+          {estaBloqueada
+            ? <span className="text-gray-600">Disponible desde {tarea.fecha_inicio}</span>
+            : <>Vence {tarea.fecha_termino}</>}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {tarea.total_evidencias > 0 && !estaBloqueada && (
+          <span className="text-xs text-gray-500">{tarea.total_evidencias} 📎</span>
+        )}
+        <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${estilos.badge}`}>
+          {estilos.label}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function GrupoTareas({ titulo, icono, iconoColor, tareas, onClickTarea }) {
+  if (tareas.length === 0) return null
+  const ordenadas = [...tareas].sort((a, b) => a.nombre_tarea.localeCompare(b.nombre_tarea, 'es'))
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <span className={iconoColor}>{icono}</span>
+        <h3 className="text-white font-semibold text-sm">{titulo}</h3>
+        <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
+          {tareas.length}
+        </span>
+      </div>
+      <div className="space-y-3">
+        {ordenadas.map(tarea => (
+          <TareaRow key={tarea.id} tarea={tarea} onClickTarea={onClickTarea} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function DetalleDepto() {
-  const { depto }    = useParams()
-  const navigate     = useNavigate()
-  const location     = useLocation()
-  const queryClient  = useQueryClient()
-  const deptoNombre  = decodeURIComponent(depto)
+  const { depto }   = useParams()
+  const navigate    = useNavigate()
+  const queryClient = useQueryClient()
+  const deptoNombre = decodeURIComponent(depto)
 
   const [tareaActiva, setTareaActiva]     = useState(null)
   const [tareaDetalle, setTareaDetalle]   = useState(null)
@@ -48,7 +154,6 @@ export default function DetalleDepto() {
   const [filtroPersona, setFiltroPersona] = useState('todas')
   const [cicloSeleccionado, setCicloSeleccionado] = useState(null)
 
-  // Todos los ciclos
   const { data: ciclos = [] } = useQuery({
     queryKey: ['ciclos-gerente'],
     queryFn: async () => {
@@ -56,20 +161,17 @@ export default function DetalleDepto() {
         .from('monthly_cycles')
         .select('*')
         .order('anio', { ascending: false })
-        .order('mes', { ascending: false })
+        .order('mes',  { ascending: false })
       return data ?? []
     }
   })
 
-  // Ciclo activo por defecto
   const cicloActivo = ciclos.find(c => c.estado === 'activo') ?? ciclos[0]
-  const ciclo = cicloSeleccionado ?? cicloActivo
+  const ciclo       = cicloSeleccionado ?? cicloActivo
+  const idx         = ciclos.findIndex(c => c.id === ciclo?.id)
+  const anterior    = ciclos[idx + 1] ?? null
+  const siguiente   = ciclos[idx - 1] ?? null
 
-  const idx      = ciclos.findIndex(c => c.id === ciclo?.id)
-  const anterior = ciclos[idx + 1] ?? null
-  const siguiente = ciclos[idx - 1] ?? null
-
-  // Tareas del ciclo seleccionado para este depto
   const { data: tareas = [], isLoading } = useQuery({
     queryKey: ['tareas-depto', deptoNombre, ciclo?.id],
     enabled: !!ciclo?.id,
@@ -85,7 +187,6 @@ export default function DetalleDepto() {
     }
   })
 
-  // Datos históricos para el gráfico (últimos 12 meses)
   const { data: historial = [] } = useQuery({
     queryKey: ['historial-depto', deptoNombre],
     queryFn: async () => {
@@ -93,11 +194,9 @@ export default function DetalleDepto() {
         .from('monthly_cycles')
         .select('id, mes, anio')
         .order('anio', { ascending: true })
-        .order('mes', { ascending: true })
+        .order('mes',  { ascending: true })
         .limit(24)
-
       if (!ciclosHist?.length) return []
-
       const results = []
       for (const c of ciclosHist) {
         const { data: tareasHist } = await supabase
@@ -105,17 +204,13 @@ export default function DetalleDepto() {
           .select('estado')
           .eq('ciclo_id', c.id)
           .eq('departamento', deptoNombre)
-
         if (!tareasHist?.length) continue
-
         const completadas = tareasHist.filter(t =>
           t.estado === 'completada' || t.estado === 'completada_con_atraso'
         ).length
-        const pct = Math.round((completadas / tareasHist.length) * 100)
-
         results.push({
-          mes: nombreCierre(c.mes, c.anio).replace('Cierre de ', ''),
-          pct,
+          mes: nombreCiclo(c.mes, c.anio),
+          pct: Math.round((completadas / tareasHist.length) * 100),
           completadas,
           total: tareasHist.length,
         })
@@ -124,7 +219,6 @@ export default function DetalleDepto() {
     }
   })
 
-  // Usuarios del depto
   const { data: usuarios = [] } = useQuery({
     queryKey: ['usuarios-depto', deptoNombre],
     queryFn: async () => {
@@ -142,10 +236,26 @@ export default function DetalleDepto() {
     filtroPersona === 'todas' || t.responsable_nombre === filtroPersona
   )
 
+  // 3 grupos
+  const tareasCierre      = tareasFiltradas.filter(t => t.tipo === 'cierre')
+  const tareasRecurrentes = tareasFiltradas.filter(t => t.tipo === 'recurrente_mes')
+  const tareasPuntuales   = tareasFiltradas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id))
+
   const completadas = tareas.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
-  const pendientes  = tareas.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
+  const pendientes  = tareas.filter(t => t.estado === 'pendiente'  || t.estado === 'en_progreso').length
   const atrasadas   = tareas.filter(t => t.estado === 'con_atraso' || t.estado === 'no_completada').length
   const pct         = tareas.length ? Math.round((completadas / tareas.length) * 100) : 0
+
+  const tituloCiclo  = ciclo ? nombreCiclo(ciclo.mes, ciclo.anio)  : ''
+  const tituloCierre = ciclo ? nombreCierre(ciclo.mes, ciclo.anio) : ''
+
+  function handleClickTarea(tarea) {
+    const esCompletada = tarea.estado === 'completada' ||
+      tarea.estado === 'completada_con_atraso' ||
+      tarea.estado === 'no_completada'
+    if (esCompletada) setTareaDetalle(tarea)
+    else setTareaActiva(tarea)
+  }
 
   function onCompletada() {
     queryClient.invalidateQueries({ queryKey: ['tareas-depto', deptoNombre, ciclo?.id] })
@@ -153,16 +263,15 @@ export default function DetalleDepto() {
     setTareaActiva(null)
   }
 
-  const tituloCiclo = ciclo ? nombreCierre(ciclo.mes, ciclo.anio) : ''
-
-  // Tooltip personalizado para el gráfico
   function CustomTooltip({ active, payload, label }) {
     if (active && payload?.length) {
       return (
         <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 shadow-xl">
           <p className="text-gray-400 text-xs mb-1">{label}</p>
           <p className="text-white font-bold text-lg">{payload[0].value}%</p>
-          <p className="text-gray-500 text-xs">{payload[0].payload.completadas}/{payload[0].payload.total} tareas</p>
+          <p className="text-gray-500 text-xs">
+            {payload[0].payload.completadas}/{payload[0].payload.total} tareas
+          </p>
         </div>
       )
     }
@@ -182,9 +291,7 @@ export default function DetalleDepto() {
         </button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-white">{deptoNombre}</h1>
-          <p className="text-gray-400 text-sm mt-0.5">
-            {usuarios.length} integrantes
-          </p>
+          <p className="text-gray-400 text-sm mt-0.5">{usuarios.length} integrantes</p>
         </div>
 
         {/* Selector ciclo */}
@@ -225,7 +332,7 @@ export default function DetalleDepto() {
         </button>
       </div>
 
-      {/* Resumen del ciclo */}
+      {/* Resumen */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-white font-semibold">Avance — {tituloCiclo}</h2>
@@ -248,7 +355,7 @@ export default function DetalleDepto() {
         </div>
       </div>
 
-      {/* Gráfico de tendencia */}
+      {/* Gráfico */}
       {historial.length > 1 && (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center gap-2 mb-5">
@@ -259,28 +366,11 @@ export default function DetalleDepto() {
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={historial} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis
-                dataKey="mes"
-                tick={{ fill: '#6B7280', fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                domain={[0, 100]}
-                tick={{ fill: '#6B7280', fontSize: 10 }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={v => `${v}%`}
-              />
+              <XAxis dataKey="mes" tick={{ fill: '#6B7280', fontSize: 10 }} tickLine={false} axisLine={false} />
+              <YAxis domain={[0, 100]} tick={{ fill: '#6B7280', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
               <Tooltip content={<CustomTooltip />} />
-              <Line
-                type="monotone"
-                dataKey="pct"
-                stroke="#22C55E"
-                strokeWidth={2}
-                dot={{ fill: '#22C55E', r: 4 }}
-                activeDot={{ r: 6, fill: '#16A34A' }}
-              />
+              <Line type="monotone" dataKey="pct" stroke="#22C55E" strokeWidth={2}
+                dot={{ fill: '#22C55E', r: 4 }} activeDot={{ r: 6, fill: '#16A34A' }} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -314,7 +404,7 @@ export default function DetalleDepto() {
         </div>
       </div>
 
-      {/* Lista tareas */}
+      {/* Lista tareas — 3 grupos */}
       {isLoading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
@@ -322,53 +412,28 @@ export default function DetalleDepto() {
       ) : tareasFiltradas.length === 0 ? (
         <div className="text-center py-16 text-gray-500">No hay tareas para este ciclo</div>
       ) : (
-        <div className="space-y-3">
-          {tareasFiltradas.map(tarea => {
-            const esFueraPlazo = tarea.alerta === 'fuera_de_plazo' && tarea.estado !== 'completada'
-            const estilos = esFueraPlazo
-              ? ESTADO_STYLES.fuera_de_plazo
-              : ESTADO_STYLES[tarea.estado] ?? ESTADO_STYLES.pendiente
-            const borde = ALERTA_BORDER[tarea.alerta] ?? 'border-gray-800'
-            const esCompletada = tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada'
-
-            return (
-              <div
-                key={tarea.id}
-                onClick={() => esCompletada ? setTareaDetalle(tarea) : setTareaActiva(tarea)}
-                className={`bg-gray-900 border ${borde} rounded-xl p-4 flex items-center gap-4
-                  cursor-pointer hover:bg-gray-800 transition ${esCompletada ? 'opacity-70' : ''}`}
-              >
-                <div className="shrink-0">
-                  {tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso'
-                    ? <CheckCircle2 className="w-5 h-5 text-green-500" />
-                    : esFueraPlazo
-                    ? <AlertCircle className="w-5 h-5 text-orange-400" />
-                    : tarea.estado === 'con_atraso'
-                    ? <AlertCircle className="w-5 h-5 text-red-400" />
-                    : <Clock className="w-5 h-5 text-gray-500" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    {tarea.template_id
-                      ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
-                      : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
-                    <p className="text-white font-medium truncate">{tarea.nombre_tarea}</p>
-                  </div>
-                  <p className="text-gray-500 text-xs mt-0.5">
-                    {tarea.responsable_nombre} · {tarea.area} · Vence {tarea.fecha_termino}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {tarea.total_evidencias > 0 && (
-                    <span className="text-xs text-gray-500">{tarea.total_evidencias} 📎</span>
-                  )}
-                  <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${estilos.badge}`}>
-                    {estilos.label}
-                  </span>
-                </div>
-              </div>
-            )
-          })}
+        <div className="space-y-6">
+          <GrupoTareas
+            titulo={tituloCierre}
+            icono={<RefreshCw className="w-4 h-4" />}
+            iconoColor="text-blue-400"
+            tareas={tareasCierre}
+            onClickTarea={handleClickTarea}
+          />
+          <GrupoTareas
+            titulo={`Recurrentes de ${tituloCiclo}`}
+            icono={<CalendarClock className="w-4 h-4" />}
+            iconoColor="text-purple-400"
+            tareas={tareasRecurrentes}
+            onClickTarea={handleClickTarea}
+          />
+          <GrupoTareas
+            titulo={`Tareas puntuales de ${tituloCiclo}`}
+            icono={<Sparkles className="w-4 h-4" />}
+            iconoColor="text-amber-400"
+            tareas={tareasPuntuales}
+            onClickTarea={handleClickTarea}
+          />
         </div>
       )}
 
@@ -380,14 +445,12 @@ export default function DetalleDepto() {
           onCompletada={onCompletada}
         />
       )}
-
       {tareaDetalle && (
         <DetalleTareaPanel
           tarea={tareaDetalle}
           onClose={() => setTareaDetalle(null)}
         />
       )}
-
       {mostrarNueva && ciclo && (
         <NuevaTareaModal
           cicloSeleccionado={ciclo}
