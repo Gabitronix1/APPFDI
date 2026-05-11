@@ -176,7 +176,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             departamento:   deptoActivo,
             condicion:      'habil',
             dia_del_mes:    form.frecuencia === 'semanal'
-                              ? parseInt(form.dia_semana)
+                              ? parseInt(form.dia_semana) + 1
                               : parseInt(form.dia_quincena_1),
             dia_del_mes_2:  form.frecuencia === 'quincenal'
                               ? parseInt(form.dia_quincena_2)
