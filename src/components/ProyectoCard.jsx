@@ -1,19 +1,18 @@
 import { useState, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { useQueryClient } from '@tanstack/react-query'
 import EntregableModal from './EntregableModal'
 import ProyectoModal from './ProyectoModal'
 import {
   ChevronDown, ChevronUp, Plus, Trash2, Pencil,
-  CheckCircle2, Circle, Clock, Calendar, TrendingUp
+  CheckCircle2, Circle, Clock, Calendar, Minus
 } from 'lucide-react'
 
 function calcularPctPlan(fechaInicio, fechaFin) {
   const hoy    = new Date()
   hoy.setHours(0, 0, 0, 0)
   const inicio = new Date(fechaInicio + 'T00:00:00')
-  const fin    = new Date(fechaFin + 'T00:00:00')
+  const fin    = new Date(fechaFin    + 'T00:00:00')
   if (hoy < inicio) return 0
   if (hoy > fin)    return 100
   const total  = fin.getTime() - inicio.getTime()
@@ -33,9 +32,157 @@ function calcularPonderado(entregables, campo) {
   return Math.round(suma / totalDias)
 }
 
+function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin }) {
+  const [pctLocal, setPctLocal]   = useState(Number(entregable.pct_real) || 0)
+  const [guardando, setGuardando] = useState(false)
+
+  const pctPlan = calcularPctPlan(entregable.fecha_inicio, entregable.fecha_fin)
+  const estado  = pctLocal === 100 ? 'completado' : pctLocal > 0 ? 'en_progreso' : 'no_iniciado'
+
+  const colorBadge = estado === 'completado'  ? 'bg-green-900 text-green-300'
+    : estado === 'en_progreso' ? 'bg-blue-900 text-blue-300'
+    : 'bg-gray-800 text-gray-500'
+  const labelBadge = estado === 'completado'  ? 'Completado'
+    : estado === 'en_progreso' ? 'En progreso' : 'No iniciado'
+
+  const colorReal = pctLocal === 100 ? 'bg-green-500'
+    : pctLocal >= pctPlan ? 'bg-blue-500'
+    : pctLocal > 0 ? 'bg-amber-500'
+    : 'bg-gray-700'
+
+  const colorTexto = pctLocal === 100 ? 'text-green-400'
+    : pctLocal >= pctPlan ? 'text-blue-400'
+    : pctLocal > 0 ? 'text-amber-400'
+    : 'text-gray-500'
+
+  async function guardar(nuevoVal) {
+    setGuardando(true)
+    const nuevoEstado = nuevoVal === 100 ? 'completado' : nuevoVal > 0 ? 'en_progreso' : 'no_iniciado'
+    await supabase
+      .from('project_deliverables')
+      .update({ pct_real: nuevoVal, estado: nuevoEstado })
+      .eq('id', entregable.id)
+    onActualizar()
+    setGuardando(false)
+  }
+
+  async function cambiarPct(delta) {
+    const nuevo = Math.min(100, Math.max(0, pctLocal + delta))
+    setPctLocal(nuevo)
+    await guardar(nuevo)
+  }
+
+  return (
+    <div className="px-5 py-4 hover:bg-gray-800/30 transition group">
+      {/* Fila principal */}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-xs text-gray-600 font-mono shrink-0">{entregable.edt}</span>
+            <p className={`text-sm font-medium truncate ${
+              estado === 'completado' ? 'text-gray-500 line-through' : 'text-gray-200'
+            }`}>
+              {entregable.nombre}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-600">
+              {new Date(entregable.fecha_inicio + 'T00:00:00').toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
+              {' → '}
+              {new Date(entregable.fecha_fin + 'T00:00:00').toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
+            </span>
+            {entregable.duracion_dias && (
+              <span className="text-xs text-gray-700">{entregable.duracion_dias}d</span>
+            )}
+          </div>
+        </div>
+
+        {/* Badge estado */}
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${colorBadge}`}>
+          {labelBadge}
+        </span>
+      </div>
+
+      {/* Barra plan vs real superpuesta */}
+      <div className="mb-3">
+        <div className="relative w-full bg-gray-800 rounded-full h-3">
+          {/* Barra plan (fondo) */}
+          <div
+            className="absolute top-0 left-0 h-3 rounded-full bg-gray-600/50 transition-all duration-500"
+            style={{ width: `${pctPlan}%` }}
+          />
+          {/* Barra real (encima) */}
+          <div
+            className={`absolute top-0 left-0 h-3 rounded-full transition-all duration-500 ${colorReal}`}
+            style={{ width: `${pctLocal}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-1">
+          <span className="text-xs text-gray-600">Plan: {pctPlan}%</span>
+          <span className={`text-xs font-medium ${colorTexto}`}>Real: {pctLocal}%</span>
+        </div>
+      </div>
+
+      {/* Controles inline */}
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
+          <button
+            onClick={() => cambiarPct(-10)}
+            disabled={pctLocal === 0 || guardando}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400
+                       hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
+          >-10</button>
+          <button
+            onClick={() => cambiarPct(-5)}
+            disabled={pctLocal === 0 || guardando}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400
+                       hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
+          >-5</button>
+          <span className={`text-sm font-bold w-12 text-center ${colorTexto}`}>
+            {guardando ? '...' : `${pctLocal}%`}
+          </span>
+          <button
+            onClick={() => cambiarPct(5)}
+            disabled={pctLocal === 100 || guardando}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400
+                       hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
+          >+5</button>
+          <button
+            onClick={() => cambiarPct(10)}
+            disabled={pctLocal === 100 || guardando}
+            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400
+                       hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
+          >+10</button>
+        </div>
+
+        {/* Acciones admin */}
+        {esAdmin && (
+          <div className="flex items-center gap-1 ml-auto opacity-0 group-hover:opacity-100 transition">
+            <button
+              onClick={onEditar}
+              className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onEliminar}
+              className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {entregable.comentarios && (
+        <p className="text-xs text-gray-600 mt-2">{entregable.comentarios}</p>
+      )}
+    </div>
+  )
+}
+
 export default function ProyectoCard({ proyecto, onCambio }) {
   const { profile }  = useAuth()
-  const queryClient  = useQueryClient()
   const [expandido, setExpandido]                       = useState(true)
   const [modalEntregable, setModalEntregable]           = useState(false)
   const [editandoEntregable, setEditandoEntregable]     = useState(null)
@@ -43,27 +190,24 @@ export default function ProyectoCard({ proyecto, onCambio }) {
   const [eliminandoProyecto, setEliminandoProyecto]     = useState(false)
   const [eliminandoEntregable, setEliminandoEntregable] = useState(null)
 
-  const entregables = proyecto.project_deliverables ?? []
-
-  // Calcular % plan y real del proyecto (ponderado por duración)
+  const entregables     = proyecto.project_deliverables ?? []
   const pctPlanProyecto = useMemo(() => calcularPonderado(entregables, 'pct_plan'), [entregables])
   const pctRealProyecto = useMemo(() => calcularPonderado(entregables, 'pct_real'), [entregables])
-  const pctPlanGlobal   = calcularPctPlan(proyecto.fecha_inicio, proyecto.fecha_fin)
+  const pctTiempo       = calcularPctPlan(proyecto.fecha_inicio, proyecto.fecha_fin)
 
-  // Ratio real/plan
   const ratio = pctPlanProyecto > 0
     ? Math.round((pctRealProyecto / pctPlanProyecto) * 100)
     : null
-
-  const colorReal = pctRealProyecto === 100 ? 'bg-green-500'
-    : pctRealProyecto >= pctPlanProyecto ? 'bg-blue-500'
-    : pctRealProyecto > 0 ? 'bg-amber-500'
-    : 'bg-gray-700'
 
   const colorTextoReal = pctRealProyecto === 100 ? 'text-green-400'
     : pctRealProyecto >= pctPlanProyecto ? 'text-blue-400'
     : pctRealProyecto > 0 ? 'text-amber-400'
     : 'text-gray-500'
+
+  const colorBarraReal = pctRealProyecto === 100 ? 'bg-green-500'
+    : pctRealProyecto >= pctPlanProyecto ? 'bg-blue-500'
+    : pctRealProyecto > 0 ? 'bg-amber-500'
+    : 'bg-gray-700'
 
   async function eliminarProyecto() {
     await supabase.from('project_deliverables').delete().eq('project_id', proyecto.id)
@@ -81,12 +225,12 @@ export default function ProyectoCard({ proyecto, onCambio }) {
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
 
-      {/* Header */}
+      {/* Header proyecto */}
       <div
         className="px-6 py-5 cursor-pointer hover:bg-gray-800/40 transition"
         onClick={() => setExpandido(!expandido)}
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs text-gray-600 font-mono bg-gray-800 px-2 py-0.5 rounded">
@@ -107,59 +251,48 @@ export default function ProyectoCard({ proyecto, onCambio }) {
                 {' → '}
                 {new Date(proyecto.fecha_fin + 'T00:00:00').toLocaleDateString('es-CL', { month: 'short', day: 'numeric', year: 'numeric' })}
               </span>
+              <span className="text-xs text-gray-600">· {pctTiempo}% del tiempo</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="text-right">
-              <p className={`text-2xl font-bold ${colorTextoReal}`}>{pctRealProyecto}%</p>
-              <p className="text-gray-600 text-xs">real · plan {pctPlanProyecto}%</p>
-              {ratio !== null && (
-                <p className={`text-xs font-medium mt-0.5 ${
-                  ratio >= 100 ? 'text-green-400' : ratio >= 75 ? 'text-amber-400' : 'text-red-400'
-                }`}>
-                  {ratio >= 100 ? '✓' : '↓'} {ratio}% vs plan
-                </p>
-              )}
-            </div>
-            {expandido
-              ? <ChevronUp className="w-5 h-5 text-gray-500" />
-              : <ChevronDown className="w-5 h-5 text-gray-500" />}
+          <div className="text-right shrink-0">
+            <p className={`text-3xl font-bold ${colorTextoReal}`}>{pctRealProyecto}%</p>
+            <p className="text-gray-600 text-xs mt-0.5">real · plan {pctPlanProyecto}%</p>
+            {ratio !== null && (
+              <p className={`text-xs font-medium mt-1 ${
+                ratio >= 100 ? 'text-green-400' : ratio >= 75 ? 'text-amber-400' : 'text-red-400'
+              }`}>
+                {ratio >= 100 ? '✓' : '↓'} {ratio}% vs plan
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Barras plan vs real */}
-        <div className="mt-4 space-y-2">
+        {/* Barra superpuesta plan + real */}
+        <div className="relative w-full bg-gray-800 rounded-full h-3">
+          <div
+            className="absolute top-0 left-0 h-3 rounded-full bg-gray-600/60 transition-all duration-700"
+            style={{ width: `${pctPlanProyecto}%` }}
+          />
+          <div
+            className={`absolute top-0 left-0 h-3 rounded-full transition-all duration-700 ${colorBarraReal}`}
+            style={{ width: `${pctRealProyecto}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-1.5">
           <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-600 w-10 shrink-0">Plan</span>
-            <div className="flex-1 bg-gray-800 rounded-full h-2 relative">
-              <div
-                className="h-2 rounded-full transition-all duration-700 bg-gray-500"
-                style={{ width: `${pctPlanProyecto}%` }}
-              />
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-1 bg-gray-600/60 inline-block rounded" />
+              <span className="text-xs text-gray-600">Plan {pctPlanProyecto}%</span>
             </div>
-            <span className="text-xs text-gray-500 w-8 text-right">{pctPlanProyecto}%</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-600 w-10 shrink-0">Real</span>
-            <div className="flex-1 bg-gray-800 rounded-full h-2">
-              <div
-                className={`h-2 rounded-full transition-all duration-700 ${colorReal}`}
-                style={{ width: `${pctRealProyecto}%` }}
-              />
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-1 inline-block rounded ${colorBarraReal}`} />
+              <span className="text-xs text-gray-500">Real {pctRealProyecto}%</span>
             </div>
-            <span className={`text-xs font-medium w-8 text-right ${colorTextoReal}`}>{pctRealProyecto}%</span>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-600 w-10 shrink-0">Tiempo</span>
-            <div className="flex-1 bg-gray-800 rounded-full h-1.5">
-              <div
-                className="h-1.5 rounded-full transition-all duration-700 bg-gray-700"
-                style={{ width: `${pctPlanGlobal}%` }}
-              />
-            </div>
-            <span className="text-xs text-gray-600 w-8 text-right">{pctPlanGlobal}%</span>
-          </div>
+          {expandido
+            ? <ChevronUp className="w-4 h-4 text-gray-600" />
+            : <ChevronDown className="w-4 h-4 text-gray-600" />}
         </div>
       </div>
 
@@ -172,104 +305,19 @@ export default function ProyectoCard({ proyecto, onCambio }) {
             <div className="divide-y divide-gray-800/50">
               {[...entregables]
                 .sort((a, b) => a.orden - b.orden)
-                .map(entregable => {
-                  const pctPlan = calcularPctPlan(entregable.fecha_inicio, entregable.fecha_fin)
-                  const pctReal = Number(entregable.pct_real) || 0
-                  const estado  = pctReal === 100 ? 'completado'
-                    : pctReal > 0 ? 'en_progreso' : 'no_iniciado'
-
-                  const colorBadge = estado === 'completado'  ? 'bg-green-900 text-green-300'
-                    : estado === 'en_progreso' ? 'bg-blue-900 text-blue-300'
-                    : 'bg-gray-800 text-gray-500'
-                  const labelBadge = estado === 'completado'  ? 'Completado'
-                    : estado === 'en_progreso' ? 'En progreso' : 'No iniciado'
-
-                  const colorBarraReal = pctReal === 100 ? 'bg-green-500'
-                    : pctReal >= pctPlan ? 'bg-blue-500'
-                    : 'bg-amber-500'
-
-                  return (
-                    <div key={entregable.id} className="px-6 py-4 hover:bg-gray-800/30 transition group">
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span className="text-xs text-gray-600 font-mono shrink-0">{entregable.edt}</span>
-                            <p className={`text-sm font-medium truncate ${
-                              estado === 'completado' ? 'text-gray-500 line-through' : 'text-gray-200'
-                            }`}>
-                              {entregable.nombre}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-gray-600">
-                              {new Date(entregable.fecha_inicio + 'T00:00:00').toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
-                              {' → '}
-                              {new Date(entregable.fecha_fin + 'T00:00:00').toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
-                            </span>
-                            {entregable.duracion_dias && (
-                              <span className="text-xs text-gray-700">{entregable.duracion_dias}d</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colorBadge}`}>
-                            {labelBadge}
-                          </span>
-                          <span className={`text-sm font-bold ${
-                            pctReal === 100 ? 'text-green-400'
-                            : pctReal >= pctPlan ? 'text-blue-400'
-                            : pctReal > 0 ? 'text-amber-400'
-                            : 'text-gray-600'
-                          }`}>{pctReal}%</span>
-                          {profile?.rol === 'admin' && (
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                              <button
-                                onClick={() => setEditandoEntregable(entregable)}
-                                className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setEliminandoEntregable(entregable)}
-                                className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Barras plan vs real por entregable */}
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-700 w-8 shrink-0">Plan</span>
-                          <div className="flex-1 bg-gray-800 rounded-full h-1.5">
-                            <div className="h-1.5 rounded-full bg-gray-600 transition-all duration-500"
-                              style={{ width: `${pctPlan}%` }} />
-                          </div>
-                          <span className="text-xs text-gray-600 w-7 text-right">{pctPlan}%</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-700 w-8 shrink-0">Real</span>
-                          <div className="flex-1 bg-gray-800 rounded-full h-1.5">
-                            <div className={`h-1.5 rounded-full transition-all duration-500 ${colorBarraReal}`}
-                              style={{ width: `${pctReal}%` }} />
-                          </div>
-                          <span className="text-xs text-gray-600 w-7 text-right">{pctReal}%</span>
-                        </div>
-                      </div>
-
-                      {entregable.comentarios && (
-                        <p className="text-xs text-gray-600 mt-2">{entregable.comentarios}</p>
-                      )}
-                    </div>
-                  )
-                })}
+                .map(entregable => (
+                  <EntregableRow
+                    key={entregable.id}
+                    entregable={entregable}
+                    onActualizar={onCambio}
+                    onEditar={() => setEditandoEntregable(entregable)}
+                    onEliminar={() => setEliminandoEntregable(entregable)}
+                    esAdmin={profile?.rol === 'admin'}
+                  />
+                ))}
             </div>
           )}
 
-          {/* Footer admin */}
           {profile?.rol === 'admin' && (
             <div className="flex items-center justify-between px-6 py-3 border-t border-gray-800 bg-gray-900/50">
               <button
@@ -281,14 +329,14 @@ export default function ProyectoCard({ proyecto, onCambio }) {
               </button>
               <div className="flex items-center gap-3">
                 <button
-                  onClick={() => setEditandoProyecto(true)}
+                  onClick={e => { e.stopPropagation(); setEditandoProyecto(true) }}
                   className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   Editar proyecto
                 </button>
                 <button
-                  onClick={() => setEliminandoProyecto(true)}
+                  onClick={e => { e.stopPropagation(); setEliminandoProyecto(true) }}
                   className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-red-400 transition"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
