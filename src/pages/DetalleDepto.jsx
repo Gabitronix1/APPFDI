@@ -43,13 +43,13 @@ const ALERTA_BORDER = {
 }
 
 function TareaRow({ tarea, onClickTarea }) {
-  const hoy = new Date()
+  const hoy = ()
   hoy.setHours(0, 0, 0, 0)
 
   const estaBloqueada = tarea.serie_id &&
     tarea.fecha_inicio &&
-    new Date(tarea.fecha_inicio + 'T12:00:00') > hoy
-
+    new Date(tarea.fecha_inicio + 'T00:00:00') > hoy
+  
   const esFueraPlazo = !estaBloqueada &&
     tarea.alerta === 'fuera_de_plazo' &&
     tarea.estado !== 'completada' &&
