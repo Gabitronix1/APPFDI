@@ -8,6 +8,7 @@ import {
   CheckCircle2, Circle, Clock, Calendar, Minus
 } from 'lucide-react'
 
+
 function calcularPctPlan(fechaInicio, fechaFin) {
   const hoy    = new Date()
   hoy.setHours(0, 0, 0, 0)
