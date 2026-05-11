@@ -194,6 +194,8 @@ export function useCrearCiclo() {
         const { error: errTareas } = await supabase
           .from('tasks')
           .insert(tareas)
+        console.log('tareas a insertar:', tareas)  // 👈
+        console.log('error tareas:', errTareas) 
         if (errTareas) throw errTareas
       }
 
