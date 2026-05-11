@@ -170,7 +170,7 @@ function ColumnaKanban({ titulo, icono, iconoColor, accentBg, tareas, profile,
 
       {/* Tareas con scroll independiente */}
       {activa && (
-        <div className="overflow-y-auto flex-1 p-3 space-y-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent"
+        <div className="overflow-y-auto flex-1 p-3 space-y-2 scroll-dark"
           style={{ maxHeight: 'calc(100vh - 280px)' }}>
           {ordenadas.length === 0 ? (
             <p className="text-center text-gray-600 text-sm py-8">Sin tareas</p>
