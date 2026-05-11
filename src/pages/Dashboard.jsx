@@ -65,12 +65,21 @@ function StatCard({ icon: Icon, label, value, color, sub, onClick }) {
 }
 
 function TareaRow({ tarea, onClick, esCicloCerrado }) {
-  const esFueraPlazo = !esCicloCerrado &&
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+
+  const estaBloqueada = tarea.serie_id &&
+    tarea.fecha_inicio &&
+    new Date(tarea.fecha_inicio + 'T00:00:00') > hoy
+
+  const esFueraPlazo = !esCicloCerrado && !estaBloqueada &&
     tarea.alerta === 'fuera_de_plazo' &&
     tarea.estado !== 'completada' &&
     tarea.estado !== 'completada_con_atraso'
 
-  const borderColor = esCicloCerrado
+  const borderColor = estaBloqueada
+    ? 'border-gray-800'
+    : esCicloCerrado
     ? 'border-gray-800'
     : {
         ok:             'border-gray-800',
@@ -78,7 +87,9 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
         fuera_de_plazo: 'border-red-500',
       }[tarea.alerta] ?? 'border-gray-800'
 
-  const badge = esFueraPlazo ? 'bg-orange-900 text-orange-300'
+  const badge = estaBloqueada
+    ? 'bg-gray-800 text-gray-600'
+    : esFueraPlazo ? 'bg-orange-900 text-orange-300'
     : {
         pendiente:             'bg-gray-800 text-gray-300',
         con_atraso:            'bg-red-900 text-red-300',
@@ -86,7 +97,8 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
         no_completada:         'bg-gray-800 text-gray-500',
       }[tarea.estado] ?? 'bg-gray-800 text-gray-300'
 
-  const label = esFueraPlazo ? 'Fuera de plazo'
+  const label = estaBloqueada ? 'Bloqueada'
+    : esFueraPlazo             ? 'Fuera de plazo'
     : tarea.estado === 'con_atraso'            ? 'Atrasada'
     : tarea.estado === 'no_completada'         ? 'No completada'
     : tarea.estado === 'completada_con_atraso' ? 'Entregada'
@@ -94,7 +106,6 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
     : tarea.estado === 'pendiente'             ? 'Pendiente'
     : tarea.estado.replace(/_/g, ' ')
 
-  // Ícono según tipo
   const icono = tarea.tipo === 'cierre'
     ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
     : tarea.tipo === 'recurrente_mes'
@@ -103,16 +114,26 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
 
   return (
     <div
-      onClick={onClick}
+      onClick={estaBloqueada ? undefined : onClick}
       className={`bg-gray-900 border ${borderColor} rounded-xl p-4 flex items-center
-        justify-between gap-4 transition ${onClick ? 'cursor-pointer hover:bg-gray-800' : ''}`}
+        justify-between gap-4 transition
+        ${estaBloqueada
+          ? 'opacity-50 cursor-not-allowed'
+          : onClick ? 'cursor-pointer hover:bg-gray-800' : ''}`}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           {icono}
-          <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
+          <p className={`text-sm font-medium truncate ${estaBloqueada ? 'text-gray-500' : 'text-white'}`}>
+            {tarea.nombre_tarea}
+          </p>
         </div>
-        <p className="text-gray-500 text-xs mt-0.5">{tarea.area} · Vence {tarea.fecha_termino}</p>
+        <p className="text-gray-500 text-xs mt-0.5">
+          {tarea.area} ·{' '}
+          {estaBloqueada
+            ? <span className="text-gray-600">Disponible desde {tarea.fecha_inicio}</span>
+            : <>Vence {tarea.fecha_termino}</>}
+        </p>
       </div>
       <span className={`text-xs px-2.5 py-1 rounded-full font-medium shrink-0 ${badge}`}>
         {label}
@@ -120,7 +141,6 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
     </div>
   )
 }
-
 function ModalListaTareas({ titulo, tareas, onClose, onClickTarea }) {
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
