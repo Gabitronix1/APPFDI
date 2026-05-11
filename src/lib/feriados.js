@@ -89,8 +89,7 @@ export function calcularFechasTarea(template, mes, anio) {
 
   if (template.condicion === 'habil') {
     // Día N del mes ajustado al hábil siguiente si cae en finde/feriado
-      fechaTermino = new Date(anio, mes - 1, template.dia_del_mes, 12, 0, 0)
-      fechaTermino = ajustarAlDiaHabilSiguiente(fechaTermino, feriadosCombinados)
+      fechaTermino = getNesimoHabilDelMes(mes, anio, template.dia_del_mes, feriadosCombinados)
   } else {
     // Día real: día N del mes → si cae en feriado o finde → día hábil siguiente
     fechaTermino = new Date(anio, mes - 1, template.dia_del_mes, 12, 0, 0)
