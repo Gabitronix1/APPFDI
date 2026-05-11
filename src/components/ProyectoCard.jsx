@@ -4,10 +4,8 @@ import { supabase } from '../lib/supabase'
 import EntregableModal from './EntregableModal'
 import ProyectoModal from './ProyectoModal'
 import {
-  ChevronDown, ChevronUp, Plus, Trash2, Pencil,
-  CheckCircle2, Circle, Clock, Calendar, Minus
+  ChevronDown, ChevronUp, Plus, Trash2, Pencil, Calendar
 } from 'lucide-react'
-
 
 function calcularPctPlan(fechaInicio, fechaFin) {
   const hoy    = new Date()
@@ -46,7 +44,7 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
   const labelBadge = estado === 'completado'  ? 'Completado'
     : estado === 'en_progreso' ? 'En progreso' : 'No iniciado'
 
-  const colorReal = pctLocal === 100 ? 'bg-green-500'
+  const colorBarraReal = pctLocal === 100 ? 'bg-green-500'
     : pctLocal >= pctPlan ? 'bg-blue-500'
     : pctLocal > 0 ? 'bg-amber-500'
     : 'bg-gray-700'
@@ -67,16 +65,10 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
     setGuardando(false)
   }
 
-  async function cambiarPct(delta) {
-    const nuevo = Math.min(100, Math.max(0, pctLocal + delta))
-    setPctLocal(nuevo)
-    await guardar(nuevo)
-  }
-
   return (
     <div className="px-5 py-4 hover:bg-gray-800/30 transition group">
       {/* Fila principal */}
-      <div className="flex items-start justify-between gap-3 mb-3">
+      <div className="flex items-start justify-between gap-3 mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <span className="text-xs text-gray-600 font-mono shrink-0">{entregable.edt}</span>
@@ -97,24 +89,20 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
             )}
           </div>
         </div>
-
-        {/* Badge estado */}
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${colorBadge}`}>
           {labelBadge}
         </span>
       </div>
 
-      {/* Barra plan vs real superpuesta */}
+      {/* Barra superpuesta plan + real */}
       <div className="mb-3">
-        <div className="relative w-full bg-gray-800 rounded-full h-3">
-          {/* Barra plan (fondo) */}
+        <div className="relative w-full bg-gray-800 rounded-full h-2.5">
           <div
-            className="absolute top-0 left-0 h-3 rounded-full bg-gray-600/50 transition-all duration-500"
+            className="absolute top-0 left-0 h-2.5 rounded-full bg-gray-600/50 transition-all duration-500"
             style={{ width: `${pctPlan}%` }}
           />
-          {/* Barra real (encima) */}
           <div
-            className={`absolute top-0 left-0 h-3 rounded-full transition-all duration-500 ${colorReal}`}
+            className={`absolute top-0 left-0 h-2.5 rounded-full transition-all duration-500 ${colorBarraReal}`}
             style={{ width: `${pctLocal}%` }}
           />
         </div>
@@ -124,46 +112,26 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
         </div>
       </div>
 
-     {/* Controles inline */}
-<div className="flex items-center gap-3">
-  <input
-    type="range"
-    min="0"
-    max="100"
-    step="5"
-    value={pctLocal}
-    disabled={guardando}
-    onChange={e => setPctLocal(Number(e.target.value))}
-    onMouseUp={e => guardar(Number(e.target.value))}
-    onTouchEnd={e => guardar(Number(e.target.value))}
-    className="flex-1 accent-blue-500 disabled:opacity-50"
-  />
-  <span className={`text-sm font-bold w-10 text-right shrink-0 ${colorTexto}`}>
-    {guardando ? '...' : `${pctLocal}%`}
-  </span>
+      {/* Slider inline */}
+      <div className="flex items-center gap-3">
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="5"
+          value={pctLocal}
+          disabled={guardando}
+          onChange={e => setPctLocal(Number(e.target.value))}
+          onMouseUp={e => guardar(Number(e.target.value))}
+          onTouchEnd={e => guardar(Number(e.target.value))}
+          className="flex-1 accent-blue-500 disabled:opacity-50"
+        />
+        <span className={`text-sm font-bold w-10 text-right shrink-0 ${colorTexto}`}>
+          {guardando ? '...' : `${pctLocal}%`}
+        </span>
 
-  {/* Acciones admin */}
-  {esAdmin && (
-    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
-      <button
-        onClick={onEditar}
-        className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition"
-      >
-        <Pencil className="w-3.5 h-3.5" />
-      </button>
-      <button
-        onClick={onEliminar}
-        className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  )}
-</div>
-
-        {/* Acciones admin */}
         {esAdmin && (
-          <div className="flex items-center gap-1 ml-auto opacity-0 group-hover:opacity-100 transition">
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
             <button
               onClick={onEditar}
               className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition"
@@ -274,7 +242,7 @@ export default function ProyectoCard({ proyecto, onCambio }) {
           </div>
         </div>
 
-        {/* Barra superpuesta plan + real */}
+        {/* Barra superpuesta */}
         <div className="relative w-full bg-gray-800 rounded-full h-3">
           <div
             className="absolute top-0 left-0 h-3 rounded-full bg-gray-600/60 transition-all duration-700"
@@ -285,7 +253,7 @@ export default function ProyectoCard({ proyecto, onCambio }) {
             style={{ width: `${pctRealProyecto}%` }}
           />
         </div>
-        <div className="flex justify-between mt-1.5">
+        <div className="flex items-center justify-between mt-1.5">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-1 bg-gray-600/60 inline-block rounded" />
@@ -327,7 +295,7 @@ export default function ProyectoCard({ proyecto, onCambio }) {
           {profile?.rol === 'admin' && (
             <div className="flex items-center justify-between px-6 py-3 border-t border-gray-800 bg-gray-900/50">
               <button
-                onClick={() => setModalEntregable(true)}
+                onClick={e => { e.stopPropagation(); setModalEntregable(true) }}
                 className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition"
               >
                 <Plus className="w-4 h-4" />
