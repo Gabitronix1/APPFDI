@@ -501,12 +501,12 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
                       <label className="block text-sm text-gray-400 mb-1">
-                        Día del mes <span className="text-red-400">*</span>
+                        Día hábil N° <span className="text-red-400">*</span>
                       </label>
                       <input
                         name="dia_habil_num" type="number" min="1" max="31"
                         value={form.dia_habil_num} onChange={handleChange}
-                        placeholder="Ej: 8"
+                        placeholder="Ej: 3"
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
                                    text-white text-sm focus:outline-none focus:border-blue-500"
                       />
@@ -522,7 +522,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                   </div>
                   {form.fecha_termino && (
                     <p className="text-xs text-blue-400">
-                      📅 Fecha calculada para {nombreMesCiclo}. Si cae en finde o feriado se ajusta al siguiente hábil.
+                      📅 El día hábil N° {form.dia_habil_num} de {nombreMesCiclo} corresponde al {form.fecha_termino}.
                     </p>
                   )}
                 </div>
