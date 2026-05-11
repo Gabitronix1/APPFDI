@@ -95,6 +95,8 @@ export function useCrearCiclo() {
       const { data: plantillas, error: errPlant } = await supabase
         .from('task_templates')
         .select('*')
+        console.log('plantillas activas:', plantillas)
+        console.log('total plantillas:', plantillas?.length)
         .eq('activo', true)
       if (errPlant) throw errPlant
 
