@@ -40,16 +40,27 @@ function PctBadge({ pct }) {
 }
 
 function TareaItem({ tarea, onClick, esCicloCerrado }) {
-  const esFueraPlazo = !esCicloCerrado &&
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+
+  const estaBloqueada = tarea.serie_id &&
+    tarea.fecha_inicio &&
+    new Date(tarea.fecha_inicio + 'T00:00:00') > hoy
+
+  const esFueraPlazo = !esCicloCerrado && !estaBloqueada &&
     tarea.alerta === 'fuera_de_plazo' &&
     tarea.estado !== 'completada' &&
     tarea.estado !== 'completada_con_atraso'
 
-  const estilos = esFueraPlazo
+  const estilos = estaBloqueada
+    ? { badge: 'bg-gray-800 text-gray-600', label: 'Bloqueada' }
+    : esFueraPlazo
     ? { badge: 'bg-orange-900 text-orange-300', label: 'Fuera de plazo' }
     : ESTADO_STYLES[tarea.estado] ?? ESTADO_STYLES.pendiente
 
-  const borde = esCicloCerrado
+  const borde = estaBloqueada
+    ? 'border-gray-800'
+    : esCicloCerrado
     ? 'border-gray-800'
     : {
         ok:             'border-gray-800',
@@ -68,12 +79,16 @@ function TareaItem({ tarea, onClick, esCicloCerrado }) {
 
   return (
     <div
-      onClick={onClick}
-      className={`bg-gray-900 border ${borde} rounded-xl p-4 flex items-center gap-4
-        cursor-pointer hover:bg-gray-800 transition`}
+      onClick={estaBloqueada ? undefined : onClick}
+      className={`bg-gray-900 border ${borde} rounded-xl p-4 flex items-center gap-4 transition
+        ${estaBloqueada
+          ? 'opacity-50 cursor-not-allowed'
+          : 'cursor-pointer hover:bg-gray-800'}`}
     >
       <div className="shrink-0">
-        {tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso'
+        {estaBloqueada
+          ? <Lock className="w-5 h-5 text-gray-600" />
+          : tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso'
           ? <CheckCircle2 className="w-5 h-5 text-green-500" />
           : tarea.estado === 'con_atraso' && !esCicloCerrado
           ? <AlertCircle className="w-5 h-5 text-red-400" />
@@ -84,15 +99,23 @@ function TareaItem({ tarea, onClick, esCicloCerrado }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
           {icono}
-          <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
+          <p className={`text-sm font-medium truncate ${estaBloqueada ? 'text-gray-500' : 'text-white'}`}>
+            {tarea.nombre_tarea}
+          </p>
         </div>
-        <p className="text-gray-500 text-xs mt-0.5">{tarea.area} · Vence {tarea.fecha_termino}</p>
+        <p className="text-gray-500 text-xs mt-0.5">
+          {tarea.area} ·{' '}
+          {estaBloqueada
+            ? <span className="text-gray-600">Disponible desde {tarea.fecha_inicio}</span>
+            : <>Vence {tarea.fecha_termino}</>}
+        </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        {tarea.total_evidencias > 0 && (
+        {tarea.total_evidencias > 0 && !estaBloqueada && (
           <span className="text-xs text-gray-500">{tarea.total_evidencias} 📎</span>
         )}
-        {pct !== null
+        {estaBloqueada ? null
+          : pct !== null
           ? <PctBadge pct={pct} />
           : <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${estilos.badge}`}>{estilos.label}</span>
         }
@@ -100,7 +123,6 @@ function TareaItem({ tarea, onClick, esCicloCerrado }) {
     </div>
   )
 }
-
 export default function DetalleIntegrante({ cicloSeleccionado }) {
   const { nombre }  = useParams()
   const navigate    = useNavigate()
