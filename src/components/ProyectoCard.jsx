@@ -123,37 +123,42 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
         </div>
       </div>
 
-      {/* Controles inline */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 bg-gray-800 rounded-lg p-1">
-          <button
-            onClick={() => cambiarPct(-10)}
-            disabled={pctLocal === 0 || guardando}
-            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400
-                       hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
-          >-10</button>
-          <button
-            onClick={() => cambiarPct(-5)}
-            disabled={pctLocal === 0 || guardando}
-            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400
-                       hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
-          >-5</button>
-          <span className={`text-sm font-bold w-12 text-center ${colorTexto}`}>
-            {guardando ? '...' : `${pctLocal}%`}
-          </span>
-          <button
-            onClick={() => cambiarPct(5)}
-            disabled={pctLocal === 100 || guardando}
-            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400
-                       hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
-          >+5</button>
-          <button
-            onClick={() => cambiarPct(10)}
-            disabled={pctLocal === 100 || guardando}
-            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400
-                       hover:text-white hover:bg-gray-700 transition disabled:opacity-30 disabled:cursor-not-allowed text-xs font-bold"
-          >+10</button>
-        </div>
+     {/* Controles inline */}
+<div className="flex items-center gap-3">
+  <input
+    type="range"
+    min="0"
+    max="100"
+    step="5"
+    value={pctLocal}
+    disabled={guardando}
+    onChange={e => setPctLocal(Number(e.target.value))}
+    onMouseUp={e => guardar(Number(e.target.value))}
+    onTouchEnd={e => guardar(Number(e.target.value))}
+    className="flex-1 accent-blue-500 disabled:opacity-50"
+  />
+  <span className={`text-sm font-bold w-10 text-right shrink-0 ${colorTexto}`}>
+    {guardando ? '...' : `${pctLocal}%`}
+  </span>
+
+  {/* Acciones admin */}
+  {esAdmin && (
+    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+      <button
+        onClick={onEditar}
+        className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition"
+      >
+        <Pencil className="w-3.5 h-3.5" />
+      </button>
+      <button
+        onClick={onEliminar}
+        className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  )}
+</div>
 
         {/* Acciones admin */}
         {esAdmin && (
