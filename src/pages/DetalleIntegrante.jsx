@@ -165,25 +165,15 @@ function GrupoTareas({ titulo, icono, iconoColor, tareas, onClickTarea, esCicloC
 export default function DetalleIntegrante({ cicloSeleccionado: cicloExterno }) {
   const { nombre }    = useParams()
   const navigate      = useNavigate()
-  const location      = useLocation()
-  const queryClient   = useQueryClient()
   const nombreDecoded = decodeURIComponent(nombre)
 
   const [tareaActiva,      setTareaActiva]      = useState(null)
   const [tareaDetalle,     setTareaDetalle]      = useState(null)
-  const [cicloSeleccionado, setCicloSeleccionado] = useState(null)
 
-  const { data: ciclos = [] } = useQuery({
-    queryKey: ['ciclos-integrante'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('monthly_cycles')
-        .select('*')
-        .order('anio', { ascending: false })
-        .order('mes',  { ascending: false })
-      return data ?? []
-    }
-  })
+  const ciclo          = cicloExterno
+  const esCicloCerrado = ciclo?.estado === 'cerrado'
+  const tituloCiclo    = ciclo ? nombreCiclo(ciclo.mes, ciclo.anio)  : ''
+  const tituloCierre   = ciclo ? nombreCierre(ciclo.mes, ciclo.anio) : ''
 
   // Inicializar ciclo: usar el que viene del state de navegación, o el activo
   const cicloInicial = ciclos.find(c => c.id === location.state?.cicloId)
@@ -319,34 +309,6 @@ export default function DetalleIntegrante({ cicloSeleccionado: cicloExterno }) {
             {perfil?.cargo ?? '—'} · {perfil?.departamento ?? '—'}
           </p>
         </div>
-
-        {/* Selector ciclo */}
-        {ciclo && (
-          <div className="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg p-1 shrink-0">
-            <button
-              onClick={() => anterior && setCicloSeleccionado(anterior)}
-              disabled={!anterior}
-              className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
-                         transition disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <span className="px-2 text-sm font-medium text-white min-w-[130px] text-center">
-              {tituloCiclo}
-              {ciclo.estado === 'activo'
-                ? <span className="ml-1 text-xs text-green-400">● activo</span>
-                : <span className="ml-1 text-xs text-gray-500">● cerrado</span>}
-            </span>
-            <button
-              onClick={() => siguiente && setCicloSeleccionado(siguiente)}
-              disabled={!siguiente}
-              className="p-1.5 rounded-md text-gray-400 hover:text-white hover:bg-gray-700
-                         transition disabled:opacity-30 disabled:cursor-not-allowed"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Resumen del ciclo */}
