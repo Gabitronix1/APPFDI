@@ -16,7 +16,7 @@ function fechaStr(fecha) {
 }
 
 function calcularFechasSemanales(diaSemana, mes, anio) {
-  const jsDay = parseInt(diaSemana) + 1 // JS: 1=lun...5=vie
+  const jsDay = parseInt(diaSemana) // JS: 1=lun...5=vie
   const fechas = []
   const diasEnMes = new Date(anio, mes, 0).getDate()
   for (let d = 1; d <= diasEnMes; d++) {
