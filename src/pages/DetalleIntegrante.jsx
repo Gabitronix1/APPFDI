@@ -175,19 +175,6 @@ export default function DetalleIntegrante({ cicloSeleccionado: cicloExterno }) {
   const tituloCiclo    = ciclo ? nombreCiclo(ciclo.mes, ciclo.anio)  : ''
   const tituloCierre   = ciclo ? nombreCierre(ciclo.mes, ciclo.anio) : ''
 
-  // Inicializar ciclo: usar el que viene del state de navegación, o el activo
-  const cicloInicial = ciclos.find(c => c.id === location.state?.cicloId)
-    ?? ciclos.find(c => c.estado === 'activo')
-    ?? ciclos[0]
-
-  const ciclo    = cicloSeleccionado ?? cicloInicial
-  const idx      = ciclos.findIndex(c => c.id === ciclo?.id)
-  const anterior = ciclos[idx + 1] ?? null
-  const siguiente = ciclos[idx - 1] ?? null
-  const esCicloCerrado = ciclo?.estado === 'cerrado'
-  const tituloCiclo  = ciclo ? nombreCiclo(ciclo.mes, ciclo.anio)  : ''
-  const tituloCierre = ciclo ? nombreCierre(ciclo.mes, ciclo.anio) : ''
-
   const { data: perfil } = useQuery({
     queryKey: ['perfil-integrante', nombreDecoded],
     queryFn: async () => {
