@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { X, Plus, RefreshCw, Sparkles, CalendarClock } from 'lucide-react'
-import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente } from '../lib/feriados'
+import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } from '../lib/feriados'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -119,8 +119,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     const feriadosComb = new Set([...feriados, ...feriadosAnt])
 
     try {
-      const fechaBase = new Date(anioCiclo, mesCiclo - 1, num, 12, 0, 0)
-      const fecha     = ajustarAlDiaHabilSiguiente(fechaBase, feriadosComb)
+      const fecha = getNesimoHabilDelMes(mesCiclo, anioCiclo, num, feriadosComb)
       setForm(prev => ({ ...prev, fecha_termino: fechaStr(fecha), condicion: 'habil' }))
     } catch (e) {}
   }, [form.dia_habil_fijo, form.dia_habil_num, form.frecuencia, form.tipo])
