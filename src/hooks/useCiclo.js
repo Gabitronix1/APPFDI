@@ -16,7 +16,7 @@ function fechaStr(fecha) {
 }
 
 function calcularFechasSemanales(diaSemana, mes, anio) {
-  const jsDay = parseInt(diaSemana) // JS: 1=lun...5=vie
+  const jsDay = parseInt(diaSemana)
   const fechas = []
   const diasEnMes = new Date(anio, mes, 0).getDate()
   for (let d = 1; d <= diasEnMes; d++) {
@@ -95,14 +95,12 @@ export function useCrearCiclo() {
       const { data: plantillas, error: errPlant } = await supabase
         .from('task_templates')
         .select('*')
-        console.log('plantillas activas:', plantillas)
-        console.log('total plantillas:', plantillas?.length)
         .eq('activo', true)
       if (errPlant) throw errPlant
 
       // 4. Preparar feriados del mes
-      const feriados    = getFeriadosDelAnio(anio)
-      const feriadosAnt = getFeriadosDelAnio(anio - 1)
+      const feriados     = getFeriadosDelAnio(anio)
+      const feriadosAnt  = getFeriadosDelAnio(anio - 1)
       const feriadosComb = new Set([...feriados, ...feriadosAnt])
 
       // 5. Generar tareas según tipo y frecuencia
@@ -140,13 +138,10 @@ export function useCrearCiclo() {
         // ── Quincenal → 2 tareas con serie_id ────────────────
         if (p.tipo === 'recurrente_mes' && p.frecuencia === 'quincenal') {
           const serieId = generarUUID()
-          // dia_del_mes guarda primera quincena, necesitamos segunda
-          // Para quincenal guardamos dia1 en dia_del_mes y dia2 en un campo auxiliar
-          // Por ahora asumimos dia1 y dia1+14 como convención
-          const dia1   = p.dia_del_mes
-          const dia2   = p.dia_del_mes_2 ?? (dia1 <= 15 ? dia1 + 15 : dia1)
-          const fechas = calcularFechasQuincenales(dia1, dia2, mes, anio, feriadosComb)
-          for (const fecha of fechas) {
+          const dia1    = p.dia_del_mes
+          const dia2    = p.dia_del_mes_2 ?? (dia1 <= 15 ? dia1 + 15 : dia1)
+          const fechas  = calcularFechasQuincenales(dia1, dia2, mes, anio, feriadosComb)
+          for (const f of fechas) {  // 👈 corregido: "f" en vez de "fecha"
             tareas.push({
               ciclo_id:        ciclo.id,
               template_id:     p.id,
@@ -155,8 +150,8 @@ export function useCrearCiclo() {
               area:            p.area,
               departamento:    p.departamento,
               condicion:       'habil',
-              fecha_inicio:    fechaStr(f.inicio),
-              fecha_termino:   fechaStr(f.termino),
+              fecha_inicio:    fechaStr(f.inicio),   // 👈 corregido
+              fecha_termino:   fechaStr(f.termino),  // 👈 corregido
               estado:          'pendiente',
               tipo_tarea:      'adicional',
               tipo:            'recurrente_mes',
@@ -196,8 +191,6 @@ export function useCrearCiclo() {
         const { error: errTareas } = await supabase
           .from('tasks')
           .insert(tareas)
-        console.log('tareas a insertar:', tareas)  // 👈
-        console.log('error tareas:', errTareas) 
         if (errTareas) throw errTareas
       }
 
