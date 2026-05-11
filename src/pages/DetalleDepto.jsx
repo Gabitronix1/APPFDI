@@ -43,7 +43,7 @@ const ALERTA_BORDER = {
 }
 
 function TareaRow({ tarea, onClickTarea }) {
-  const hoy = ()
+  const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
 
   const estaBloqueada = tarea.serie_id &&
