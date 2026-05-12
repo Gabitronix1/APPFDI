@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { X, Plus, RefreshCw, Sparkles, CalendarClock } from 'lucide-react'
 import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } from '../lib/feriados'
 
@@ -81,6 +81,10 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
   })
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
+
+  const [nuevaArea, setNuevaArea]             = useState(false)
+  const [nuevaAreaNombre, setNuevaAreaNombre] = useState('')
+  const queryClient = useQueryClient()
 
   const { data: usuarios = [] } = useQuery({
     queryKey: ['usuarios-depto', deptoActivo],
@@ -310,16 +314,60 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
 
           {/* Área */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Área</label>
-            <select
-              name="area" value={form.area} onChange={handleChange}
-              className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-green-500">
-              <option value="">Seleccionar área...</option>
-              {areas.map(a => (
-                <option key={a.id} value={a.nombre}>{a.nombre}</option>
-              ))}
-            </select>
-          </div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm text-gray-400">Área</label>
+              <button
+                type="button"
+                onClick={() => setNuevaArea(v => !v)}
+                className="text-xs text-blue-400 hover:text-blue-300 transition"
+              >
+                {nuevaArea ? 'Cancelar' : '+ Nueva área'}
+              </button>
+            </div>
+              {nuevaArea ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={nuevaAreaNombre}
+                    onChange={e => setNuevaAreaNombre(e.target.value)}
+                    placeholder="Nombre del área..."
+                   className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
+                   text-white text-sm focus:outline-none focus:border-green-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!nuevaAreaNombre.trim()) return
+                      const { data } = await supabase
+                        .from('areas')
+                        .insert({ nombre: nuevaAreaNombre.trim(), departamento: deptoActivo })
+                        .select().single()
+                      if (data) {
+                        setForm(prev => ({ ...prev, area: data.nombre }))
+                        setNuevaArea(false)
+                        setNuevaAreaNombre('')
+                        queryClient.invalidateQueries({ queryKey: ['areas', deptoActivo] })
+                      }
+                    }}
+                    className="px-3 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm
+                               rounded-lg transition font-medium"
+                  >      
+                    Crear
+                  </button>
+                </div>
+              ) : (
+                <select
+                  name="area" value={form.area} onChange={handleChange}
+                  className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg
+                            px-3 py-2.5 text-sm focus:outline-none focus:border-green-500"
+                >
+                  <option value="">Seleccionar área...</option>
+                  {areas.map(a => (
+                    <option key={a.id} value={a.nombre}>{a.nombre}</option>
+                  ))}
+                </select>
+              )}
+            </div>
 
           {/* Tipo */}
           <div>
