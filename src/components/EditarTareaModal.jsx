@@ -53,6 +53,19 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
     }
   })
 
+  const { data: areas = [] } = useQuery({
+    queryKey: ['areas', tarea.departamento],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('areas')
+        .select('id, nombre')
+        .eq('departamento', tarea.departamento)
+        .eq('activo', true)
+        .order('nombre')
+      return data ?? []
+    }
+  })
+
   // Tareas futuras de la serie para preview de propagación
   const [tareasSeriePreview, setTareasSeriePreview] = useState([])
   useEffect(() => {
@@ -197,13 +210,17 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
           {/* Área */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">Área</label>
-            <input
-              type="text" value={area}
+            <select
+              value={area}
               onChange={e => setArea(e.target.value)}
-              placeholder="Ej: Cartografía, Pensiones..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
-                         text-white text-sm focus:outline-none focus:border-green-500"
-            />
+              className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg
+                         px-3 py-2.5 text-sm focus:outline-none focus:border-green-500"
+            >
+              <option value="">Seleccionar área...</option>
+              {areas.map(a => (
+                <option key={a.id} value={a.nombre}>{a.nombre}</option>
+              ))}
+            </select>
           </div>
 
           {/* Responsable */}
