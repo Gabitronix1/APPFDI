@@ -88,6 +88,19 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
               <span className="text-xs text-gray-700">{entregable.duracion_dias}d</span>
             )}
           </div>
+          {entregable.project_deliverable_responsables?.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-1">
+              {entregable.project_deliverable_responsables.map(r => (
+                <span key={r.id} className={`text-xs px-2 py-0.5 rounded-full ${
+                  r.rol === 'principal'
+                    ? 'bg-blue-900/50 text-blue-300'
+                    : 'bg-gray-800 text-gray-400'
+                }`}>
+                  {r.user.nombre.split(' ')[0]} · {r.rol === 'principal' ? 'Principal' : 'Apoyo'}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${colorBadge}`}>
           {labelBadge}
