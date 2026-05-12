@@ -37,39 +37,45 @@ export default function Proyectos() {
   const [anio, setAnio] = useState(2026)
 
   const { data: proyectos = [], isLoading } = useQuery({
-  queryKey: ['proyectos', anio],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('projects')
-      .select(`
-        *,
-        responsable:users!projects_responsable_id_fkey(id, nombre, cargo),
-        project_deliverables(
+    queryKey: ['proyectos', anio, profile?.departamento],
+    queryFn: async () => {
+      let query = supabase
+        .from('projects')
+        .select(`
           *,
-          project_deliverable_responsables(
-            id, rol,
-            user:users(id, nombre, cargo)
+          responsable:users!projects_responsable_id_fkey(id, nombre, cargo),
+          project_deliverables(
+            *,
+            project_deliverable_responsables(
+              id, rol,
+              user:users(id, nombre, cargo)
+            )
           )
-        )
-      `)
-      .eq('anio', anio)
-      .eq('activo', true)
-      .order('edt')
-    if (error) throw error
-    return data ?? []
-  }
-})
+        `)
+        .eq('anio', anio)
+        .eq('activo', true)
+        .order('edt')
+
+      // Filtrar por departamento (excepto gerente que ve todo)
+      if (profile?.rol !== 'gerente' && profile?.departamento) {
+        query = query.eq('departamento', profile.departamento)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      return data ?? []
+    }
+  })
 
   function onCambio() {
-    queryClient.invalidateQueries({ queryKey: ['proyectos', anio] })
+    queryClient.invalidateQueries({ queryKey: ['proyectos', anio, profile?.departamento] })
   }
 
-  // % global ponderado por duración de todos los entregables
   const { pctPlanGlobal, pctRealGlobal, totalEntregables } = useMemo(() => {
     const todosEntregables = proyectos.flatMap(p => p.project_deliverables ?? [])
     return {
-      pctPlanGlobal:   calcularPonderado(todosEntregables, 'pct_plan'),
-      pctRealGlobal:   calcularPonderado(todosEntregables, 'pct_real'),
+      pctPlanGlobal:    calcularPonderado(todosEntregables, 'pct_plan'),
+      pctRealGlobal:    calcularPonderado(todosEntregables, 'pct_real'),
       totalEntregables: todosEntregables.length,
     }
   }, [proyectos])
@@ -84,24 +90,34 @@ export default function Proyectos() {
       s + (p.project_deliverables ?? []).filter(d => Number(d.pct_real) > 0 && Number(d.pct_real) < 100).length, 0
     ), [proyectos])
 
-  const colorTexto = pctRealGlobal === 100 ? 'text-green-400'
+  const noIniciados = totalEntregables - completados - enProgreso
+
+  const cumplimientoPlan = pctPlanGlobal > 0
+    ? Math.round((pctRealGlobal / pctPlanGlobal) * 100)
+    : null
+
+  // Color según cumplimiento
+  const colorReal = pctRealGlobal === 100 ? 'text-green-400'
     : pctRealGlobal >= pctPlanGlobal ? 'text-blue-400'
     : pctRealGlobal > 0 ? 'text-amber-400'
     : 'text-gray-500'
 
-  const colorBarra = pctRealGlobal === 100 ? 'bg-green-500'
+  const colorBarraReal = pctRealGlobal === 100 ? 'bg-green-500'
     : pctRealGlobal >= pctPlanGlobal ? 'bg-blue-500'
     : pctRealGlobal > 0 ? 'bg-amber-500'
     : 'bg-gray-700'
 
-  const ratio = pctPlanGlobal > 0
-    ? Math.round((pctRealGlobal / pctPlanGlobal) * 100)
-    : null
+  const colorCumpl = cumplimientoPlan === null ? 'text-gray-500'
+    : cumplimientoPlan >= 100 ? 'text-green-400'
+    : cumplimientoPlan >= 75  ? 'text-amber-400'
+    : 'text-red-400'
+
+  const nombreDepto = profile?.departamento ?? 'Proyectos'
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
 
-      {/* Header */}
+      {/* ── HEADER ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -139,52 +155,83 @@ export default function Proyectos() {
         </div>
       </div>
 
-      {/* Resumen global */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-8">
-        <div className="flex justify-between items-center mb-4">
+      {/* ── RESUMEN GLOBAL ───────────────────────────────────────── */}
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mb-8">
+
+        {/* Fila superior: nombre depto + números protagonistas */}
+        <div className="flex items-start justify-between gap-6 px-6 py-5 border-b border-gray-800">
           <div>
-            <h2 className="text-white font-semibold">Avance global PO {anio}</h2>
+            <h2 className="text-white font-semibold text-base">{nombreDepto}</h2>
             <p className="text-gray-500 text-sm mt-0.5">
-              {completados} completados · {enProgreso} en progreso · {totalEntregables - completados - enProgreso} no iniciados
+              Avance global PO {anio} · {proyectos.length} proyectos · {totalEntregables} entregables
             </p>
           </div>
-          <div className="text-right">
-            {ratio !== null && (
-              <p className={`text-3xl font-bold ${
-                ratio >= 100 ? 'text-green-400' : ratio >= 75 ? 'text-amber-400' : 'text-red-400'
-              }`}>
-                {ratio >= 100 ? '✓' : '↓'} {ratio}%
-              </p>
-            )}
-            <p className="text-gray-500 text-xs mt-0.5">vs plan</p>
-            <p className="text-gray-600 text-xs mt-1">{pctRealGlobal}% real · {pctPlanGlobal}% plan</p>
-          </div>
-        </div> 
 
-        {/* Barra superpuesta plan + real */}
-        <div className="relative w-full bg-gray-800 rounded-full h-4">
-          <div
-            className="absolute top-0 left-0 h-4 rounded-full bg-gray-600/50 transition-all duration-700"
-            style={{ width: `${pctPlanGlobal}%` }}
-          />
-          <div
-            className={`absolute top-0 left-0 h-4 rounded-full transition-all duration-700 ${colorBarra}`}
-            style={{ width: `${pctRealGlobal}%` }}
-          />
-        </div>
-        <div className="flex items-center gap-4 mt-2">
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 h-1 bg-gray-600/50 inline-block rounded" />
-            <span className="text-xs text-gray-600">Plan {pctPlanGlobal}%</span>
+          {/* NÚMEROS GRANDES */}
+          <div className="flex items-end gap-5 shrink-0">
+            <div className="text-center">
+              <p className="text-xs text-gray-500 uppercase tracking-widest mb-1.5">Real</p>
+              <p className={`text-4xl font-bold leading-none ${colorReal}`}>{pctRealGlobal}%</p>
+            </div>
+            <div className="text-2xl text-gray-700 pb-1">/</div>
+            <div className="text-center">
+              <p className="text-xs text-gray-500 uppercase tracking-widest mb-1.5">Plan</p>
+              <p className="text-4xl font-bold leading-none text-gray-400">{pctPlanGlobal}%</p>
+            </div>
+            {cumplimientoPlan !== null && (
+              <>
+                <div className="w-px h-10 bg-gray-800 self-center" />
+                <div className="text-center">
+                  <p className="text-xs text-gray-500 uppercase tracking-widest mb-1.5">Cumpl. plan</p>
+                  <p className={`text-4xl font-bold leading-none ${colorCumpl}`}>{cumplimientoPlan}%</p>
+                </div>
+              </>
+            )}
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className={`w-3 h-1 inline-block rounded ${colorBarra}`} />
-            <span className="text-xs text-gray-500">Real {pctRealGlobal}%</span>
+        </div>
+
+        {/* Barra superpuesta */}
+        <div className="px-6 py-4 border-b border-gray-800">
+          <div className="relative w-full bg-gray-800 rounded-full h-3">
+            <div
+              className="absolute top-0 left-0 h-3 rounded-full bg-gray-600/60 transition-all duration-700"
+              style={{ width: `${pctPlanGlobal}%` }}
+            />
+            <div
+              className={`absolute top-0 left-0 h-3 rounded-full transition-all duration-700 ${colorBarraReal}`}
+              style={{ width: `${pctRealGlobal}%` }}
+            />
+          </div>
+          <div className="flex items-center gap-5 mt-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-4 h-1 bg-gray-600/60 inline-block rounded" />
+              <span className="text-xs text-gray-600">Plan {pctPlanGlobal}%</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-4 h-1 inline-block rounded ${colorBarraReal}`} />
+              <span className="text-xs text-gray-500">Real {pctRealGlobal}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Mini stats: completados / en progreso / no iniciados */}
+        <div className="grid grid-cols-3 divide-x divide-gray-800">
+          <div className="px-5 py-3 text-center">
+            <p className="text-xl font-bold text-green-400">{completados}</p>
+            <p className="text-xs text-gray-500 uppercase tracking-widest mt-0.5">Completados</p>
+          </div>
+          <div className="px-5 py-3 text-center">
+            <p className="text-xl font-bold text-blue-400">{enProgreso}</p>
+            <p className="text-xs text-gray-500 uppercase tracking-widest mt-0.5">En progreso</p>
+          </div>
+          <div className="px-5 py-3 text-center">
+            <p className="text-xl font-bold text-gray-500">{noIniciados}</p>
+            <p className="text-xs text-gray-500 uppercase tracking-widest mt-0.5">No iniciados</p>
           </div>
         </div>
       </div>
 
-      {/* Lista proyectos */}
+      {/* ── LISTA PROYECTOS ──────────────────────────────────────── */}
       {isLoading ? (
         <div className="flex justify-center py-20">
           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -217,6 +264,7 @@ export default function Proyectos() {
       {modalProyecto && (
         <ProyectoModal
           anio={anio}
+          departamento={profile?.departamento}
           onClose={() => setModalProyecto(false)}
           onGuardado={() => { onCambio(); setModalProyecto(false) }}
         />
