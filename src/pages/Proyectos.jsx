@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -30,11 +30,139 @@ function calcularPonderado(entregables, campo) {
   return Math.round(suma / totalDias)
 }
 
+// ─── RING SVG ─────────────────────────────────────────────────────────────────
+function Ring({ pct, color, size = 56 }) {
+  const r      = 22
+  const circum = 2 * Math.PI * r
+  const offset = circum - (pct / 100) * circum
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} viewBox="0 0 56 56"
+        style={{ transform: 'rotate(-90deg)', display: 'block' }}>
+        <circle cx="28" cy="28" r={r} fill="none"
+          stroke="rgba(255,255,255,0.06)" strokeWidth="5" />
+        <circle cx="28" cy="28" r={r} fill="none"
+          stroke={color} strokeWidth="5"
+          strokeDasharray={circum}
+          strokeDashoffset={offset}
+          strokeLinecap="round" />
+      </svg>
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 12, fontWeight: 600, color,
+      }}>
+        {pct}%
+      </div>
+    </div>
+  )
+}
+
+// ─── PANEL EJECUTIVO ──────────────────────────────────────────────────────────
+function PanelEjecutivo({ proyectos, onClickProyecto }) {
+  if (proyectos.length === 0) return null
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mb-6">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800">
+        <h2 className="text-white font-semibold text-sm">Resumen por proyecto</h2>
+        <p className="text-xs text-gray-500">{proyectos.length} proyectos · click para ir al detalle</p>
+      </div>
+
+      <div className="p-4 grid gap-3"
+        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
+        {proyectos.map(proyecto => {
+          const entregables = proyecto.project_deliverables ?? []
+          const pctReal     = calcularPonderado(entregables, 'pct_real')
+          const pctPlan     = calcularPonderado(entregables, 'pct_plan')
+          const cumpl       = pctPlan > 0 ? Math.round((pctReal / pctPlan) * 100) : null
+          const completados = entregables.filter(d => Number(d.pct_real) === 100).length
+          const enProgreso  = entregables.filter(d => Number(d.pct_real) > 0 && Number(d.pct_real) < 100).length
+          const noIniciados = entregables.length - completados - enProgreso
+
+          const colorReal = pctReal === 100 ? '#22c55e'
+            : pctReal >= pctPlan ? '#3b82f6'
+            : pctReal > 0 ? '#f59e0b'
+            : '#6b7280'
+
+          const colorCumpl = cumpl === null ? '#6b7280'
+            : cumpl >= 100 ? '#22c55e'
+            : cumpl >= 75  ? '#f59e0b'
+            : '#ef4444'
+
+          const colorBarraReal = pctReal === 100 ? 'bg-green-500'
+            : pctReal >= pctPlan ? 'bg-blue-500'
+            : pctReal > 0 ? 'bg-amber-500'
+            : 'bg-gray-700'
+
+          return (
+            <button
+              key={proyecto.id}
+              onClick={() => onClickProyecto(proyecto.id)}
+              className="bg-gray-800/50 border border-gray-700 rounded-xl p-3.5 text-left
+                hover:bg-gray-800 hover:border-gray-600 transition-all group w-full"
+            >
+              {/* EDT + nombre + ring */}
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs text-gray-600 font-mono">{proyecto.edt}</span>
+                  <p className="text-white text-sm font-medium leading-snug mt-0.5 line-clamp-2">
+                    {proyecto.nombre}
+                  </p>
+                </div>
+                <Ring pct={pctReal} color={colorReal} />
+              </div>
+
+              {/* Barra doble plan + real */}
+              <div className="relative w-full bg-gray-700 rounded-full h-1.5 mb-1">
+                <div className="absolute top-0 left-0 h-1.5 rounded-full bg-gray-500/60"
+                  style={{ width: `${pctPlan}%` }} />
+                <div className={`absolute top-0 left-0 h-1.5 rounded-full ${colorBarraReal}`}
+                  style={{ width: `${pctReal}%` }} />
+              </div>
+              <div className="flex justify-between mb-3">
+                <span className="text-xs text-gray-600">Plan {pctPlan}%</span>
+                <span className="text-xs font-medium" style={{ color: colorReal }}>Real {pctReal}%</span>
+              </div>
+
+              {/* Mini stats entregables */}
+              <div className="grid grid-cols-3 gap-1 mb-3">
+                {[
+                  { val: completados, color: 'text-green-400', label: 'OK' },
+                  { val: enProgreso,  color: 'text-amber-400', label: 'Prog.' },
+                  { val: noIniciados, color: 'text-gray-500',  label: 'Pend.' },
+                ].map(s => (
+                  <div key={s.label} className="bg-gray-900/60 rounded-lg py-1.5 text-center">
+                    <p className={`text-sm font-bold leading-none ${s.color}`}>{s.val}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Cumpl. plan footer */}
+              <div className="flex items-center justify-between pt-2.5 border-t border-gray-700">
+                <span className="text-xs text-gray-500">Cumpl. plan</span>
+                <span className="text-sm font-bold" style={{ color: colorCumpl }}>
+                  {cumpl !== null ? `${cumpl}%` : '—'}
+                </span>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── PAGE PRINCIPAL ───────────────────────────────────────────────────────────
 export default function Proyectos() {
   const { profile }  = useAuth()
   const queryClient  = useQueryClient()
   const [modalProyecto, setModalProyecto] = useState(false)
   const [anio, setAnio] = useState(2026)
+
+  // Refs para scroll a cada proyecto
+  const proyectoRefs = useRef({})
 
   const { data: proyectos = [], isLoading } = useQuery({
     queryKey: ['proyectos', anio, profile?.departamento],
@@ -56,10 +184,8 @@ export default function Proyectos() {
         .eq('activo', true)
         .order('edt')
 
-      // Filtrar por departamento (excepto gerente que ve todo)
-      if (profile?.rol !== 'gerente' && profile?.departamento) {
+      if (profile?.rol !== 'gerente' && profile?.departamento)
         query = query.eq('departamento', profile.departamento)
-      }
 
       const { data, error } = await query
       if (error) throw error
@@ -69,6 +195,11 @@ export default function Proyectos() {
 
   function onCambio() {
     queryClient.invalidateQueries({ queryKey: ['proyectos', anio, profile?.departamento] })
+  }
+
+  function scrollAProyecto(proyectoId) {
+    const el = proyectoRefs.current[proyectoId]
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const { pctPlanGlobal, pctRealGlobal, totalEntregables } = useMemo(() => {
@@ -96,7 +227,6 @@ export default function Proyectos() {
     ? Math.round((pctRealGlobal / pctPlanGlobal) * 100)
     : null
 
-  // Color según cumplimiento
   const colorReal = pctRealGlobal === 100 ? 'text-green-400'
     : pctRealGlobal >= pctPlanGlobal ? 'text-blue-400'
     : pctRealGlobal > 0 ? 'text-amber-400'
@@ -129,7 +259,6 @@ export default function Proyectos() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Selector año */}
           <div className="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg p-1">
             {[2024, 2025, 2026].map(a => (
               <button
@@ -156,9 +285,7 @@ export default function Proyectos() {
       </div>
 
       {/* ── RESUMEN GLOBAL ───────────────────────────────────────── */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mb-8">
-
-        {/* Fila superior: nombre depto + números protagonistas */}
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mb-6">
         <div className="flex items-start justify-between gap-6 px-6 py-5 border-b border-gray-800">
           <div>
             <h2 className="text-white font-semibold text-base">{nombreDepto}</h2>
@@ -166,8 +293,6 @@ export default function Proyectos() {
               Avance global PO {anio} · {proyectos.length} proyectos · {totalEntregables} entregables
             </p>
           </div>
-
-          {/* NÚMEROS GRANDES */}
           <div className="flex items-end gap-5 shrink-0">
             <div className="text-center">
               <p className="text-xs text-gray-500 uppercase tracking-widest mb-1.5">Real</p>
@@ -190,17 +315,12 @@ export default function Proyectos() {
           </div>
         </div>
 
-        {/* Barra superpuesta */}
         <div className="px-6 py-4 border-b border-gray-800">
           <div className="relative w-full bg-gray-800 rounded-full h-3">
-            <div
-              className="absolute top-0 left-0 h-3 rounded-full bg-gray-600/60 transition-all duration-700"
-              style={{ width: `${pctPlanGlobal}%` }}
-            />
-            <div
-              className={`absolute top-0 left-0 h-3 rounded-full transition-all duration-700 ${colorBarraReal}`}
-              style={{ width: `${pctRealGlobal}%` }}
-            />
+            <div className="absolute top-0 left-0 h-3 rounded-full bg-gray-600/60 transition-all duration-700"
+              style={{ width: `${pctPlanGlobal}%` }} />
+            <div className={`absolute top-0 left-0 h-3 rounded-full transition-all duration-700 ${colorBarraReal}`}
+              style={{ width: `${pctRealGlobal}%` }} />
           </div>
           <div className="flex items-center gap-5 mt-2.5">
             <div className="flex items-center gap-1.5">
@@ -214,7 +334,6 @@ export default function Proyectos() {
           </div>
         </div>
 
-        {/* Mini stats: completados / en progreso / no iniciados */}
         <div className="grid grid-cols-3 divide-x divide-gray-800">
           <div className="px-5 py-3 text-center">
             <p className="text-xl font-bold text-green-400">{completados}</p>
@@ -230,6 +349,14 @@ export default function Proyectos() {
           </div>
         </div>
       </div>
+
+      {/* ── PANEL EJECUTIVO ──────────────────────────────────────── */}
+      {!isLoading && proyectos.length > 0 && (
+        <PanelEjecutivo
+          proyectos={proyectos}
+          onClickProyecto={scrollAProyecto}
+        />
+      )}
 
       {/* ── LISTA PROYECTOS ──────────────────────────────────────── */}
       {isLoading ? (
@@ -252,11 +379,16 @@ export default function Proyectos() {
       ) : (
         <div className="space-y-4">
           {proyectos.map(proyecto => (
-            <ProyectoCard
+            <div
               key={proyecto.id}
-              proyecto={proyecto}
-              onCambio={onCambio}
-            />
+              ref={el => { proyectoRefs.current[proyecto.id] = el }}
+              className="scroll-mt-6"
+            >
+              <ProyectoCard
+                proyecto={proyecto}
+                onCambio={onCambio}
+              />
+            </div>
           ))}
         </div>
       )}
