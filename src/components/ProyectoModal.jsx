@@ -1,23 +1,26 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useQuery } from '@tanstack/react-query'
+import { useAuth } from '../context/AuthContext'
 import { X } from 'lucide-react'
 
 export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
+  const { profile } = useAuth()
   const editando = !!proyecto
+
   const [form, setForm] = useState({
-    edt:           proyecto?.edt          ?? '',
-    nombre:        proyecto?.nombre       ?? '',
-    descripcion:   proyecto?.descripcion  ?? '',
-    fecha_inicio:  proyecto?.fecha_inicio ?? '',
-    fecha_fin:     proyecto?.fecha_fin    ?? '',
+    edt:            proyecto?.edt           ?? '',
+    nombre:         proyecto?.nombre        ?? '',
+    descripcion:    proyecto?.descripcion   ?? '',
+    fecha_inicio:   proyecto?.fecha_inicio  ?? '',
+    fecha_fin:      proyecto?.fecha_fin     ?? '',
     responsable_id: proyecto?.responsable_id ?? '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
 
   const { data: usuarios = [] } = useQuery({
-    queryKey: ['usuarios-cdg'],
+    queryKey: ['usuarios-proyecto'],
     queryFn: async () => {
       const { data } = await supabase
         .from('users').select('id, nombre, cargo').eq('activo', true).order('nombre')
@@ -31,27 +34,30 @@ export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.nombre.trim())   { setError('El nombre es obligatorio'); return }
-    if (!form.fecha_inicio)    { setError('La fecha de inicio es obligatoria'); return }
-    if (!form.fecha_fin)       { setError('La fecha de fin es obligatoria'); return }
+    if (!form.nombre.trim()) { setError('El nombre es obligatorio'); return }
+    if (!form.fecha_inicio)  { setError('La fecha de inicio es obligatoria'); return }
+    if (!form.fecha_fin)     { setError('La fecha de fin es obligatoria'); return }
     setLoading(true)
     setError('')
 
     const payload = {
-      edt:            form.edt.trim(),
+      edt:            form.edt.trim() || null,
       nombre:         form.nombre.trim(),
       descripcion:    form.descripcion.trim() || null,
       fecha_inicio:   form.fecha_inicio,
       fecha_fin:      form.fecha_fin,
       responsable_id: form.responsable_id || null,
       anio,
+      // Al crear, se llena con el departamento del usuario logueado
+      // Al editar, se conserva el departamento existente (no se sobreescribe)
+      ...(!editando && { departamento: profile?.departamento ?? null }),
     }
 
     const { error: err } = editando
       ? await supabase.from('projects').update(payload).eq('id', proyecto.id)
       : await supabase.from('projects').insert(payload)
 
-    if (err) { setError('Error al guardar'); setLoading(false); return }
+    if (err) { setError('Error al guardar: ' + err.message); setLoading(false); return }
     onGuardado()
   }
 
@@ -59,9 +65,16 @@ export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
     <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 px-0 sm:px-4">
       <div className="bg-gray-900 border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg p-6 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-white font-semibold text-lg">
-            {editando ? 'Editar proyecto' : 'Nuevo proyecto'}
-          </h2>
+          <div>
+            <h2 className="text-white font-semibold text-lg">
+              {editando ? 'Editar proyecto' : 'Nuevo proyecto'}
+            </h2>
+            {!editando && profile?.departamento && (
+              <p className="text-gray-500 text-xs mt-0.5">
+                Departamento: <span className="text-gray-400">{profile.departamento}</span>
+              </p>
+            )}
+          </div>
           <button onClick={onClose} className="text-gray-500 hover:text-white transition">
             <X className="w-5 h-5" />
           </button>
