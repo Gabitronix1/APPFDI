@@ -10,7 +10,7 @@ import { useState } from 'react'
 import TaskModal from '../components/TaskModal'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
-import CalendarioTareas from '../../components/CalendarioTareas'
+import CalendarioTareas from '../components/CalendarioTareas'
 
 
 const MESES = [
