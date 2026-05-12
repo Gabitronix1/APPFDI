@@ -518,12 +518,6 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
         </div>
       )}
 
-      <CalendarioTareas
-        tareas={misTareas}
-        onClickTarea={onClickTarea}
-        soloMia={true}
-      />
-
       {/* ── MIS TAREAS PENDIENTES ─────────────────────────────── */}
       {(() => {
         const misTareasPendientes = tareas.filter(t =>
@@ -717,6 +711,13 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
           </div>
         </div>
       )}
+
+            <CalendarioTareas
+              tareas={misTareas}
+              onClickTarea={onClickTarea}
+              soloMia={true}
+            />
+
 
       {/* Mis tareas pendientes — agrupadas por tipo */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
