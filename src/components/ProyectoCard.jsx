@@ -243,17 +243,16 @@ export default function ProyectoCard({ proyecto, onCambio }) {
           </div>
 
           <div className="text-right shrink-0">
-            <p className={`text-3xl font-bold ${colorTextoReal}`}>{pctRealProyecto}%</p>
-            <p className="text-gray-600 text-xs mt-0.5">real · plan {pctPlanProyecto}%</p>
             {ratio !== null && (
-              <p className={`text-xs font-medium mt-1 ${
+              <p className={`text-3xl font-bold ${
                 ratio >= 100 ? 'text-green-400' : ratio >= 75 ? 'text-amber-400' : 'text-red-400'
               }`}>
-                {ratio >= 100 ? '✓' : '↓'} {ratio}% vs plan
+                {ratio >= 100 ? '✓' : '↓'} {ratio}%
               </p>
             )}
+            <p className="text-gray-500 text-xs mt-0.5">vs plan</p>
+            <p className="text-gray-600 text-xs mt-1">{pctRealProyecto}% real · {pctPlanProyecto}% plan</p>
           </div>
-        </div>
 
         {/* Barra superpuesta */}
         <div className="relative w-full bg-gray-800 rounded-full h-3">
