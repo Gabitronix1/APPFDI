@@ -11,6 +11,7 @@ import TaskModal from '../components/TaskModal'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
 import CalendarioTareas from '../components/CalendarioTareas'
+import PanelRendimiento from '../components/PanelRendimiento'
 
 
 const MESES = [
@@ -463,60 +464,10 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
         </div>
       </div>
 
-      {/* ── TENDENCIA 12 MESES ────────────────────────────────── */}
-      {historial.length > 1 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-5 h-5 text-green-400" />
-            <h2 className="text-white font-semibold">Tendencia de cumplimiento</h2>
-            <span className="text-xs text-gray-500 ml-1">— últimos {historial.length} meses</span>
-            <div className="ml-auto flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-0.5 bg-green-500 inline-block" />
-                <span className="text-xs text-gray-500">Tareas completadas</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-0.5 bg-yellow-500 inline-block" />
-                <span className="text-xs text-gray-500">Calidad promedio</span>
-              </div>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={historial} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="mes" tick={{ fill: '#6B7280', fontSize: 9 }} tickLine={false} axisLine={false} />
-              <YAxis domain={[0, 100]} tick={{ fill: '#6B7280', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
-              <Tooltip
-                content={({ active, payload, label }) => {
-                  if (active && payload?.length) {
-                    return (
-                      <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 shadow-xl">
-                        <p className="text-gray-400 text-xs mb-2">{label}</p>
-                        {payload.map((p, i) => (
-                          <div key={i} className="flex items-center gap-2 mb-1">
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
-                            <span className="text-gray-400 text-xs">{p.name}:</span>
-                            <span className="text-white font-bold text-sm">{p.value}%</span>
-                          </div>
-                        ))}
-                        <p className="text-gray-600 text-xs mt-1 border-t border-gray-700 pt-1">
-                          {payload[0]?.payload.completadas}/{payload[0]?.payload.total} tareas
-                        </p>
-                      </div>
-                    )
-                  }
-                  return null
-                }}
-              />
-              <Line type="monotone" dataKey="pct" stroke="#22C55E" strokeWidth={2}
-                dot={{ fill: '#22C55E', r: 4 }} activeDot={{ r: 6, fill: '#16A34A' }} name="% Tareas completadas" />
-              <Line type="monotone" dataKey="pctPromedio" stroke="#EAB308" strokeWidth={2}
-                strokeDasharray="4 4" dot={{ fill: '#EAB308', r: 3 }} activeDot={{ r: 5, fill: '#CA8A04' }}
-                name="Calidad promedio" />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      <PanelRendimiento
+        tareas={tareas}
+        historial={historial}
+      />
 
       {/* ── MIS TAREAS PENDIENTES ─────────────────────────────── */}
       {(() => {
