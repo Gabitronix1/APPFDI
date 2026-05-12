@@ -10,6 +10,8 @@ import { useState } from 'react'
 import TaskModal from '../components/TaskModal'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
+import CalendarioTareas from '../../components/CalendarioTareas'
+
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -398,6 +400,12 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
         />
       )}
 
+      <CalendarioTareas
+        tareas={tareas}
+        onClickTarea={handleClickTarea}
+        soloMia={false}
+      />
+
       {/* ── MI EQUIPO HOY ─────────────────────────────────────── */}
       <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
         <div className="flex items-center gap-2 px-6 py-4 border-b border-gray-800">
@@ -509,6 +517,12 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           </ResponsiveContainer>
         </div>
       )}
+
+      <CalendarioTareas
+        tareas={misTareas}
+        onClickTarea={onClickTarea}
+        soloMia={true}
+      />
 
       {/* ── MIS TAREAS PENDIENTES ─────────────────────────────── */}
       {(() => {
