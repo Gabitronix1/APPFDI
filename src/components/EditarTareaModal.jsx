@@ -26,6 +26,9 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const [loading,      setLoading]      = useState(false)
   const [error,        setError]        = useState('')
 
+  const [nuevaArea, setNuevaArea]             = useState(false)
+  const [nuevaAreaNombre, setNuevaAreaNombre] = useState('')
+
   const esSerie = !!tarea.serie_id
 
   // Ciclo actual para cálculo de fechas
@@ -39,47 +42,47 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
 
   // Usuarios del departamento para selector de responsable
   const { data: usuarios = [] } = useQuery({
-    queryKey: ['usuarios-depto', tarea.departamento],
+    queryKey: ['usuarios-depto', t.departamento],
     enabled: profile?.rol === 'admin' || profile?.rol === 'gerente',
     queryFn: async () => {
       const { data, error } = await supabase
         .from('users')
         .select('id, nombre, cargo')
         .eq('activo', true)
-        .eq('departamento', tarea.departamento)
+        .eq('departamento', t.departamento)
         .order('nombre')
       if (error) throw error
       return data ?? []
     }
   })
 
-  const { data: areas = [] } = useQuery({
-    queryKey: ['areas', tarea.departamento],
+  const { data: s = [] } = useQuery({
+    queryKey: ['s', t.departamento],
     queryFn: async () => {
       const { data } = await supabase
-        .from('areas')
+        .from('s')
         .select('id, nombre')
-        .eq('departamento', tarea.departamento)
+        .eq('departamento', t.departamento)
         .eq('activo', true)
         .order('nombre')
       return data ?? []
     }
   })
 
-  // Tareas futuras de la serie para preview de propagación
-  const [tareasSeriePreview, setTareasSeriePreview] = useState([])
+  // Ts futuras de la serie para preview de propagación
+  const [tsSeriePreview, setTsSeriePreview] = useState([])
   useEffect(() => {
     if (!esSerie) return
     supabase
       .from('tasks')
-      .select('id, nombre_tarea, fecha_termino, fecha_inicio')
-      .eq('serie_id', tarea.serie_id)
-      .eq('ciclo_id', tarea.ciclo_id)
-      .neq('id', tarea.id)
+      .select('id, nombre_t, fecha_termino, fecha_inicio')
+      .eq('serie_id', t.serie_id)
+      .eq('ciclo_id', t.ciclo_id)
+      .neq('id', t.id)
       .gt('fecha_inicio', new Date().toISOString().split('T')[0])
       .order('fecha_termino', { ascending: true })
-      .then(({ data }) => setTareasSeriePreview(data ?? []))
-  }, [tarea.serie_id])
+      .then(({ data }) => setTsSeriePreview(data ?? []))
+  }, [t.serie_id])
 
   // Recalcular fecha cuando cambia día hábil
   useEffect(() => {
@@ -94,9 +97,9 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   }, [diaHabilFijo, diaHabilNum])
 
   // Badge por tipo
-  const tipoBadge = tarea.tipo === 'cierre'
+  const tipoBadge = t.tipo === 'cierre'
     ? { label: 'Cierre',      color: 'bg-blue-900 text-blue-300',   icono: <RefreshCw className="w-3 h-3" /> }
-    : tarea.tipo === 'recurrente_mes'
+    : t.tipo === 'recurrente_mes'
     ? { label: 'Recurrente',  color: 'bg-purple-900 text-purple-300', icono: <CalendarClock className="w-3 h-3" /> }
     : { label: 'Puntual',     color: 'bg-amber-900 text-amber-300',  icono: <Sparkles className="w-3 h-3" /> }
 
@@ -111,29 +114,29 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
 
     try {
       const cambios = {
-        nombre_tarea:   nombre.trim(),
-        area:           area || 'General',
+        nombre_t:   nombre.trim(),
+        :            || 'General',
         observaciones:  observaciones.trim() || null,
-        responsable_id: responsableId || tarea.responsable_id,
+        responsable_id: responsableId || t.responsable_id,
         fecha_termino:  fechaTermino,
         condicion:      diaHabilFijo ? 'habil' : 'dia_real',
       }
 
-      // 1. Actualizar tarea actual
+      // 1. Actualizar t actual
       const { error: err } = await supabase
         .from('tasks')
         .update(cambios)
-        .eq('id', tarea.id)
+        .eq('id', t.id)
       if (err) throw err
 
-      // 2. Propagar a tareas futuras de la serie si corresponde
-      if (esSerie && propagarSerie && tareasSeriePreview.length > 0) {
-        const ids = tareasSeriePreview.map(t => t.id)
+      // 2. Propagar a ts futuras de la serie si corresponde
+      if (esSerie && propagarSerie && tsSeriePreview.length > 0) {
+        const ids = tsSeriePreview.map(t => t.id)
         await supabase
           .from('tasks')
           .update({
-            nombre_tarea:   cambios.nombre_tarea,
-            area:           cambios.area,
+            nombre_t:   cambios.nombre_t,
+            :           cambios.,
             observaciones:  cambios.observaciones,
             responsable_id: cambios.responsable_id,
           })
@@ -141,10 +144,10 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
       }
 
       // 3. Actualizar plantilla si tiene template_id
-      if (tarea.template_id) {
+      if (t.template_id) {
         const cambiosPlantilla = {
-          nombre_tarea:   cambios.nombre_tarea,
-          area:           cambios.area,
+          nombre_t:   cambios.nombre_t,
+          :           cambios.,
           responsable_id: cambios.responsable_id,
           condicion:      cambios.condicion,
         }
@@ -154,10 +157,10 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
         await supabase
           .from('task_templates')
           .update(cambiosPlantilla)
-          .eq('id', tarea.template_id)
+          .eq('id', t.template_id)
       }
 
-      queryClient.invalidateQueries({ queryKey: ['tareas', cicloId] })
+      queryClient.invalidateQueries({ queryKey: ['ts', cicloId] })
       onClose()
     } catch (err) {
       setError('Error al guardar, intenta de nuevo')
@@ -174,7 +177,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h2 className="text-white font-semibold text-lg">Editar tarea</h2>
+            <h2 className="text-white font-semibold text-lg">Editar t</h2>
             <div className="flex items-center gap-1.5 mt-1">
               <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${tipoBadge.color}`}>
                 {tipoBadge.icono}
@@ -197,7 +200,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
           {/* Nombre */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">
-              Nombre de la tarea <span className="text-red-400">*</span>
+              Nombre de la t <span className="text-red-400">*</span>
             </label>
             <input
               type="text" value={nombre}
@@ -209,7 +212,64 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
 
           {/* Área */}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Área</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-sm text-gray-400">Área</label>
+              <button
+                type="button"
+                onClick={() => setNuevaArea(v => !v)}
+                className="text-xs text-blue-400 hover:text-blue-300 transition"
+              >
+                {nuevaArea ? 'Cancelar' : '+ Nueva área'}
+              </button>
+            </div>
+            {nuevaArea ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={nuevaAreaNombre}
+                  onChange={e => setNuevaAreaNombre(e.target.value)}
+                  placeholder="Nombre del área..."
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
+                              text-white text-sm focus:outline-none focus:border-green-500"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!nuevaAreaNombre.trim()) return
+                    const { data } = await supabase
+                      .from('areas')
+                      .insert({ nombre: nuevaAreaNombre.trim(), departamento: tarea.departamento })
+                      .select().single()
+                     if (data) {
+                       setArea(data.nombre)
+                       setNuevaArea(false)
+                       setNuevaAreaNombre('')
+                       queryClient.invalidateQueries({ queryKey: ['areas', tarea.departamento] })
+                    }
+                  }}
+                  className="px-3 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm
+                              rounded-lg transition font-medium"
+               >
+                  Crear
+                </button>
+              </div>
+            ) : (
+               <select
+                 value={area}
+                onChange={e => setArea(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg
+                           px-3 py-2.5 text-sm focus:outline-none focus:border-green-500"
+                >
+                 <option value="">Seleccionar área...</option>
+                  {areas.map(a => (
+                    <option key={a.id} value={a.nombre}>{a.nombre}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+                
+                  
+      
             <select
               value={area}
               onChange={e => setArea(e.target.value)}
