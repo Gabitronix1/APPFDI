@@ -467,6 +467,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
       <PanelRendimiento
         tareas={tareas}
         historial={historial}
+        departamento={profile?.departamento}
       />
 
       {/* ── MIS TAREAS PENDIENTES ─────────────────────────────── */}
