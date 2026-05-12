@@ -106,6 +106,7 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
           {labelBadge}
         </span>
       </div>
+    
 
       {/* Barra superpuesta plan + real */}
       <div className="mb-3">
@@ -253,6 +254,7 @@ export default function ProyectoCard({ proyecto, onCambio }) {
             <p className="text-gray-500 text-xs mt-0.5">vs plan</p>
             <p className="text-gray-600 text-xs mt-1">{pctRealProyecto}% real · {pctPlanProyecto}% plan</p>
           </div>
+        </div>
 
         {/* Barra superpuesta */}
         <div className="relative w-full bg-gray-800 rounded-full h-3">
