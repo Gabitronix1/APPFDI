@@ -3,9 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import {
-  CheckCircle2, Clock, AlertCircle, ListChecks, TrendingUp,
+  CheckCircle2, TrendingUp,
   User, Users, RefreshCw, Sparkles, X, Calendar, ChevronRight,
-  CalendarClock, ChevronDown, ChevronUp, Lock
+  CalendarClock, ChevronDown, ChevronUp
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import TaskModal from '../components/TaskModal'
@@ -93,6 +93,81 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
   )
 }
 
+// ─── BARRA GLOBAL ADMIN ───────────────────────────────────────────────────────
+function BarraGlobalAdmin({ tareas, departamento, tituloCiclo }) {
+  const hoy = new Date(); hoy.setHours(0,0,0,0)
+  const exigibles   = tareas.filter(t =>
+    !(t.serie_id && t.fecha_inicio && new Date(t.fecha_inicio + 'T00:00:00') > hoy))
+  const completadas = exigibles.filter(t =>
+    t.estado === 'completada' || t.estado === 'completada_con_atraso').length
+  const total       = exigibles.length
+  const pct         = total ? Math.round((completadas / total) * 100) : 0
+
+  const conCalidad  = exigibles.filter(t => t.porcentaje_cumplimiento !== null)
+  const calidad     = conCalidad.length
+    ? Math.round(conCalidad.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conCalidad.length)
+    : null
+
+  const colorPct    = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
+  const colorBarra  = pct === 100 ? 'bg-green-500'   : pct > 60 ? 'bg-amber-500'   : 'bg-red-500'
+  const colorCal    = calidad === null ? '' : calidad >= 90 ? 'text-green-400' : calidad >= 70 ? 'text-amber-400' : 'text-red-400'
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-2xl px-5 py-3.5 flex items-center gap-5">
+      {/* Label depto + ciclo */}
+      <div className="shrink-0 min-w-0">
+        <p className="text-white text-sm font-semibold leading-none">{departamento}</p>
+        <p className="text-gray-500 text-xs mt-0.5">{tituloCiclo}</p>
+      </div>
+
+      <div className="w-px h-8 bg-gray-800 shrink-0" />
+
+      {/* Contador completadas/total */}
+      <div className="shrink-0 text-center">
+        <p className={`text-lg font-bold leading-none ${colorPct}`}>{completadas}
+          <span className="text-gray-600 font-normal text-sm">/{total}</span>
+        </p>
+        <p className="text-xs text-gray-600 mt-0.5">tareas</p>
+      </div>
+
+      {/* Barras — ocupan el espacio restante */}
+      <div className="flex-1 min-w-0 space-y-1.5">
+        {/* Barra cumplimiento */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 bg-gray-800 rounded-full h-2 overflow-hidden">
+            <div className={`h-2 rounded-full transition-all duration-700 ${colorBarra}`}
+              style={{ width: `${pct}%` }} />
+          </div>
+          <span className={`text-xs font-bold w-9 text-right shrink-0 ${colorPct}`}>{pct}%</span>
+        </div>
+        {/* Barra calidad */}
+        {calidad !== null && (
+          <div className="flex items-center gap-2">
+            <div className="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+              <div className="h-1.5 rounded-full transition-all duration-700 bg-yellow-500"
+                style={{ width: `${calidad}%` }} />
+            </div>
+            <span className={`text-xs font-bold w-9 text-right shrink-0 ${colorCal}`}>{calidad}%</span>
+          </div>
+        )}
+        {/* Leyenda */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <span className={`w-2 h-1 inline-block rounded ${colorBarra}`} />
+            <span className="text-xs text-gray-600">Cumplimiento</span>
+          </div>
+          {calidad !== null && (
+            <div className="flex items-center gap-1">
+              <span className="w-2 h-1 inline-block rounded bg-yellow-500" />
+              <span className="text-xs text-gray-600">Calidad</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── FILA COMPACTA DE MÉTRICAS ────────────────────────────────────────────────
 function FilaMetricas({ tareasCierre, tareasRecurrentes, tareasPuntuales,
   tituloCierre, tituloCiclo, esCicloCerrado, onClickBloque }) {
@@ -164,10 +239,10 @@ function FilaMetricas({ tareasCierre, tareasRecurrentes, tareasPuntuales,
 function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, profile, esCicloCerrado }) {
   const navigate    = useNavigate()
   const queryClient = useQueryClient()
-  const [modalBloque,       setModalBloque]       = useState(null)
+  const [modalBloque,        setModalBloque]        = useState(null)
   const [filtroModalUsuario, setFiltroModalUsuario] = useState('todos')
-  const [tareaDetalle,      setTareaDetalle]      = useState(null)
-  const [tareaActiva,       setTareaActiva]       = useState(null)
+  const [tareaDetalle,       setTareaDetalle]       = useState(null)
+  const [tareaActiva,        setTareaActiva]        = useState(null)
 
   const tareasCierre      = tareas.filter(t => t.tipo === 'cierre')
   const tareasRecurrentes = tareas.filter(t => t.tipo === 'recurrente_mes')
@@ -224,6 +299,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
     !['completada', 'completada_con_atraso', 'no_completada'].includes(t.estado)
   )
 
+  // Stats del modal recalculadas sobre las tareas filtradas
   const calcModalStats = (tareasBloq) => {
     const hoy = new Date(); hoy.setHours(0,0,0,0)
     const exigibles = tareasBloq.filter(t =>
@@ -239,6 +315,13 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
 
   return (
     <div className="space-y-5">
+
+      {/* ── BARRA GLOBAL ──────────────────────────────────────── */}
+      <BarraGlobalAdmin
+        tareas={tareas}
+        departamento={profile?.departamento ?? 'Departamento'}
+        tituloCiclo={tituloCiclo}
+      />
 
       {/* ── FILA COMPACTA DE MÉTRICAS ─────────────────────────── */}
       <FilaMetricas
@@ -339,11 +422,15 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
 
       {/* ── MODAL BLOQUE ──────────────────────────────────────── */}
       {modalBloque && (() => {
-        const stats = calcModalStats(modalBloque.tareas)
-        const integrantes = [...new Set(modalBloque.tareas.map(t => t.responsable_nombre).filter(Boolean))].sort()
+        // Tareas filtradas según integrante seleccionado
         const tareasFiltradas = filtroModalUsuario === 'todos'
           ? modalBloque.tareas
           : modalBloque.tareas.filter(t => t.responsable_nombre === filtroModalUsuario)
+
+        // Cuadraditos calculados SOBRE las tareas filtradas
+        const stats = calcModalStats(tareasFiltradas)
+
+        const integrantes = [...new Set(modalBloque.tareas.map(t => t.responsable_nombre).filter(Boolean))].sort()
 
         return (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
@@ -355,23 +442,10 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              {/* Cuadraditos stats */}
-              <div className="grid grid-cols-4 gap-2 px-5 py-4 border-b border-gray-800">
-                {[
-                  { label: 'Total',         value: stats.total,        color: 'text-gray-300',   bg: 'bg-gray-800' },
-                  { label: 'Completadas',   value: stats.completadas,  color: 'text-green-300',  bg: 'bg-green-900/40' },
-                  { label: 'Entregadas',    value: stats.atraso,       color: 'text-yellow-300', bg: 'bg-yellow-900/40' },
-                  { label: 'Sin completar', value: stats.sinCompletar, color: 'text-red-300',    bg: 'bg-red-900/40' },
-                ].map(s => (
-                  <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
-                    <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
-                  </div>
-                ))}
-              </div>
-              {/* Filtro usuario */}
+
+              {/* Filtro usuario — ANTES de los cuadraditos para que el usuario vea primero el filtro */}
               {integrantes.length > 1 && (
-                <div className="px-4 pt-3 pb-2 border-b border-gray-800">
+                <div className="px-4 pt-3 pb-3 border-b border-gray-800">
                   <select
                     value={filtroModalUsuario}
                     onChange={e => setFiltroModalUsuario(e.target.value)}
@@ -385,6 +459,22 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
                   </select>
                 </div>
               )}
+
+              {/* Cuadraditos stats — reflejan el filtro activo */}
+              <div className="grid grid-cols-4 gap-2 px-5 py-4 border-b border-gray-800">
+                {[
+                  { label: 'Total',         value: stats.total,        color: 'text-gray-300',   bg: 'bg-gray-800' },
+                  { label: 'Completadas',   value: stats.completadas,  color: 'text-green-300',  bg: 'bg-green-900/40' },
+                  { label: 'Entregadas',    value: stats.atraso,       color: 'text-yellow-300', bg: 'bg-yellow-900/40' },
+                  { label: 'Sin completar', value: stats.sinCompletar, color: 'text-red-300',    bg: 'bg-red-900/40' },
+                ].map(s => (
+                  <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
+                    <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+
               {/* Lista tareas */}
               <div className="overflow-y-auto p-4 space-y-2 scroll-dark flex-1">
                 {tareasFiltradas.length === 0 ? (
