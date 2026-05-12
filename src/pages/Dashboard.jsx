@@ -93,72 +93,6 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
   )
 }
 
-// ─── MODAL LISTA TAREAS CON FILTRO ────────────────────────────────────────────
-function ModalListaTareas({ titulo, tareas, onClose, onClickTarea, mostrarFiltroUsuario = false }) {
-  const [filtroUsuario, setFiltroUsuario] = useState('todos')
-  const integrantes = useMemo(() => {
-    const nombres = [...new Set(tareas.map(t => t.responsable_nombre).filter(Boolean))]
-    return nombres.sort((a, b) => a.localeCompare(b, 'es'))
-  }, [tareas])
-
-  const tareasFiltradas = filtroUsuario === 'todos'
-    ? tareas
-    : tareas.filter(t => t.responsable_nombre === filtroUsuario)
-
-  return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-          <h3 className="text-white font-semibold">{titulo}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-white transition">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        {mostrarFiltroUsuario && integrantes.length > 1 && (
-          <div className="px-4 pt-3 pb-2 border-b border-gray-800">
-            <select
-              value={filtroUsuario}
-              onChange={e => setFiltroUsuario(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 text-gray-300 text-sm
-                         rounded-lg px-3 py-2 focus:outline-none focus:border-green-500"
-            >
-              <option value="todos">Todos los integrantes</option>
-              {integrantes.map(n => (
-                <option key={n} value={n}>{n.split(' ')[0]} {n.split(' ')[1]}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div className="overflow-y-auto p-4 space-y-2 scroll-dark">
-          {tareasFiltradas.length === 0 ? (
-            <p className="text-center text-gray-500 py-8">Sin tareas</p>
-          ) : tareasFiltradas.map(tarea => (
-            <div key={tarea.id} onClick={() => { onClose(); onClickTarea(tarea) }}
-              className="bg-gray-800 border border-gray-700 rounded-xl p-3 flex items-center
-                gap-3 cursor-pointer hover:bg-gray-700 transition"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  {tarea.tipo === 'cierre'
-                    ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
-                    : tarea.tipo === 'recurrente_mes'
-                    ? <CalendarClock className="w-3 h-3 text-purple-400 shrink-0" />
-                    : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
-                  <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
-                </div>
-                <p className="text-gray-500 text-xs mt-0.5">{tarea.responsable_nombre} · {tarea.area}</p>
-              </div>
-              {(tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso') && (
-                <PctBadge pct={tarea.porcentaje_cumplimiento ?? 100} />
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── FILA COMPACTA DE MÉTRICAS ────────────────────────────────────────────────
 function FilaMetricas({ tareasCierre, tareasRecurrentes, tareasPuntuales,
   tituloCierre, tituloCiclo, esCicloCerrado, onClickBloque }) {
@@ -178,17 +112,17 @@ function FilaMetricas({ tareasCierre, tareasRecurrentes, tareasPuntuales,
   }
 
   const bloques = [
-    { id: 'cierre',      titulo: tituloCierre,                       tareas: tareasCierre,      icono: <RefreshCw className="w-3.5 h-3.5" />,     color: 'text-blue-400',   accent: 'bg-blue-500',   border: 'hover:border-blue-700' },
-    { id: 'recurrentes', titulo: `Recurrentes`,                      tareas: tareasRecurrentes, icono: <CalendarClock className="w-3.5 h-3.5" />, color: 'text-purple-400', accent: 'bg-purple-500', border: 'hover:border-purple-700' },
-    { id: 'puntuales',   titulo: `Puntuales`,                        tareas: tareasPuntuales,   icono: <Sparkles className="w-3.5 h-3.5" />,      color: 'text-amber-400',  accent: 'bg-amber-500',  border: 'hover:border-amber-700' },
+    { id: 'cierre',      titulo: tituloCierre,  tareas: tareasCierre,      icono: <RefreshCw className="w-3.5 h-3.5" />,     color: 'text-blue-400',   border: 'hover:border-blue-700' },
+    { id: 'recurrentes', titulo: 'Recurrentes', tareas: tareasRecurrentes, icono: <CalendarClock className="w-3.5 h-3.5" />, color: 'text-purple-400', border: 'hover:border-purple-700' },
+    { id: 'puntuales',   titulo: 'Puntuales',   tareas: tareasPuntuales,   icono: <Sparkles className="w-3.5 h-3.5" />,      color: 'text-amber-400',  border: 'hover:border-amber-700' },
   ].filter(b => b.tareas.length > 0)
 
   return (
     <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${bloques.length}, 1fr)` }}>
       {bloques.map(b => {
         const s = calcStats(b.tareas)
-        const colorPct = s.pct === 100 ? 'text-green-400' : s.pct > 60 ? 'text-amber-400' : 'text-red-400'
-        const colorBarra = s.pct === 100 ? 'bg-green-500' : s.pct > 60 ? 'bg-amber-500' : 'bg-red-500'
+        const colorPct   = s.pct === 100 ? 'text-green-400' : s.pct > 60 ? 'text-amber-400' : 'text-red-400'
+        const colorBarra = s.pct === 100 ? 'bg-green-500'   : s.pct > 60 ? 'bg-amber-500'   : 'bg-red-500'
         return (
           <div key={b.id}
             onClick={() => onClickBloque(b.id, b.tareas, b.titulo)}
@@ -230,9 +164,10 @@ function FilaMetricas({ tareasCierre, tareasRecurrentes, tareasPuntuales,
 function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, profile, esCicloCerrado }) {
   const navigate    = useNavigate()
   const queryClient = useQueryClient()
-  const [modalBloque,  setModalBloque]  = useState(null) // { id, tareas, titulo }
-  const [tareaDetalle, setTareaDetalle] = useState(null)
-  const [tareaActiva,  setTareaActiva]  = useState(null)
+  const [modalBloque,       setModalBloque]       = useState(null)
+  const [filtroModalUsuario, setFiltroModalUsuario] = useState('todos')
+  const [tareaDetalle,      setTareaDetalle]      = useState(null)
+  const [tareaActiva,       setTareaActiva]       = useState(null)
 
   const tareasCierre      = tareas.filter(t => t.tipo === 'cierre')
   const tareasRecurrentes = tareas.filter(t => t.tipo === 'recurrente_mes')
@@ -289,16 +224,15 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
     !['completada', 'completada_con_atraso', 'no_completada'].includes(t.estado)
   )
 
-  // Stats para el modal de bloque
   const calcModalStats = (tareasBloq) => {
     const hoy = new Date(); hoy.setHours(0,0,0,0)
     const exigibles = tareasBloq.filter(t =>
       !(t.serie_id && t.fecha_inicio && new Date(t.fecha_inicio + 'T00:00:00') > hoy))
     return {
-      total:      exigibles.length,
-      completadas: exigibles.filter(t => t.estado === 'completada').length,
-      atraso:     exigibles.filter(t => t.estado === 'completada_con_atraso').length,
-      pendientes: exigibles.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length,
+      total:        exigibles.length,
+      completadas:  exigibles.filter(t => t.estado === 'completada').length,
+      atraso:       exigibles.filter(t => t.estado === 'completada_con_atraso').length,
+      pendientes:   exigibles.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length,
       sinCompletar: exigibles.filter(t => t.estado === 'con_atraso' || t.estado === 'no_completada').length,
     }
   }
@@ -314,7 +248,10 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
         tituloCierre={tituloCierre}
         tituloCiclo={tituloCiclo}
         esCicloCerrado={esCicloCerrado}
-        onClickBloque={(id, tareasBloq, titulo) => setModalBloque({ id, tareas: tareasBloq, titulo })}
+        onClickBloque={(id, tareasBloq, titulo) => {
+          setModalBloque({ id, tareas: tareasBloq, titulo })
+          setFiltroModalUsuario('todos')
+        }}
       />
 
       {/* ── CALENDARIO + EQUIPO ───────────────────────────────── */}
@@ -325,7 +262,6 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
           soloMia={false}
         />
 
-        {/* Mi equipo hoy */}
         <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
             <Users className="w-4 h-4 text-blue-400" />
@@ -339,9 +275,9 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
                 return pctA - pctB
               })
               .map(([nombre, stats]) => {
-                const pct     = stats.total ? Math.round((stats.completadas / stats.total) * 100) : 0
-                const color   = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
-                const texto   = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
+                const pct      = stats.total ? Math.round((stats.completadas / stats.total) * 100) : 0
+                const color    = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
+                const texto    = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
                 const iniciales = nombre.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)
                 return (
                   <div key={nombre}
@@ -401,25 +337,31 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
         </div>
       )}
 
-      {/* ── MODALES ───────────────────────────────────────────── */}
+      {/* ── MODAL BLOQUE ──────────────────────────────────────── */}
       {modalBloque && (() => {
         const stats = calcModalStats(modalBloque.tareas)
+        const integrantes = [...new Set(modalBloque.tareas.map(t => t.responsable_nombre).filter(Boolean))].sort()
+        const tareasFiltradas = filtroModalUsuario === 'todos'
+          ? modalBloque.tareas
+          : modalBloque.tareas.filter(t => t.responsable_nombre === filtroModalUsuario)
+
         return (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
             <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+              {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
                 <h3 className="text-white font-semibold">{modalBloque.titulo}</h3>
                 <button onClick={() => setModalBloque(null)} className="text-gray-500 hover:text-white transition">
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              {/* Stats */}
+              {/* Cuadraditos stats */}
               <div className="grid grid-cols-4 gap-2 px-5 py-4 border-b border-gray-800">
                 {[
-                  { label: 'Total',        value: stats.total,        color: 'text-gray-300',  bg: 'bg-gray-800' },
-                  { label: 'Completadas',  value: stats.completadas,  color: 'text-green-300', bg: 'bg-green-900/40' },
-                  { label: 'Entregadas',   value: stats.atraso,       color: 'text-yellow-300',bg: 'bg-yellow-900/40' },
-                  { label: 'Sin completar',value: stats.sinCompletar, color: 'text-red-300',   bg: 'bg-red-900/40' },
+                  { label: 'Total',         value: stats.total,        color: 'text-gray-300',   bg: 'bg-gray-800' },
+                  { label: 'Completadas',   value: stats.completadas,  color: 'text-green-300',  bg: 'bg-green-900/40' },
+                  { label: 'Entregadas',    value: stats.atraso,       color: 'text-yellow-300', bg: 'bg-yellow-900/40' },
+                  { label: 'Sin completar', value: stats.sinCompletar, color: 'text-red-300',    bg: 'bg-red-900/40' },
                 ].map(s => (
                   <div key={s.label} className={`${s.bg} rounded-xl p-3 text-center`}>
                     <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
@@ -428,13 +370,48 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
                 ))}
               </div>
               {/* Filtro usuario */}
-              <ModalListaTareas
-                titulo=""
-                tareas={modalBloque.tareas}
-                onClose={() => setModalBloque(null)}
-                onClickTarea={handleClickTarea}
-                mostrarFiltroUsuario={true}
-              />
+              {integrantes.length > 1 && (
+                <div className="px-4 pt-3 pb-2 border-b border-gray-800">
+                  <select
+                    value={filtroModalUsuario}
+                    onChange={e => setFiltroModalUsuario(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 text-gray-300 text-sm
+                               rounded-lg px-3 py-2 focus:outline-none focus:border-green-500"
+                  >
+                    <option value="todos">Todos los integrantes</option>
+                    {integrantes.map(n => (
+                      <option key={n} value={n}>{n.split(' ')[0]} {n.split(' ')[1]}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {/* Lista tareas */}
+              <div className="overflow-y-auto p-4 space-y-2 scroll-dark flex-1">
+                {tareasFiltradas.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">Sin tareas</p>
+                ) : tareasFiltradas.map(tarea => (
+                  <div key={tarea.id}
+                    onClick={() => { setModalBloque(null); handleClickTarea(tarea) }}
+                    className="bg-gray-800 border border-gray-700 rounded-xl p-3 flex items-center
+                      gap-3 cursor-pointer hover:bg-gray-700 transition"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {tarea.tipo === 'cierre'
+                          ? <RefreshCw className="w-3 h-3 text-blue-500 shrink-0" />
+                          : tarea.tipo === 'recurrente_mes'
+                          ? <CalendarClock className="w-3 h-3 text-purple-400 shrink-0" />
+                          : <Sparkles className="w-3 h-3 text-amber-500 shrink-0" />}
+                        <p className="text-white text-sm font-medium truncate">{tarea.nombre_tarea}</p>
+                      </div>
+                      <p className="text-gray-500 text-xs mt-0.5">{tarea.responsable_nombre} · {tarea.area}</p>
+                    </div>
+                    {(tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso') && (
+                      <PctBadge pct={tarea.porcentaje_cumplimiento ?? 100} />
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )
@@ -460,10 +437,7 @@ function GrupoTareasUsuario({ titulo, icono, iconoColor, tareas, onClickTarea, d
 
   return (
     <div>
-      <button
-        onClick={() => setAbierto(v => !v)}
-        className="w-full flex items-center gap-2 py-2 group"
-      >
+      <button onClick={() => setAbierto(v => !v)} className="w-full flex items-center gap-2 py-2 group">
         <span className={iconoColor}>{icono}</span>
         <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide group-hover:text-white transition">
           {titulo}
@@ -510,7 +484,7 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
     return Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
   })()
 
-  const misPendientesActivas = misTareas.filter(t =>
+  const misPendientesActivas  = misTareas.filter(t =>
     t.estado !== 'completada' && t.estado !== 'completada_con_atraso' && t.estado !== 'no_completada'
   )
   const pendientesCierre      = misPendientesActivas.filter(t => t.tipo === 'cierre')
@@ -532,8 +506,8 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
       }, 0) / tareasConDato.length)
     : null
 
-  const colorPct = miPct === 100 ? 'text-green-400' : miPct > 50 ? 'text-amber-400' : 'text-red-400'
-  const colorBarra = miPct === 100 ? 'bg-green-500' : miPct > 50 ? 'bg-amber-500' : 'bg-red-500'
+  const colorPct   = miPct === 100 ? 'text-green-400' : miPct > 50 ? 'text-amber-400' : 'text-red-400'
+  const colorBarra = miPct === 100 ? 'bg-green-500'   : miPct > 50 ? 'bg-amber-500'   : 'bg-red-500'
 
   return (
     <div className="space-y-5">
@@ -559,13 +533,12 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
             </div>
           )}
         </div>
-        {/* Stats en fila */}
         <div className="grid grid-cols-4 gap-2">
           {[
-            { label: 'Total',       value: misTareas.length,                    color: 'text-gray-300',  bg: 'bg-gray-800' },
+            { label: 'Total',       value: misTareas.length,                     color: 'text-gray-300',  bg: 'bg-gray-800' },
             { label: 'Completadas', value: misCompletadas + misCompletadasAtraso, color: 'text-green-300', bg: 'bg-green-900/40' },
-            { label: 'Pendientes',  value: misPendientes,                        color: 'text-amber-300', bg: 'bg-amber-900/40' },
-            { label: 'Vencidas',    value: misAtrasadas,                         color: 'text-red-300',   bg: 'bg-red-900/40' },
+            { label: 'Pendientes',  value: misPendientes,                         color: 'text-amber-300', bg: 'bg-amber-900/40' },
+            { label: 'Vencidas',    value: misAtrasadas,                          color: 'text-red-300',   bg: 'bg-red-900/40' },
           ].map(s => (
             <div key={s.label} className={`${s.bg} rounded-xl p-2.5 text-center`}>
               <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
@@ -620,30 +593,12 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
           </div>
         ) : (
           <div className="space-y-3">
-            <GrupoTareasUsuario
-              titulo="Cierre"
-              icono={<RefreshCw className="w-3 h-3" />}
-              iconoColor="text-blue-400"
-              tareas={pendientesCierre}
-              onClickTarea={onClickTarea}
-              defaultAbierto={true}
-            />
-            <GrupoTareasUsuario
-              titulo="Recurrentes del mes"
-              icono={<CalendarClock className="w-3 h-3" />}
-              iconoColor="text-purple-400"
-              tareas={pendientesRecurrentes}
-              onClickTarea={onClickTarea}
-              defaultAbierto={true}
-            />
-            <GrupoTareasUsuario
-              titulo="Puntuales"
-              icono={<Sparkles className="w-3 h-3" />}
-              iconoColor="text-amber-400"
-              tareas={pendientesPuntuales}
-              onClickTarea={onClickTarea}
-              defaultAbierto={true}
-            />
+            <GrupoTareasUsuario titulo="Cierre" icono={<RefreshCw className="w-3 h-3" />}
+              iconoColor="text-blue-400" tareas={pendientesCierre} onClickTarea={onClickTarea} />
+            <GrupoTareasUsuario titulo="Recurrentes del mes" icono={<CalendarClock className="w-3 h-3" />}
+              iconoColor="text-purple-400" tareas={pendientesRecurrentes} onClickTarea={onClickTarea} />
+            <GrupoTareasUsuario titulo="Puntuales" icono={<Sparkles className="w-3 h-3" />}
+              iconoColor="text-amber-400" tareas={pendientesPuntuales} onClickTarea={onClickTarea} />
           </div>
         )}
       </div>
