@@ -97,6 +97,20 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     }
   })
 
+  const { data: areas = [] } = useQuery({
+    queryKey: ['areas', deptoActivo],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('areas')
+        .select('id, nombre')
+        .eq('departamento', deptoActivo)
+        .eq('activo', true)
+        .order('nombre')
+      return data ?? []
+    }
+  })
+  
+
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
   const esCicloActivo = cicloSeleccionado?.estado === 'activo'
@@ -297,13 +311,14 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           {/* Área */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">Área</label>
-            <input
-              name="area" type="text" value={form.area}
-              onChange={handleChange}
-              placeholder="Ej: Cartografía, Pensiones, Producción..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
-                         text-white text-sm focus:outline-none focus:border-green-500"
-            />
+            <select
+              name="area" value={form.area} onChange={handleChange}
+              className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-green-500">
+              <option value="">Seleccionar área...</option>
+              {areas.map(a => (
+                <option key={a.id} value={a.nombre}>{a.nombre}</option>
+              ))}
+            </select>
           </div>
 
           {/* Tipo */}
