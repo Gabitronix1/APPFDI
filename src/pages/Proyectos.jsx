@@ -37,22 +37,28 @@ export default function Proyectos() {
   const [anio, setAnio] = useState(2026)
 
   const { data: proyectos = [], isLoading } = useQuery({
-    queryKey: ['proyectos', anio],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('projects')
-        .select(`
+  queryKey: ['proyectos', anio],
+  queryFn: async () => {
+    const { data, error } = await supabase
+      .from('projects')
+      .select(`
+        *,
+        responsable:users!projects_responsable_id_fkey(id, nombre, cargo),
+        project_deliverables(
           *,
-          responsable:users!projects_responsable_id_fkey(id, nombre, cargo),
-          project_deliverables(*)
-        `)
-        .eq('anio', anio)
-        .eq('activo', true)
-        .order('edt')
-      if (error) throw error
-      return data ?? []
-    }
-  })
+          project_deliverable_responsables(
+            id, rol,
+            user:users(id, nombre, cargo)
+          )
+        )
+      `)
+      .eq('anio', anio)
+      .eq('activo', true)
+      .order('edt')
+    if (error) throw error
+    return data ?? []
+  }
+})
 
   function onCambio() {
     queryClient.invalidateQueries({ queryKey: ['proyectos', anio] })
