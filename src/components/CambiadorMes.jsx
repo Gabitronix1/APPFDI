@@ -50,7 +50,7 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
     if (!confirmando) return
 
     if (confirmando.tipo === 'crear') {
-      crearCiclo({ mes: confirmando.mes, anio: confirmando.anio }, {
+      crearCiclo({ mes: confirmando.mes, anio: confirmando.anio, departamento: profile?.departamento }, {
         onSuccess: (nuevoCiclo) => {
           mostrarExito(`${nombreCiclo(confirmando.mes, confirmando.anio)} creado`)
           setConfirmando(null)

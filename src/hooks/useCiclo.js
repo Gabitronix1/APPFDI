@@ -74,7 +74,7 @@ export function useTareasPorCiclo(cicloId) {
 export function useCrearCiclo() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ mes, anio }) => {
+    mutationFn: async ({ mes, anio, departamento }) => {
 
       // 1. Cerrar ciclo activo anterior
       await supabase
@@ -96,6 +96,7 @@ export function useCrearCiclo() {
         .from('task_templates')
         .select('*')
         .eq('activo', true)
+        .eq('departamento', departamento)
       if (errPlant) throw errPlant
 
       // 4. Preparar feriados del mes
