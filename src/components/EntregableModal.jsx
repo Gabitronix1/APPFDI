@@ -6,7 +6,6 @@ import { X, Plus, Trash2 } from 'lucide-react'
 export default function EntregableModal({ proyectoId, entregable, onClose, onGuardado }) {
   const editando = !!entregable
 
-  // Cargar responsables existentes si estamos editando
   const responsablesIniciales = entregable?.project_deliverable_responsables?.map(r => ({
     user_id: r.user.id,
     nombre:  r.user.nombre,
@@ -20,7 +19,6 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
     fecha_inicio: entregable?.fecha_inicio ?? '',
     fecha_fin:    entregable?.fecha_fin    ?? '',
     comentarios:  entregable?.comentarios  ?? '',
-    orden:        entregable?.orden        ?? 0,
     pct_real:     entregable?.pct_real     ?? 0,
   })
   const [responsables, setResponsables] = useState(responsablesIniciales)
@@ -59,11 +57,23 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
     }))
   }
 
+  // Calcula duración en días entre dos fechas
+  function calcularDuracion(inicio, fin) {
+    if (!inicio || !fin) return null
+    const d1 = new Date(inicio + 'T00:00:00')
+    const d2 = new Date(fin    + 'T00:00:00')
+    const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24))
+    return diff > 0 ? diff : 1
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.nombre.trim()) { setError('El nombre es obligatorio'); return }
     if (!form.fecha_inicio)  { setError('La fecha de inicio es obligatoria'); return }
     if (!form.fecha_fin)     { setError('La fecha de fin es obligatoria'); return }
+    if (new Date(form.fecha_fin) < new Date(form.fecha_inicio)) {
+      setError('La fecha de fin debe ser posterior a la de inicio'); return
+    }
     if (responsables.some(r => !r.user_id)) {
       setError('Selecciona un usuario para cada responsable'); return
     }
@@ -74,15 +84,15 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
     const estado  = pctReal === 100 ? 'completado' : pctReal > 0 ? 'en_progreso' : 'no_iniciado'
 
     const payload = {
-      project_id:   proyectoId,
-      edt:          form.edt.trim(),
-      nombre:       form.nombre.trim(),
-      fecha_inicio: form.fecha_inicio,
-      fecha_fin:    form.fecha_fin,
+      project_id:    proyectoId,
+      edt:           form.edt.trim() || null,
+      nombre:        form.nombre.trim(),
+      fecha_inicio:  form.fecha_inicio,
+      fecha_fin:     form.fecha_fin,
+      duracion_dias: calcularDuracion(form.fecha_inicio, form.fecha_fin),
       estado,
-      comentarios:  form.comentarios.trim() || null,
-      orden:        Number(form.orden),
-      pct_real:     pctReal,
+      comentarios:   form.comentarios.trim() || null,
+      pct_real:      pctReal,
     }
 
     let deliverableId = entregable?.id
@@ -90,15 +100,15 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
     if (editando) {
       const { error: err } = await supabase
         .from('project_deliverables').update(payload).eq('id', deliverableId)
-      if (err) { setError('Error al guardar'); setLoading(false); return }
+      if (err) { setError('Error al guardar: ' + err.message); setLoading(false); return }
     } else {
       const { data, error: err } = await supabase
         .from('project_deliverables').insert(payload).select().single()
-      if (err) { setError('Error al guardar'); setLoading(false); return }
+      if (err) { setError('Error al guardar: ' + err.message); setLoading(false); return }
       deliverableId = data.id
     }
 
-    // Actualizar responsables — borrar los anteriores e insertar los nuevos
+    // Actualizar responsables — borrar anteriores e insertar nuevos
     await supabase
       .from('project_deliverable_responsables')
       .delete()
@@ -112,7 +122,7 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
           user_id:        r.user_id,
           rol:            r.rol,
         })))
-      if (errResp) { setError('Error al guardar responsables'); setLoading(false); return }
+      if (errResp) { setError('Error al guardar responsables: ' + errResp.message); setLoading(false); return }
     }
 
     onGuardado()
@@ -122,7 +132,7 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 px-0 sm:px-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-900 border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg p-6 max-h-[90vh] overflow-y-auto scroll-dark">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-white font-semibold text-lg">
             {editando ? 'Editar entregable' : 'Nuevo entregable'}
@@ -134,8 +144,9 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
+          {/* EDT + Nombre en fila */}
+          <div className="flex gap-3">
+            <div className="w-28 shrink-0">
               <label className="block text-sm text-gray-400 mb-1">EDT</label>
               <input
                 name="edt" type="text" value={form.edt} onChange={handleChange}
@@ -144,44 +155,67 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
                            text-white text-sm focus:outline-none focus:border-blue-500"
               />
             </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">Orden</label>
+            <div className="flex-1">
+              <label className="block text-sm text-gray-400 mb-1">
+                Nombre <span className="text-red-400">*</span>
+              </label>
               <input
-                name="orden" type="number" value={form.orden} onChange={handleChange}
+                name="nombre" type="text" value={form.nombre} onChange={handleChange}
+                placeholder="Nombre del entregable"
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
                            text-white text-sm focus:outline-none focus:border-blue-500"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">
-              Nombre <span className="text-red-400">*</span>
-            </label>
-            <input
-              name="nombre" type="text" value={form.nombre} onChange={handleChange}
-              placeholder="Nombre del entregable"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
-                         text-white text-sm focus:outline-none focus:border-blue-500"
-            />
+          {/* Fechas */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">
+                Fecha inicio <span className="text-red-400">*</span>
+              </label>
+              <input
+                name="fecha_inicio" type="date" value={form.fecha_inicio} onChange={handleChange}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
+                           text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">
+                Fecha fin <span className="text-red-400">*</span>
+              </label>
+              <input
+                name="fecha_fin" type="date" value={form.fecha_fin} onChange={handleChange}
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
+                           text-white text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
           </div>
 
-          {/* Responsables múltiples */}
+          {/* Duración calculada */}
+          {form.fecha_inicio && form.fecha_fin && (
+            <p className="text-xs text-gray-600 -mt-2">
+              Duración:{' '}
+              <span className="text-gray-400">
+                {calcularDuracion(form.fecha_inicio, form.fecha_fin)} días
+              </span>
+            </p>
+          )}
+
+          {/* Responsables */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm text-gray-400">Responsables</label>
               <button
-                type="button"
-                onClick={agregarResponsable}
+                type="button" onClick={agregarResponsable}
                 className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Agregar
               </button>
             </div>
-
             {responsables.length === 0 ? (
-              <p className="text-xs text-gray-600 py-2">Sin responsables asignados</p>
+              <p className="text-xs text-gray-600 py-1">Sin responsables asignados</p>
             ) : (
               <div className="space-y-2">
                 {responsables.map((r, idx) => (
@@ -207,8 +241,7 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
                       <option value="apoyo">Apoyo</option>
                     </select>
                     <button
-                      type="button"
-                      onClick={() => quitarResponsable(idx)}
+                      type="button" onClick={() => quitarResponsable(idx)}
                       className="p-1.5 text-gray-600 hover:text-red-400 transition"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -217,29 +250,6 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
                 ))}
               </div>
             )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                Fecha inicio <span className="text-red-400">*</span>
-              </label>
-              <input
-                name="fecha_inicio" type="date" value={form.fecha_inicio} onChange={handleChange}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
-                           text-white text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-1">
-                Fecha fin <span className="text-red-400">*</span>
-              </label>
-              <input
-                name="fecha_fin" type="date" value={form.fecha_fin} onChange={handleChange}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
-                           text-white text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
           </div>
 
           {/* % Real */}
@@ -259,11 +269,7 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
               className="w-full accent-blue-500"
             />
             <div className="flex justify-between text-xs text-gray-700 mt-1">
-              <span>0%</span>
-              <span>25%</span>
-              <span>50%</span>
-              <span>75%</span>
-              <span>100%</span>
+              <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
             </div>
             <div className="mt-2">
               <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
@@ -276,6 +282,7 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
             </div>
           </div>
 
+          {/* Comentarios */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">Comentarios</label>
             <textarea
