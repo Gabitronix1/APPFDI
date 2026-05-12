@@ -149,17 +149,16 @@ export default function Proyectos() {
             </p>
           </div>
           <div className="text-right">
-            <p className={`text-3xl font-bold ${colorTexto}`}>{pctRealGlobal}%</p>
-            <p className="text-gray-600 text-xs mt-0.5">real · plan {pctPlanGlobal}%</p>
             {ratio !== null && (
-              <p className={`text-xs font-medium mt-1 ${
+              <p className={`text-3xl font-bold ${
                 ratio >= 100 ? 'text-green-400' : ratio >= 75 ? 'text-amber-400' : 'text-red-400'
               }`}>
-                {ratio >= 100 ? '✓' : '↓'} {ratio}% vs plan
+                {ratio >= 100 ? '✓' : '↓'} {ratio}%
               </p>
             )}
+            <p className="text-gray-500 text-xs mt-0.5">vs plan</p>
+            <p className="text-gray-600 text-xs mt-1">{pctRealGlobal}% real · {pctPlanGlobal}% plan</p>
           </div>
-        </div>
 
         {/* Barra superpuesta plan + real */}
         <div className="relative w-full bg-gray-800 rounded-full h-4">
