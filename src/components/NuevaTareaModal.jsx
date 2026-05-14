@@ -2,13 +2,25 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Plus, RefreshCw, Sparkles, CalendarClock } from 'lucide-react'
+import { X, Plus, RefreshCw, Sparkles, CalendarClock, Clock } from 'lucide-react'
 import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } from '../lib/feriados'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 const DIAS_SEMANA = ['Lunes','Martes','Miércoles','Jueves','Viernes']
+
+// Opciones de duración predefinidas
+const DURACIONES = [
+  { label: '15 min',   value: 15  },
+  { label: '30 min',   value: 30  },
+  { label: '45 min',   value: 45  },
+  { label: '1 hora',   value: 60  },
+  { label: '1.5 h',    value: 90  },
+  { label: '2 horas',  value: 120 },
+  { label: '3 horas',  value: 180 },
+  { label: 'Día comp.', value: 480 },
+]
 
 function generarUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -64,20 +76,21 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
   const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente'
 
   const [form, setForm] = useState({
-    nombre_tarea:   '',
-    area:           '',
-    tipo:           'puntual',
-    frecuencia:     'mensual',
-    dia_semana:     0,
-    dia_quincena_1: 1,
-    dia_quincena_2: 16,
-    condicion:      'dia_real',
-    fecha_inicio:   '',
-    fecha_termino:  '',
-    responsable_id: esUsuario ? user.id : '',
-    observaciones:  '',
-    dia_habil_fijo: false,
-    dia_habil_num:  '',
+    nombre_tarea:          '',
+    area:                  '',
+    tipo:                  'puntual',
+    frecuencia:            'mensual',
+    dia_semana:            0,
+    dia_quincena_1:        1,
+    dia_quincena_2:        16,
+    condicion:             'dia_real',
+    fecha_inicio:          '',
+    fecha_termino:         '',
+    responsable_id:        esUsuario ? user.id : '',
+    observaciones:         '',
+    dia_habil_fijo:        false,
+    dia_habil_num:         '',
+    duracion_estimada_min: 60,
   })
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
@@ -113,13 +126,12 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
       return data ?? []
     }
   })
-  
 
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
-  const esCicloActivo = cicloSeleccionado?.estado === 'activo'
-  const mesCiclo      = cicloSeleccionado?.mes
-  const anioCiclo     = cicloSeleccionado?.anio
+  const esCicloActivo  = cicloSeleccionado?.estado === 'activo'
+  const mesCiclo       = cicloSeleccionado?.mes
+  const anioCiclo      = cicloSeleccionado?.anio
 
   const feriadosCiclo     = getFeriadosDelAnio(anioCiclo)
   const feriadosAntCiclo  = getFeriadosDelAnio(anioCiclo - 1)
@@ -170,6 +182,8 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     setLoading(true)
     setError('')
 
+    const duracion = parseInt(form.duracion_estimada_min) || 60
+
     try {
       const esRecurrenteMultiple = form.tipo === 'recurrente_mes' &&
         (form.frecuencia === 'semanal' || form.frecuencia === 'quincenal')
@@ -188,20 +202,21 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         const { data: plantilla, error: errPlant } = await supabase
           .from('task_templates')
           .insert({
-            nombre_tarea:   form.nombre_tarea.trim(),
-            area:           form.area || 'General',
-            departamento:   deptoActivo,
-            condicion:      'habil',
-            dia_del_mes:    form.frecuencia === 'semanal'
-                              ? parseInt(form.dia_semana) + 1
-                              : parseInt(form.dia_quincena_1),
-            dia_del_mes_2:  form.frecuencia === 'quincenal'
-                              ? parseInt(form.dia_quincena_2)
-                              : null,
-            responsable_id: form.responsable_id,
-            tipo:           'recurrente_mes',
-            frecuencia:     form.frecuencia,
-            activo:         true,
+            nombre_tarea:          form.nombre_tarea.trim(),
+            area:                  form.area || 'General',
+            departamento:          deptoActivo,
+            condicion:             'habil',
+            dia_del_mes:           form.frecuencia === 'semanal'
+                                     ? parseInt(form.dia_semana) + 1
+                                     : parseInt(form.dia_quincena_1),
+            dia_del_mes_2:         form.frecuencia === 'quincenal'
+                                     ? parseInt(form.dia_quincena_2)
+                                     : null,
+            responsable_id:        form.responsable_id,
+            tipo:                  'recurrente_mes',
+            frecuencia:            form.frecuencia,
+            activo:                true,
+            duracion_estimada_min: duracion,
           })
           .select()
           .single()
@@ -209,23 +224,24 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
 
         // 2. Crear tareas con template_id
         const tareas = fechas.map(f => ({
-          ciclo_id:        cicloSeleccionado.id,
-          template_id:     plantilla.id,
-          responsable_id:  form.responsable_id,
-          nombre_tarea:    form.nombre_tarea.trim(),
-          area:            form.area || 'General',
-          departamento:    deptoActivo,
-          condicion:       'habil',
-          fecha_inicio:    form.frecuencia === 'quincenal' ? fechaStr(f.inicio) : fechaStr(f),
-          fecha_termino:   form.frecuencia === 'quincenal' ? fechaStr(f.termino) : fechaStr(f),
-          estado:          'pendiente',
-          observaciones:   form.observaciones.trim() || null,
-          tipo_tarea:      'adicional',
-          tipo:            'recurrente_mes',
-          frecuencia:      form.frecuencia,
-          serie_id:        serieId,
-          mes_calendario:  mesCiclo,
-          anio_calendario: anioCiclo,
+          ciclo_id:              cicloSeleccionado.id,
+          template_id:           plantilla.id,
+          responsable_id:        form.responsable_id,
+          nombre_tarea:          form.nombre_tarea.trim(),
+          area:                  form.area || 'General',
+          departamento:          deptoActivo,
+          condicion:             'habil',
+          fecha_inicio:          form.frecuencia === 'quincenal' ? fechaStr(f.inicio) : fechaStr(f),
+          fecha_termino:         form.frecuencia === 'quincenal' ? fechaStr(f.termino) : fechaStr(f),
+          estado:                'pendiente',
+          observaciones:         form.observaciones.trim() || null,
+          tipo_tarea:            'adicional',
+          tipo:                  'recurrente_mes',
+          frecuencia:            form.frecuencia,
+          serie_id:              serieId,
+          mes_calendario:        mesCiclo,
+          anio_calendario:       anioCiclo,
+          duracion_estimada_min: duracion,
         }))
 
         const { error: errTareas } = await supabase.from('tasks').insert(tareas)
@@ -234,22 +250,23 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
       } else {
         // Tarea única (cierre, puntual, recurrente mensual)
         const { error: errTarea } = await supabase.from('tasks').insert({
-          ciclo_id:        cicloSeleccionado.id,
-          responsable_id:  form.responsable_id,
-          nombre_tarea:    form.nombre_tarea.trim(),
-          area:            form.area || 'General',
-          departamento:    deptoActivo,
-          condicion:       form.dia_habil_fijo ? 'habil' : form.condicion,
-          fecha_inicio:    form.fecha_inicio || form.fecha_termino,
-          fecha_termino:   form.fecha_termino,
-          estado:          'pendiente',
-          observaciones:   form.observaciones.trim() || null,
-          tipo_tarea:      'adicional',
-          tipo:            form.tipo,
-          frecuencia:      form.tipo === 'recurrente_mes' ? form.frecuencia : null,
-          serie_id:        null,
-          mes_calendario:  mesCiclo,
-          anio_calendario: anioCiclo,
+          ciclo_id:              cicloSeleccionado.id,
+          responsable_id:        form.responsable_id,
+          nombre_tarea:          form.nombre_tarea.trim(),
+          area:                  form.area || 'General',
+          departamento:          deptoActivo,
+          condicion:             form.dia_habil_fijo ? 'habil' : form.condicion,
+          fecha_inicio:          form.fecha_inicio || form.fecha_termino,
+          fecha_termino:         form.fecha_termino,
+          estado:                'pendiente',
+          observaciones:         form.observaciones.trim() || null,
+          tipo_tarea:            'adicional',
+          tipo:                  form.tipo,
+          frecuencia:            form.tipo === 'recurrente_mes' ? form.frecuencia : null,
+          serie_id:              null,
+          mes_calendario:        mesCiclo,
+          anio_calendario:       anioCiclo,
+          duracion_estimada_min: duracion,
         })
         if (errTarea) throw errTarea
 
@@ -259,15 +276,16 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             ? parseInt(form.dia_habil_num)
             : new Date(form.fecha_termino + 'T12:00:00').getDate()
           await supabase.from('task_templates').insert({
-            nombre_tarea:   form.nombre_tarea.trim(),
-            area:           form.area || 'General',
-            departamento:   deptoActivo,
-            condicion:      form.dia_habil_fijo ? 'habil' : form.condicion,
-            dia_del_mes:    diaDelMes,
-            responsable_id: form.responsable_id,
-            tipo:           form.tipo,
-            frecuencia:     form.tipo === 'recurrente_mes' ? form.frecuencia : null,
-            activo:         true,
+            nombre_tarea:          form.nombre_tarea.trim(),
+            area:                  form.area || 'General',
+            departamento:          deptoActivo,
+            condicion:             form.dia_habil_fijo ? 'habil' : form.condicion,
+            dia_del_mes:           diaDelMes,
+            responsable_id:        form.responsable_id,
+            tipo:                  form.tipo,
+            frecuencia:            form.tipo === 'recurrente_mes' ? form.frecuencia : null,
+            activo:                true,
+            duracion_estimada_min: duracion,
           })
         }
       }
@@ -283,7 +301,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 px-0 sm:px-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-900 border border-gray-700 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg p-6 max-h-[90vh] overflow-y-auto scroll-dark">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -324,50 +342,50 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                 {nuevaArea ? 'Cancelar' : '+ Nueva área'}
               </button>
             </div>
-              {nuevaArea ? (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={nuevaAreaNombre}
-                    onChange={e => setNuevaAreaNombre(e.target.value)}
-                    placeholder="Nombre del área..."
-                   className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
-                   text-white text-sm focus:outline-none focus:border-green-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!nuevaAreaNombre.trim()) return
-                      const { data } = await supabase
-                        .from('areas')
-                        .insert({ nombre: nuevaAreaNombre.trim(), departamento: deptoActivo })
-                        .select().single()
-                      if (data) {
-                        setForm(prev => ({ ...prev, area: data.nombre }))
-                        setNuevaArea(false)
-                        setNuevaAreaNombre('')
-                        queryClient.invalidateQueries({ queryKey: ['areas', deptoActivo] })
-                      }
-                    }}
-                    className="px-3 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm
-                               rounded-lg transition font-medium"
-                  >      
-                    Crear
-                  </button>
-                </div>
-              ) : (
-                <select
-                  name="area" value={form.area} onChange={handleChange}
-                  className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg
-                            px-3 py-2.5 text-sm focus:outline-none focus:border-green-500"
+            {nuevaArea ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={nuevaAreaNombre}
+                  onChange={e => setNuevaAreaNombre(e.target.value)}
+                  placeholder="Nombre del área..."
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5
+                             text-white text-sm focus:outline-none focus:border-green-500"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!nuevaAreaNombre.trim()) return
+                    const { data } = await supabase
+                      .from('areas')
+                      .insert({ nombre: nuevaAreaNombre.trim(), departamento: deptoActivo })
+                      .select().single()
+                    if (data) {
+                      setForm(prev => ({ ...prev, area: data.nombre }))
+                      setNuevaArea(false)
+                      setNuevaAreaNombre('')
+                      queryClient.invalidateQueries({ queryKey: ['areas', deptoActivo] })
+                    }
+                  }}
+                  className="px-3 py-2.5 bg-green-700 hover:bg-green-600 text-white text-sm
+                             rounded-lg transition font-medium"
                 >
-                  <option value="">Seleccionar área...</option>
-                  {areas.map(a => (
-                    <option key={a.id} value={a.nombre}>{a.nombre}</option>
-                  ))}
-                </select>
-              )}
-            </div>
+                  Crear
+                </button>
+              </div>
+            ) : (
+              <select
+                name="area" value={form.area} onChange={handleChange}
+                className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg
+                           px-3 py-2.5 text-sm focus:outline-none focus:border-green-500"
+              >
+                <option value="">Seleccionar área...</option>
+                {areas.map(a => (
+                  <option key={a.id} value={a.nombre}>{a.nombre}</option>
+                ))}
+              </select>
+            )}
+          </div>
 
           {/* Tipo */}
           <div>
@@ -617,6 +635,31 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
               )}
             </>
           )}
+
+          {/* ── DURACIÓN ESTIMADA ──────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-3.5 h-3.5 text-gray-500" />
+              <label className="text-sm text-gray-400">Duración estimada</label>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {DURACIONES.map(d => (
+                <button
+                  key={d.value} type="button"
+                  onClick={() => setForm(prev => ({ ...prev, duracion_estimada_min: d.value }))}
+                  className={`py-2 px-1 rounded-lg border text-xs font-medium transition
+                    ${form.duracion_estimada_min === d.value
+                      ? 'bg-green-900/50 border-green-600 text-green-300'
+                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-600 mt-1.5">
+              Usado para visualizar bloques en la agenda del calendario
+            </p>
+          </div>
 
           {/* Observaciones */}
           <div>
