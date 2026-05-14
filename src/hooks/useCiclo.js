@@ -108,6 +108,9 @@ export function useCrearCiclo() {
       const tareas = []
 
       for (const p of plantillas) {
+        // Heredar duración y ponderación desde la plantilla
+        const duracion    = p.duracion_estimada_min ?? 60
+        const ponderacion = p.ponderacion ?? null
 
         // ── Semanal → N tareas con serie_id ──────────────────
         if (p.tipo === 'recurrente_mes' && p.frecuencia === 'semanal') {
@@ -115,22 +118,24 @@ export function useCrearCiclo() {
           const fechas  = calcularFechasSemanales(p.dia_del_mes, mes, anio)
           for (const fecha of fechas) {
             tareas.push({
-              ciclo_id:        ciclo.id,
-              template_id:     p.id,
-              responsable_id:  p.responsable_id,
-              nombre_tarea:    p.nombre_tarea,
-              area:            p.area,
-              departamento:    p.departamento,
-              condicion:       'habil',
-              fecha_inicio:    fechaStr(fecha),
-              fecha_termino:   fechaStr(fecha),
-              estado:          'pendiente',
-              tipo_tarea:      'adicional',
-              tipo:            'recurrente_mes',
-              frecuencia:      'semanal',
-              serie_id:        serieId,
-              mes_calendario:  mes,
-              anio_calendario: anio,
+              ciclo_id:              ciclo.id,
+              template_id:          p.id,
+              responsable_id:       p.responsable_id,
+              nombre_tarea:         p.nombre_tarea,
+              area:                 p.area,
+              departamento:         p.departamento,
+              condicion:            'habil',
+              fecha_inicio:         fechaStr(fecha),
+              fecha_termino:        fechaStr(fecha),
+              estado:               'pendiente',
+              tipo_tarea:           'adicional',
+              tipo:                 'recurrente_mes',
+              frecuencia:           'semanal',
+              serie_id:             serieId,
+              mes_calendario:       mes,
+              anio_calendario:      anio,
+              ponderacion,
+              duracion_estimada_min: duracion,
             })
           }
           continue
@@ -142,24 +147,26 @@ export function useCrearCiclo() {
           const dia1    = p.dia_del_mes
           const dia2    = p.dia_del_mes_2 ?? (dia1 <= 15 ? dia1 + 15 : dia1)
           const fechas  = calcularFechasQuincenales(dia1, dia2, mes, anio, feriadosComb)
-          for (const f of fechas) {  // 👈 corregido: "f" en vez de "fecha"
+          for (const f of fechas) {
             tareas.push({
-              ciclo_id:        ciclo.id,
-              template_id:     p.id,
-              responsable_id:  p.responsable_id,
-              nombre_tarea:    p.nombre_tarea,
-              area:            p.area,
-              departamento:    p.departamento,
-              condicion:       'habil',
-              fecha_inicio:    fechaStr(f.inicio),   // 👈 corregido
-              fecha_termino:   fechaStr(f.termino),  // 👈 corregido
-              estado:          'pendiente',
-              tipo_tarea:      'adicional',
-              tipo:            'recurrente_mes',
-              frecuencia:      'quincenal',
-              serie_id:        serieId,
-              mes_calendario:  mes,
-              anio_calendario: anio,
+              ciclo_id:              ciclo.id,
+              template_id:          p.id,
+              responsable_id:       p.responsable_id,
+              nombre_tarea:         p.nombre_tarea,
+              area:                 p.area,
+              departamento:         p.departamento,
+              condicion:            'habil',
+              fecha_inicio:         fechaStr(f.inicio),
+              fecha_termino:        fechaStr(f.termino),
+              estado:               'pendiente',
+              tipo_tarea:           'adicional',
+              tipo:                 'recurrente_mes',
+              frecuencia:           'quincenal',
+              serie_id:             serieId,
+              mes_calendario:       mes,
+              anio_calendario:      anio,
+              ponderacion,
+              duracion_estimada_min: duracion,
             })
           }
           continue
@@ -168,22 +175,24 @@ export function useCrearCiclo() {
         // ── Mensual / cierre → 1 tarea normal ────────────────
         const { fecha_inicio, fecha_termino } = calcularFechasTarea(p, mes, anio)
         tareas.push({
-          ciclo_id:        ciclo.id,
-          template_id:     p.id,
-          responsable_id:  p.responsable_id,
-          nombre_tarea:    p.nombre_tarea,
-          area:            p.area,
-          departamento:    p.departamento,
-          condicion:       p.condicion,
+          ciclo_id:              ciclo.id,
+          template_id:          p.id,
+          responsable_id:       p.responsable_id,
+          nombre_tarea:         p.nombre_tarea,
+          area:                 p.area,
+          departamento:         p.departamento,
+          condicion:            p.condicion,
           fecha_inicio,
           fecha_termino,
-          estado:          'pendiente',
-          tipo_tarea:      p.tipo === 'cierre' ? 'cierre' : 'adicional',
-          tipo:            p.tipo ?? 'cierre',
-          frecuencia:      p.frecuencia ?? null,
-          serie_id:        null,
-          mes_calendario:  mes,
-          anio_calendario: anio,
+          estado:               'pendiente',
+          tipo_tarea:           p.tipo === 'cierre' ? 'cierre' : 'adicional',
+          tipo:                 p.tipo ?? 'cierre',
+          frecuencia:           p.frecuencia ?? null,
+          serie_id:             null,
+          mes_calendario:       mes,
+          anio_calendario:      anio,
+          ponderacion,
+          duracion_estimada_min: duracion,
         })
       }
 

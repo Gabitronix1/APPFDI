@@ -2,31 +2,44 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
-import { X, Save, RefreshCw, CalendarClock, Sparkles } from 'lucide-react'
+import { X, Save, RefreshCw, CalendarClock, Sparkles, Clock } from 'lucide-react'
 import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente } from '../lib/feriados'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
+// Opciones de duración predefinidas
+const DURACIONES = [
+  { label: '15 min',    value: 15  },
+  { label: '30 min',    value: 30  },
+  { label: '45 min',    value: 45  },
+  { label: '1 hora',    value: 60  },
+  { label: '1.5 h',     value: 90  },
+  { label: '2 horas',   value: 120 },
+  { label: '3 horas',   value: 180 },
+  { label: 'Día comp.', value: 480 },
+]
+
 export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const queryClient = useQueryClient()
   const { profile } = useAuth()
 
-  const [nombre,        setNombre]        = useState(tarea.nombre_tarea)
-  const [area,          setArea]          = useState(tarea.area ?? '')
-  const [observaciones, setObservaciones] = useState(tarea.observaciones ?? '')
-  const [reasignando,   setReasignando]   = useState(false)
-  const [responsableId, setResponsableId] = useState(tarea.responsable_id ?? '')
-  const [fechaTermino,  setFechaTermino]  = useState(tarea.fecha_termino)
-  const [diaHabilFijo,  setDiaHabilFijo]  = useState(tarea.condicion === 'habil')
-  const [diaHabilNum,   setDiaHabilNum]   = useState(
+  const [nombre,          setNombre]          = useState(tarea.nombre_tarea)
+  const [area,            setArea]            = useState(tarea.area ?? '')
+  const [observaciones,   setObservaciones]   = useState(tarea.observaciones ?? '')
+  const [reasignando,     setReasignando]     = useState(false)
+  const [responsableId,   setResponsableId]   = useState(tarea.responsable_id ?? '')
+  const [fechaTermino,    setFechaTermino]    = useState(tarea.fecha_termino)
+  const [diaHabilFijo,    setDiaHabilFijo]    = useState(tarea.condicion === 'habil')
+  const [diaHabilNum,     setDiaHabilNum]     = useState(
     tarea.condicion === 'habil' ? String(tarea.dia_del_mes ?? '') : ''
   )
-  const [propagarSerie, setPropagar]      = useState(false)
-  const [loading,       setLoading]       = useState(false)
-  const [error,         setError]         = useState('')
-  const [nuevaArea,         setNuevaArea]         = useState(false)
-  const [nuevaAreaNombre,   setNuevaAreaNombre]   = useState('')
+  const [duracion,        setDuracion]        = useState(tarea.duracion_estimada_min ?? 60)
+  const [propagarSerie,   setPropagar]        = useState(false)
+  const [loading,         setLoading]         = useState(false)
+  const [error,           setError]           = useState('')
+  const [nuevaArea,           setNuevaArea]           = useState(false)
+  const [nuevaAreaNombre,     setNuevaAreaNombre]     = useState('')
 
   const esSerie = !!tarea.serie_id
 
@@ -108,12 +121,13 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
 
     try {
       const cambios = {
-        nombre_tarea:   nombre.trim(),
-        area:           area || 'General',
-        observaciones:  observaciones.trim() || null,
-        responsable_id: responsableId || tarea.responsable_id,
-        fecha_termino:  fechaTermino,
-        condicion:      diaHabilFijo ? 'habil' : 'dia_real',
+        nombre_tarea:          nombre.trim(),
+        area:                  area || 'General',
+        observaciones:         observaciones.trim() || null,
+        responsable_id:        responsableId || tarea.responsable_id,
+        fecha_termino:         fechaTermino,
+        condicion:             diaHabilFijo ? 'habil' : 'dia_real',
+        duracion_estimada_min: duracion,
       }
 
       const { error: err } = await supabase
@@ -127,20 +141,22 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
         await supabase
           .from('tasks')
           .update({
-            nombre_tarea:   cambios.nombre_tarea,
-            area:           cambios.area,
-            observaciones:  cambios.observaciones,
-            responsable_id: cambios.responsable_id,
+            nombre_tarea:          cambios.nombre_tarea,
+            area:                  cambios.area,
+            observaciones:         cambios.observaciones,
+            responsable_id:        cambios.responsable_id,
+            duracion_estimada_min: duracion,
           })
           .in('id', ids)
       }
 
       if (tarea.template_id) {
         const cambiosPlantilla = {
-          nombre_tarea:   cambios.nombre_tarea,
-          area:           cambios.area,
-          responsable_id: cambios.responsable_id,
-          condicion:      cambios.condicion,
+          nombre_tarea:          cambios.nombre_tarea,
+          area:                  cambios.area,
+          responsable_id:        cambios.responsable_id,
+          condicion:             cambios.condicion,
+          duracion_estimada_min: duracion,
         }
         if (diaHabilFijo && diaHabilNum) {
           cambiosPlantilla.dia_del_mes = parseInt(diaHabilNum)
@@ -163,7 +179,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto scroll-dark">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -293,7 +309,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
             </div>
           )}
 
-          {/* Día hábil fijo */}
+          {/* Día hábil fijo + fecha */}
           {!esSerie && (
             <>
               <label className={`flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer border transition
@@ -360,6 +376,31 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
               )}
             </>
           )}
+
+          {/* ── DURACIÓN ESTIMADA ──────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="w-3.5 h-3.5 text-gray-500" />
+              <label className="text-sm text-gray-400">Duración estimada</label>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {DURACIONES.map(d => (
+                <button
+                  key={d.value} type="button"
+                  onClick={() => setDuracion(d.value)}
+                  className={`py-2 px-1 rounded-lg border text-xs font-medium transition
+                    ${duracion === d.value
+                      ? 'bg-green-900/50 border-green-600 text-green-300'
+                      : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-600 mt-1.5">
+              Usado para visualizar bloques en la agenda del calendario
+            </p>
+          </div>
 
           {/* Observaciones */}
           <div>
