@@ -89,28 +89,31 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
     const pctReal = Math.min(100, Math.max(0, Number(form.pct_real) || 0))
     const estado  = pctReal === 100 ? 'completado' : pctReal > 0 ? 'en_progreso' : 'no_iniciado'
 
-    const payload = {
-      project_id:    proyectoId,
-      edt:           form.edt.trim() || null,
-      nombre:        form.nombre.trim(),
-      fecha_inicio:  form.fecha_inicio,
-      fecha_fin:     form.fecha_fin,
-      duracion_dias: calcularDuracion(form.fecha_inicio, form.fecha_fin),
+    // Campos comunes a insert y update
+    const camposBase = {
+      edt:          form.edt.trim() || null,
+      nombre:       form.nombre.trim(),
+      fecha_inicio: form.fecha_inicio,
+      fecha_fin:    form.fecha_fin,
       estado,
-      comentarios:   form.comentarios.trim() || null,
-      pct_real:      pctReal,
-      prioridad:     form.prioridad,
+      comentarios:  form.comentarios.trim() || null,
+      pct_real:     pctReal,
+      prioridad:    form.prioridad,
     }
 
     let deliverableId = entregable?.id
 
     if (editando) {
+      // duracion_dias es columna generada — no se puede actualizar directamente
       const { error: err } = await supabase
-        .from('project_deliverables').update(payload).eq('id', deliverableId)
+        .from('project_deliverables').update(camposBase).eq('id', deliverableId)
       if (err) { setError('Error al guardar: ' + err.message); setLoading(false); return }
     } else {
+      // Al crear sí se puede incluir duracion_dias
       const { data, error: err } = await supabase
-        .from('project_deliverables').insert(payload).select().single()
+        .from('project_deliverables')
+        .insert({ ...camposBase, project_id: proyectoId, duracion_dias: calcularDuracion(form.fecha_inicio, form.fecha_fin) })
+        .select().single()
       if (err) { setError('Error al guardar: ' + err.message); setLoading(false); return }
       deliverableId = data.id
     }
