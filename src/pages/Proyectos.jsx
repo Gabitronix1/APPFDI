@@ -6,6 +6,13 @@ import ProyectoCard from '../components/ProyectoCard'
 import ProyectoModal from '../components/ProyectoModal'
 import { Plus, FolderKanban } from 'lucide-react'
 
+// ── Factor de prioridad ───────────────────────────────────────────────────────
+export const FACTOR_PRIORIDAD = { alta: 3, media: 2, baja: 1 }
+
+export function factorP(prioridad) {
+  return FACTOR_PRIORIDAD[prioridad] ?? 1
+}
+
 function calcularPctPlan(fechaInicio, fechaFin) {
   const hoy    = new Date()
   hoy.setHours(0, 0, 0, 0)
@@ -18,16 +25,55 @@ function calcularPctPlan(fechaInicio, fechaFin) {
   return Math.round((pasado / total) * 100)
 }
 
-function calcularPonderado(entregables, campo) {
-  const totalDias = entregables.reduce((s, d) => s + (d.duracion_dias || 1), 0)
-  if (totalDias === 0) return 0
+// Ponderación por días × factor de prioridad del entregable
+export function calcularPonderado(entregables, campo) {
+  const totalPeso = entregables.reduce((s, d) =>
+    s + (d.duracion_dias || 1) * factorP(d.prioridad), 0)
+  if (totalPeso === 0) return 0
   const suma = entregables.reduce((s, d) => {
     const valor = campo === 'pct_plan'
       ? calcularPctPlan(d.fecha_inicio, d.fecha_fin)
       : (Number(d.pct_real) || 0)
-    return s + valor * (d.duracion_dias || 1)
+    return s + valor * (d.duracion_dias || 1) * factorP(d.prioridad)
   }, 0)
-  return Math.round(suma / totalDias)
+  return Math.round(suma / totalPeso)
+}
+
+// Ponderación global por proyectos — días × prioridad entregable × prioridad proyecto
+export function calcularPonderadoGlobal(proyectos, campo) {
+  const totalPeso = proyectos.reduce((s, p) => {
+    const fp = factorP(p.prioridad)
+    return s + (p.project_deliverables ?? []).reduce((sd, d) =>
+      sd + (d.duracion_dias || 1) * factorP(d.prioridad) * fp, 0)
+  }, 0)
+  if (totalPeso === 0) return 0
+  const suma = proyectos.reduce((s, p) => {
+    const fp = factorP(p.prioridad)
+    return s + (p.project_deliverables ?? []).reduce((sd, d) => {
+      const valor = campo === 'pct_plan'
+        ? calcularPctPlan(d.fecha_inicio, d.fecha_fin)
+        : (Number(d.pct_real) || 0)
+      return sd + valor * (d.duracion_dias || 1) * factorP(d.prioridad) * fp
+    }, 0)
+  }, 0)
+  return Math.round(suma / totalPeso)
+}
+
+// ─── BADGE PRIORIDAD ──────────────────────────────────────────────────────────
+export function BadgePrioridad({ prioridad, size = 'sm' }) {
+  const cfg = {
+    alta:  { label: '↑ Alta',   cls: 'bg-red-900/50 text-red-300 border-red-800' },
+    media: { label: '→ Media',  cls: 'bg-amber-900/50 text-amber-300 border-amber-800' },
+    baja:  { label: '↓ Baja',   cls: 'bg-gray-800 text-gray-400 border-gray-700' },
+  }
+  const { label, cls } = cfg[prioridad] ?? cfg.media
+  return (
+    <span className={`inline-flex items-center border rounded-full font-medium
+      ${size === 'xs' ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'}
+      ${cls}`}>
+      {label}
+    </span>
+  )
 }
 
 // ─── RING SVG ─────────────────────────────────────────────────────────────────
@@ -103,10 +149,13 @@ function PanelEjecutivo({ proyectos, onClickProyecto }) {
                 hover:bg-gray-800 hover:border-gray-600 transition-all group w-full"
             >
               {/* EDT + nombre + ring */}
-              <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex-1 min-w-0">
-                  <span className="text-xs text-gray-600 font-mono">{proyecto.edt}</span>
-                  <p className="text-white text-sm font-medium leading-snug mt-0.5 line-clamp-2">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-xs text-gray-600 font-mono">{proyecto.edt}</span>
+                    <BadgePrioridad prioridad={proyecto.prioridad} size="xs" />
+                  </div>
+                  <p className="text-white text-sm font-medium leading-snug line-clamp-2">
                     {proyecto.nombre}
                   </p>
                 </div>
@@ -161,7 +210,6 @@ export default function Proyectos() {
   const [modalProyecto, setModalProyecto] = useState(false)
   const [anio, setAnio] = useState(2026)
 
-  // Refs para scroll a cada proyecto
   const proyectoRefs = useRef({})
 
   const { data: proyectos = [], isLoading } = useQuery({
@@ -202,12 +250,12 @@ export default function Proyectos() {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  // % global ponderado por días × prioridad entregable × prioridad proyecto
   const { pctPlanGlobal, pctRealGlobal, totalEntregables } = useMemo(() => {
-    const todosEntregables = proyectos.flatMap(p => p.project_deliverables ?? [])
     return {
-      pctPlanGlobal:    calcularPonderado(todosEntregables, 'pct_plan'),
-      pctRealGlobal:    calcularPonderado(todosEntregables, 'pct_real'),
-      totalEntregables: todosEntregables.length,
+      pctPlanGlobal:    calcularPonderadoGlobal(proyectos, 'pct_plan'),
+      pctRealGlobal:    calcularPonderadoGlobal(proyectos, 'pct_real'),
+      totalEntregables: proyectos.reduce((s, p) => s + (p.project_deliverables ?? []).length, 0),
     }
   }, [proyectos])
 
@@ -261,22 +309,17 @@ export default function Proyectos() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 bg-gray-800 border border-gray-700 rounded-lg p-1">
             {[2024, 2025, 2026].map(a => (
-              <button
-                key={a}
-                onClick={() => setAnio(a)}
+              <button key={a} onClick={() => setAnio(a)}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition
-                  ${anio === a ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
-              >
+                  ${anio === a ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}>
                 {a}
               </button>
             ))}
           </div>
           {profile?.rol === 'admin' && (
-            <button
-              onClick={() => setModalProyecto(true)}
+            <button onClick={() => setModalProyecto(true)}
               className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600
-                         text-white text-sm font-medium px-4 py-2 rounded-lg transition"
-            >
+                         text-white text-sm font-medium px-4 py-2 rounded-lg transition">
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Nuevo proyecto</span>
             </button>
@@ -291,6 +334,9 @@ export default function Proyectos() {
             <h2 className="text-white font-semibold text-base">{nombreDepto}</h2>
             <p className="text-gray-500 text-sm mt-0.5">
               Avance global PO {anio} · {proyectos.length} proyectos · {totalEntregables} entregables
+            </p>
+            <p className="text-gray-600 text-xs mt-1">
+              Ponderado por duración × prioridad
             </p>
           </div>
           <div className="flex items-end gap-5 shrink-0">
@@ -352,10 +398,7 @@ export default function Proyectos() {
 
       {/* ── PANEL EJECUTIVO ──────────────────────────────────────── */}
       {!isLoading && proyectos.length > 0 && (
-        <PanelEjecutivo
-          proyectos={proyectos}
-          onClickProyecto={scrollAProyecto}
-        />
+        <PanelEjecutivo proyectos={proyectos} onClickProyecto={scrollAProyecto} />
       )}
 
       {/* ── LISTA PROYECTOS ──────────────────────────────────────── */}
@@ -368,10 +411,8 @@ export default function Proyectos() {
           <FolderKanban className="w-12 h-12 text-gray-700 mx-auto mb-3" />
           <p className="text-gray-500">No hay proyectos para {anio}</p>
           {profile?.rol === 'admin' && (
-            <button
-              onClick={() => setModalProyecto(true)}
-              className="mt-4 text-blue-400 hover:text-blue-300 text-sm transition"
-            >
+            <button onClick={() => setModalProyecto(true)}
+              className="mt-4 text-blue-400 hover:text-blue-300 text-sm transition">
               Crear el primero
             </button>
           )}
@@ -379,15 +420,10 @@ export default function Proyectos() {
       ) : (
         <div className="space-y-4">
           {proyectos.map(proyecto => (
-            <div
-              key={proyecto.id}
+            <div key={proyecto.id}
               ref={el => { proyectoRefs.current[proyecto.id] = el }}
-              className="scroll-mt-6"
-            >
-              <ProyectoCard
-                proyecto={proyecto}
-                onCambio={onCambio}
-              />
+              className="scroll-mt-6">
+              <ProyectoCard proyecto={proyecto} onCambio={onCambio} />
             </div>
           ))}
         </div>
