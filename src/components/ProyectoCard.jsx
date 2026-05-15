@@ -49,6 +49,11 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
     : cumplEntregable >= 75  ? 'text-amber-400'
     : 'text-red-400'
 
+  // Fondo tenue según estado — estilo C, sin separadores blancos
+  const bgEstado = estado === 'completado'  ? 'bg-green-900/[0.07]'
+    : estado === 'en_progreso' ? 'bg-blue-900/[0.07]'
+    : 'bg-white/[0.02]'
+
   async function guardar(nuevoVal) {
     setGuardando(true)
     const nuevoEstado = nuevoVal === 100 ? 'completado' : nuevoVal > 0 ? 'en_progreso' : 'no_iniciado'
@@ -61,8 +66,10 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
   }
 
   return (
-    <div className={`px-5 py-4 hover:bg-gray-800/30 transition group
-      ${estado === 'no_iniciado' ? 'opacity-70' : ''}`}>
+    <div className={`mx-3 my-1.5 rounded-xl px-4 py-3.5 transition group
+      ${bgEstado}
+      ${estado === 'no_iniciado' ? 'opacity-60' : ''}
+      hover:brightness-110`}>
 
       <div className="flex items-start gap-4">
         <div className="flex-1 min-w-0">
@@ -108,11 +115,11 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
             </div>
           )}
 
-          {/* Barra doble plan + real */}
-          <div className="relative w-full bg-gray-800 rounded-full h-2 mb-1">
-            <div className="absolute top-0 left-0 h-2 rounded-full bg-gray-600/50 transition-all duration-500"
+          {/* Barra doble plan + real — más delgada para que encaje con el estilo */}
+          <div className="relative w-full bg-gray-800/80 rounded-full h-1.5 mb-1">
+            <div className="absolute top-0 left-0 h-1.5 rounded-full bg-gray-600/50 transition-all duration-500"
               style={{ width: `${pctPlan}%` }} />
-            <div className={`absolute top-0 left-0 h-2 rounded-full transition-all duration-500 ${colorBarraReal}`}
+            <div className={`absolute top-0 left-0 h-1.5 rounded-full transition-all duration-500 ${colorBarraReal}`}
               style={{ width: `${pctLocal}%` }} />
           </div>
           <div className="flex items-center justify-between mb-2">
@@ -229,7 +236,6 @@ export default function ProyectoCard({ proyecto, onCambio }) {
               <span className="text-xs text-gray-600 font-mono bg-gray-800 px-2 py-0.5 rounded">
                 EDT {proyecto.edt}
               </span>
-              {/* Badge prioridad del proyecto */}
               <BadgePrioridad prioridad={proyecto.prioridad} />
               {proyecto.responsable && (
                 <span className="text-xs text-gray-500">{proyecto.responsable.nombre}</span>
@@ -303,10 +309,10 @@ export default function ProyectoCard({ proyecto, onCambio }) {
           {entregables.length === 0 ? (
             <div className="px-6 py-6 text-center text-gray-600 text-sm">Sin entregables aún</div>
           ) : (
-            <div className="divide-y divide-gray-800/50">
+            // py-2 da respiro arriba y abajo, los EntregableRow tienen mx-3 my-1.5
+            <div className="py-2">
               {[...entregables]
                 .sort((a, b) => {
-                  // Ordenar por prioridad desc, luego por orden/edt
                   const fp = { alta: 3, media: 2, baja: 1 }
                   const pa = fp[a.prioridad] ?? 2, pb = fp[b.prioridad] ?? 2
                   if (pa !== pb) return pb - pa
