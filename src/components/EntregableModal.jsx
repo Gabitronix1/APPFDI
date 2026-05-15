@@ -3,6 +3,12 @@ import { supabase } from '../lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { X, Plus, Trash2 } from 'lucide-react'
 
+const PRIORIDADES = [
+  { value: 'alta',  label: '↑ Alta',  cls: 'bg-red-900/40 border-red-700 text-red-300'       },
+  { value: 'media', label: '→ Media', cls: 'bg-amber-900/40 border-amber-700 text-amber-300'  },
+  { value: 'baja',  label: '↓ Baja',  cls: 'bg-gray-800 border-gray-600 text-gray-400'        },
+]
+
 export default function EntregableModal({ proyectoId, entregable, onClose, onGuardado }) {
   const editando = !!entregable
 
@@ -20,6 +26,7 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
     fecha_fin:    entregable?.fecha_fin    ?? '',
     comentarios:  entregable?.comentarios  ?? '',
     pct_real:     entregable?.pct_real     ?? 0,
+    prioridad:    entregable?.prioridad    ?? 'media',
   })
   const [responsables, setResponsables] = useState(responsablesIniciales)
   const [loading, setLoading]           = useState(false)
@@ -57,11 +64,10 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
     }))
   }
 
-  // Calcula duración en días entre dos fechas
   function calcularDuracion(inicio, fin) {
     if (!inicio || !fin) return null
-    const d1 = new Date(inicio + 'T00:00:00')
-    const d2 = new Date(fin    + 'T00:00:00')
+    const d1   = new Date(inicio + 'T00:00:00')
+    const d2   = new Date(fin    + 'T00:00:00')
     const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24))
     return diff > 0 ? diff : 1
   }
@@ -93,6 +99,7 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
       estado,
       comentarios:   form.comentarios.trim() || null,
       pct_real:      pctReal,
+      prioridad:     form.prioridad,
     }
 
     let deliverableId = entregable?.id
@@ -108,11 +115,9 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
       deliverableId = data.id
     }
 
-    // Actualizar responsables — borrar anteriores e insertar nuevos
-    await supabase
-      .from('project_deliverable_responsables')
-      .delete()
-      .eq('deliverable_id', deliverableId)
+    // Actualizar responsables
+    await supabase.from('project_deliverable_responsables')
+      .delete().eq('deliverable_id', deliverableId)
 
     if (responsables.length > 0) {
       const { error: errResp } = await supabase
@@ -144,7 +149,7 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          {/* EDT + Nombre en fila */}
+          {/* EDT + Nombre */}
           <div className="flex gap-3">
             <div className="w-28 shrink-0">
               <label className="block text-sm text-gray-400 mb-1">EDT</label>
@@ -202,14 +207,34 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
             </p>
           )}
 
+          {/* ── PRIORIDAD DEL ENTREGABLE ──────────────────────────── */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Prioridad</label>
+            <div className="grid grid-cols-3 gap-2">
+              {PRIORIDADES.map(p => (
+                <button
+                  key={p.value} type="button"
+                  onClick={() => setForm(prev => ({ ...prev, prioridad: p.value }))}
+                  className={`py-2.5 rounded-xl border text-xs font-semibold transition
+                    ${form.prioridad === p.value
+                      ? p.cls
+                      : 'bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-600'}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-600 mt-1.5">
+              Afecta el peso del entregable en el cálculo del avance del proyecto
+            </p>
+          </div>
+
           {/* Responsables */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm text-gray-400">Responsables</label>
-              <button
-                type="button" onClick={agregarResponsable}
-                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition"
-              >
+              <button type="button" onClick={agregarResponsable}
+                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 transition">
                 <Plus className="w-3.5 h-3.5" />
                 Agregar
               </button>
@@ -240,10 +265,8 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
                       <option value="principal">Principal</option>
                       <option value="apoyo">Apoyo</option>
                     </select>
-                    <button
-                      type="button" onClick={() => quitarResponsable(idx)}
-                      className="p-1.5 text-gray-600 hover:text-red-400 transition"
-                    >
+                    <button type="button" onClick={() => quitarResponsable(idx)}
+                      className="p-1.5 text-gray-600 hover:text-red-400 transition">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
@@ -295,11 +318,9 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
 
           {error && <p className="text-red-400 text-sm">{error}</p>}
 
-          <button
-            type="submit" disabled={loading}
+          <button type="submit" disabled={loading}
             className="w-full bg-blue-700 hover:bg-blue-600 text-white font-semibold
-                       py-3 rounded-xl transition disabled:opacity-50"
-          >
+                       py-3 rounded-xl transition disabled:opacity-50">
             {loading ? 'Guardando...' : editando ? 'Guardar cambios' : 'Agregar entregable'}
           </button>
         </form>

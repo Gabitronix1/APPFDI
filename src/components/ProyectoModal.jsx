@@ -4,17 +4,24 @@ import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { X } from 'lucide-react'
 
+const PRIORIDADES = [
+  { value: 'alta',  label: '↑ Alta',  cls: 'bg-red-900/40 border-red-700 text-red-300'       },
+  { value: 'media', label: '→ Media', cls: 'bg-amber-900/40 border-amber-700 text-amber-300'  },
+  { value: 'baja',  label: '↓ Baja',  cls: 'bg-gray-800 border-gray-600 text-gray-400'        },
+]
+
 export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
   const { profile } = useAuth()
   const editando = !!proyecto
 
   const [form, setForm] = useState({
-    edt:            proyecto?.edt           ?? '',
-    nombre:         proyecto?.nombre        ?? '',
-    descripcion:    proyecto?.descripcion   ?? '',
-    fecha_inicio:   proyecto?.fecha_inicio  ?? '',
-    fecha_fin:      proyecto?.fecha_fin     ?? '',
+    edt:            proyecto?.edt            ?? '',
+    nombre:         proyecto?.nombre         ?? '',
+    descripcion:    proyecto?.descripcion    ?? '',
+    fecha_inicio:   proyecto?.fecha_inicio   ?? '',
+    fecha_fin:      proyecto?.fecha_fin      ?? '',
     responsable_id: proyecto?.responsable_id ?? '',
+    prioridad:      proyecto?.prioridad      ?? 'media',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
@@ -47,9 +54,8 @@ export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
       fecha_inicio:   form.fecha_inicio,
       fecha_fin:      form.fecha_fin,
       responsable_id: form.responsable_id || null,
+      prioridad:      form.prioridad,
       anio,
-      // Al crear, se llena con el departamento del usuario logueado
-      // Al editar, se conserva el departamento existente (no se sobreescribe)
       ...(!editando && { departamento: profile?.departamento ?? null }),
     }
 
@@ -81,6 +87,8 @@ export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* EDT + Responsable */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm text-gray-400 mb-1">EDT</label>
@@ -106,6 +114,7 @@ export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
             </div>
           </div>
 
+          {/* Nombre */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">
               Nombre <span className="text-red-400">*</span>
@@ -118,6 +127,7 @@ export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
             />
           </div>
 
+          {/* Descripción */}
           <div>
             <label className="block text-sm text-gray-400 mb-1">Descripción</label>
             <textarea
@@ -128,6 +138,7 @@ export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
             />
           </div>
 
+          {/* Fechas */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm text-gray-400 mb-1">
@@ -149,6 +160,30 @@ export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
                            text-white text-sm focus:outline-none focus:border-blue-500"
               />
             </div>
+          </div>
+
+          {/* ── PRIORIDAD DEL PROYECTO ────────────────────────────── */}
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">
+              Prioridad del proyecto
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {PRIORIDADES.map(p => (
+                <button
+                  key={p.value} type="button"
+                  onClick={() => setForm(prev => ({ ...prev, prioridad: p.value }))}
+                  className={`py-2.5 rounded-xl border text-xs font-semibold transition
+                    ${form.prioridad === p.value
+                      ? p.cls
+                      : 'bg-gray-800 border-gray-700 text-gray-500 hover:border-gray-600'}`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-600 mt-1.5">
+              Afecta el peso del proyecto en el cálculo del avance global
+            </p>
           </div>
 
           {error && <p className="text-red-400 text-sm">{error}</p>}

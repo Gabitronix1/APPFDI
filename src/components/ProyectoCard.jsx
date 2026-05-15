@@ -3,9 +3,8 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import EntregableModal from './EntregableModal'
 import ProyectoModal from './ProyectoModal'
-import {
-  ChevronDown, ChevronUp, Plus, Trash2, Pencil, Calendar
-} from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Calendar } from 'lucide-react'
+import { calcularPonderado, BadgePrioridad } from '../pages/Proyectos'
 
 function calcularPctPlan(fechaInicio, fechaFin) {
   const hoy    = new Date()
@@ -17,18 +16,6 @@ function calcularPctPlan(fechaInicio, fechaFin) {
   const total  = fin.getTime() - inicio.getTime()
   const pasado = hoy.getTime() - inicio.getTime()
   return Math.round((pasado / total) * 100)
-}
-
-function calcularPonderado(entregables, campo) {
-  const totalDias = entregables.reduce((s, d) => s + (d.duracion_dias || 1), 0)
-  if (totalDias === 0) return 0
-  const suma = entregables.reduce((s, d) => {
-    const valor = campo === 'pct_plan'
-      ? calcularPctPlan(d.fecha_inicio, d.fecha_fin)
-      : (Number(d.pct_real) || 0)
-    return s + valor * (d.duracion_dias || 1)
-  }, 0)
-  return Math.round(suma / totalDias)
 }
 
 // ─── ENTREGABLE ROW ───────────────────────────────────────────────────────────
@@ -77,11 +64,11 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
     <div className={`px-5 py-4 hover:bg-gray-800/30 transition group
       ${estado === 'no_iniciado' ? 'opacity-70' : ''}`}>
 
-      {/* Fila principal */}
       <div className="flex items-start gap-4">
-        {/* Info izquierda */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+
+          {/* Nombre + badges */}
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="text-xs text-gray-600 font-mono shrink-0">{entregable.edt}</span>
             <p className={`text-sm font-medium truncate ${
               estado === 'completado' ? 'text-gray-500 line-through' : 'text-gray-200'
@@ -91,6 +78,7 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${colorBadge}`}>
               {labelBadge}
             </span>
+            <BadgePrioridad prioridad={entregable.prioridad} size="xs" />
           </div>
 
           {/* Fechas */}
@@ -122,14 +110,10 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
 
           {/* Barra doble plan + real */}
           <div className="relative w-full bg-gray-800 rounded-full h-2 mb-1">
-            <div
-              className="absolute top-0 left-0 h-2 rounded-full bg-gray-600/50 transition-all duration-500"
-              style={{ width: `${pctPlan}%` }}
-            />
-            <div
-              className={`absolute top-0 left-0 h-2 rounded-full transition-all duration-500 ${colorBarraReal}`}
-              style={{ width: `${pctLocal}%` }}
-            />
+            <div className="absolute top-0 left-0 h-2 rounded-full bg-gray-600/50 transition-all duration-500"
+              style={{ width: `${pctPlan}%` }} />
+            <div className={`absolute top-0 left-0 h-2 rounded-full transition-all duration-500 ${colorBarraReal}`}
+              style={{ width: `${pctLocal}%` }} />
           </div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-gray-600">Plan {pctPlan}%</span>
@@ -140,8 +124,7 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
           <div className="flex items-center gap-3">
             <input
               type="range" min="0" max="100" step="5"
-              value={pctLocal}
-              disabled={guardando}
+              value={pctLocal} disabled={guardando}
               onChange={e => setPctLocal(Number(e.target.value))}
               onMouseUp={e  => guardar(Number(e.target.value))}
               onTouchEnd={e => guardar(Number(e.target.value))}
@@ -162,7 +145,7 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
           </div>
         </div>
 
-        {/* NÚMEROS PROTAGONISTAS del entregable — columna derecha */}
+        {/* Números protagonistas */}
         <div className="flex flex-col items-end gap-1 shrink-0 min-w-[72px] pt-0.5">
           <span className={`text-2xl font-bold leading-none ${colorTextoReal}`}>
             {guardando ? '…' : `${pctLocal}%`}
@@ -237,19 +220,17 @@ export default function ProyectoCard({ proyecto, onCambio }) {
     <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
 
       {/* ── HEADER PROYECTO ─────────────────────────────────────── */}
-      <div
-        className="px-6 py-5 cursor-pointer hover:bg-gray-800/40 transition"
-        onClick={() => setExpandido(!expandido)}
-      >
-        {/* Fila superior: info + números protagonistas */}
-        <div className="flex items-start justify-between gap-6 mb-4">
+      <div className="px-6 py-5 cursor-pointer hover:bg-gray-800/40 transition"
+        onClick={() => setExpandido(!expandido)}>
 
-          {/* Info proyecto */}
+        <div className="flex items-start justify-between gap-6 mb-4">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className="text-xs text-gray-600 font-mono bg-gray-800 px-2 py-0.5 rounded">
                 EDT {proyecto.edt}
               </span>
+              {/* Badge prioridad del proyecto */}
+              <BadgePrioridad prioridad={proyecto.prioridad} />
               {proyecto.responsable && (
                 <span className="text-xs text-gray-500">{proyecto.responsable.nombre}</span>
               )}
@@ -292,16 +273,12 @@ export default function ProyectoCard({ proyecto, onCambio }) {
           </div>
         </div>
 
-        {/* Barra superpuesta plan + real */}
+        {/* Barra */}
         <div className="relative w-full bg-gray-800 rounded-full h-2.5">
-          <div
-            className="absolute top-0 left-0 h-2.5 rounded-full bg-gray-600/60 transition-all duration-700"
-            style={{ width: `${pctPlanProyecto}%` }}
-          />
-          <div
-            className={`absolute top-0 left-0 h-2.5 rounded-full transition-all duration-700 ${colorBarraReal}`}
-            style={{ width: `${pctRealProyecto}%` }}
-          />
+          <div className="absolute top-0 left-0 h-2.5 rounded-full bg-gray-600/60 transition-all duration-700"
+            style={{ width: `${pctPlanProyecto}%` }} />
+          <div className={`absolute top-0 left-0 h-2.5 rounded-full transition-all duration-700 ${colorBarraReal}`}
+            style={{ width: `${pctRealProyecto}%` }} />
         </div>
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-4">
@@ -328,7 +305,13 @@ export default function ProyectoCard({ proyecto, onCambio }) {
           ) : (
             <div className="divide-y divide-gray-800/50">
               {[...entregables]
-                .sort((a, b) => a.orden - b.orden)
+                .sort((a, b) => {
+                  // Ordenar por prioridad desc, luego por orden/edt
+                  const fp = { alta: 3, media: 2, baja: 1 }
+                  const pa = fp[a.prioridad] ?? 2, pb = fp[b.prioridad] ?? 2
+                  if (pa !== pb) return pb - pa
+                  return (a.orden ?? 0) - (b.orden ?? 0)
+                })
                 .map(entregable => (
                   <EntregableRow
                     key={entregable.id}
@@ -346,23 +329,20 @@ export default function ProyectoCard({ proyecto, onCambio }) {
             <div className="flex items-center justify-between px-6 py-3 border-t border-gray-800 bg-gray-900/50">
               <button
                 onClick={e => { e.stopPropagation(); setModalEntregable(true) }}
-                className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition"
-              >
+                className="flex items-center gap-1.5 text-sm text-blue-400 hover:text-blue-300 transition">
                 <Plus className="w-4 h-4" />
                 Agregar entregable
               </button>
               <div className="flex items-center gap-3">
                 <button
                   onClick={e => { e.stopPropagation(); setEditandoProyecto(true) }}
-                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition"
-                >
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition">
                   <Pencil className="w-3.5 h-3.5" />
                   Editar proyecto
                 </button>
                 <button
                   onClick={e => { e.stopPropagation(); setEliminandoProyecto(true) }}
-                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-red-400 transition"
-                >
+                  className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-red-400 transition">
                   <Trash2 className="w-3.5 h-3.5" />
                   Eliminar
                 </button>
