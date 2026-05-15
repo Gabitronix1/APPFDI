@@ -1,12 +1,25 @@
 import { useState, useMemo } from 'react'
 import {
   RefreshCw, CalendarClock, Sparkles, Lock,
-  ChevronLeft, ChevronRight, X, Clock, Users, User
+  ChevronLeft, ChevronRight, X, Clock, Users, User,
+  AlertTriangle
 } from 'lucide-react'
 
 const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const MESES_ES    = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                      'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+// ── Umbrales de carga ─────────────────────────────────────────────────────────
+const HORAS_OK       = 6 * 60   // < 6h → verde
+const HORAS_LLENO    = 8 * 60   // 6–8h → ámbar
+                                 // > 8h → rojo
+
+function getCargaColor(minutos) {
+  if (minutos <= 0)           return { text: 'text-gray-600',  bg: 'bg-gray-800',        borde: '', label: '' }
+  if (minutos <= HORAS_OK)    return { text: 'text-green-400', bg: 'bg-green-900/40',     borde: '', label: 'Carga liviana' }
+  if (minutos <= HORAS_LLENO) return { text: 'text-amber-400', bg: 'bg-amber-900/40',     borde: 'border-amber-700/50', label: 'Día lleno' }
+  return                             { text: 'text-red-400',   bg: 'bg-red-900/40',       borde: 'border-red-700/50',   label: '⚠ Sobrecargado' }
+}
 
 function getIniciales(nombre) {
   if (!nombre) return '?'
@@ -14,7 +27,7 @@ function getIniciales(nombre) {
 }
 
 function formatDuracion(min) {
-  if (!min) return '1h'
+  if (!min || min <= 0) return '0m'
   if (min < 60) return `${min}m`
   const h = Math.floor(min / 60)
   const m = min % 60
@@ -41,7 +54,12 @@ function getIconoTipo(tipo, className = 'w-2.5 h-2.5') {
   return <Sparkles className={`${className} text-amber-400`} />
 }
 
-// ── CHIP compacto para vista semana/mes ───────────────────────────────────────
+// ── Minutos totales de un conjunto de tareas ──────────────────────────────────
+function minutosDelDia(tareas) {
+  return tareas.reduce((s, t) => s + (t.duracion_estimada_min ?? 60), 0)
+}
+
+// ── CHIP compacto ─────────────────────────────────────────────────────────────
 function TareaChip({ tarea, hoy, onClick, soloMia }) {
   const estaBloqueada = tarea.serie_id && tarea.fecha_inicio &&
     new Date(tarea.fecha_inicio + 'T00:00:00') > hoy
@@ -77,21 +95,27 @@ function DiaCol({ fecha, tareas, hoy, esHoy, onClickTarea, onClickDia, soloMia, 
   const [expandido, setExpandido] = useState(false)
   const esPasado = fecha < hoy && !esHoy
 
-  const fechaStr = `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
+  const fechaStr     = `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
   const tareasDelDia = tareas.filter(t => t.fecha_termino === fechaStr)
   const visibles     = expandido ? tareasDelDia : tareasDelDia.slice(0, MAX_VISIBLE)
   const ocultas      = tareasDelDia.length - MAX_VISIBLE
 
+  // ── MEJORA 3: acumulado de minutos del día ────────────────
+  const minutosDia  = minutosDelDia(tareasDelDia)
+  const carga       = getCargaColor(minutosDia)
+  const sobrecargado = minutosDia > HORAS_LLENO
+
   return (
-    <div
-      className={`flex flex-col min-w-0 rounded-xl border transition-all
-        ${esHoy
-          ? 'border-green-500/50 bg-green-950/20'
-          : esPasado
-          ? 'border-gray-800/50 bg-gray-900/30'
-          : 'border-gray-800 bg-gray-900/50'}`}
+    <div className={`flex flex-col min-w-0 rounded-xl border transition-all
+      ${esHoy
+        ? 'border-green-500/50 bg-green-950/20'
+        : sobrecargado && !esPasado
+        ? `border-red-700/40 bg-gray-900/50`   // MEJORA 4: borde rojo en sobrecarga
+        : esPasado
+        ? 'border-gray-800/50 bg-gray-900/30'
+        : 'border-gray-800 bg-gray-900/50'}`}
     >
-      {/* Header día — click abre agenda */}
+      {/* Header día */}
       <div
         onClick={() => tareasDelDia.length > 0 && onClickDia(fecha, tareasDelDia)}
         className={`px-2 py-2 text-center border-b transition
@@ -112,6 +136,14 @@ function DiaCol({ fecha, tareas, hoy, esHoy, onClickTarea, onClickDia, soloMia, 
             })}
           </div>
         )}
+
+        {/* MEJORA 3: horas estimadas del día bajo los dots */}
+        {minutosDia > 0 && (
+          <p className={`text-[10px] font-medium mt-1 ${esPasado ? 'text-gray-600' : carga.text}`}>
+            {formatDuracion(minutosDia)}
+            {sobrecargado && !esPasado && <span className="ml-0.5">⚠</span>}
+          </p>
+        )}
       </div>
 
       {/* Chips */}
@@ -125,10 +157,8 @@ function DiaCol({ fecha, tareas, hoy, esHoy, onClickTarea, onClickDia, soloMia, 
                 onClick={() => onClickTarea(t)} />
             ))}
             {!expandido && ocultas > 0 && (
-              <button
-                onClick={() => setExpandido(true)}
-                className="w-full text-xs text-gray-500 hover:text-gray-300 py-0.5 transition"
-              >
+              <button onClick={() => setExpandido(true)}
+                className="w-full text-xs text-gray-500 hover:text-gray-300 py-0.5 transition">
                 +{ocultas} más
               </button>
             )}
@@ -139,13 +169,12 @@ function DiaCol({ fecha, tareas, hoy, esHoy, onClickTarea, onClickDia, soloMia, 
   )
 }
 
-// ── PANEL AGENDA (slide-over lateral) ────────────────────────────────────────
+// ── PANEL AGENDA ──────────────────────────────────────────────────────────────
 function AgendaDia({ fecha, tareas, hoy, soloMia, onClose, onClickTarea }) {
   const [filtroIntegrante, setFiltroIntegrante] = useState('todos')
 
-  const fechaStr  = `${fecha.getFullYear()}-${String(fecha.getMonth()+1).padStart(2,'0')}-${String(fecha.getDate()).padStart(2,'0')}`
-  const esHoy     = fecha.getTime() === hoy.getTime()
-  const esPasado  = fecha < hoy && !esHoy
+  const esHoy    = fecha.getTime() === hoy.getTime()
+  const esPasado = fecha < hoy && !esHoy
 
   const integrantes = useMemo(() => {
     if (soloMia) return []
@@ -156,22 +185,34 @@ function AgendaDia({ fecha, tareas, hoy, soloMia, onClose, onClickTarea }) {
     const base = filtroIntegrante === 'todos'
       ? tareas
       : tareas.filter(t => t.responsable_nombre === filtroIntegrante)
-
-    // Orden: cierre → recurrente → puntual, luego por duración desc
     const orden = { cierre: 0, recurrente_mes: 1, puntual: 2 }
     return [...base].sort((a, b) => {
-      const tipoA = orden[a.tipo] ?? 2
-      const tipoB = orden[b.tipo] ?? 2
+      const tipoA = orden[a.tipo] ?? 2, tipoB = orden[b.tipo] ?? 2
       if (tipoA !== tipoB) return tipoA - tipoB
       return (b.duracion_estimada_min ?? 60) - (a.duracion_estimada_min ?? 60)
     })
   }, [tareas, filtroIntegrante])
 
-  // Calcular altura proporcional de cada bloque
+  // Minutos totales según filtro activo
+  const minutosFiltrados = minutosDelDia(tareasFiltradas)
+  const minutosTotal     = minutosDelDia(tareas)
+  const cargaFiltrada    = getCargaColor(minutosFiltrados)
+  const cargaTotal       = getCargaColor(minutosTotal)
+
+  // MEJORA 2: carga por integrante
+  const cargaPorIntegrante = useMemo(() => {
+    if (soloMia) return []
+    return integrantes.map(nombre => {
+      const mins = minutosDelDia(tareas.filter(t => t.responsable_nombre === nombre))
+      return { nombre, mins, carga: getCargaColor(mins) }
+    }).sort((a, b) => b.mins - a.mins)
+  }, [tareas, integrantes, soloMia])
+
+  // Altura proporcional de bloques
   const duracionTotal = tareasFiltradas.reduce((s, t) => s + (t.duracion_estimada_min ?? 60), 0)
-  const MIN_HEIGHT_PX = 52   // mínimo por bloque para que quepa el texto
-  const MAX_HEIGHT_PX = 160  // máximo para que no sean enormes
-  const PANEL_HEIGHT  = 520  // altura disponible aprox del panel
+  const MIN_HEIGHT_PX = 52
+  const MAX_HEIGHT_PX = 160
+  const PANEL_HEIGHT  = 520
 
   function getAltura(duracion) {
     if (duracionTotal === 0) return MIN_HEIGHT_PX
@@ -183,21 +224,15 @@ function AgendaDia({ fecha, tareas, hoy, soloMia, onClose, onClickTarea }) {
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      {/* Overlay */}
       <div className="flex-1 bg-black/50" onClick={onClose} />
 
-      {/* Panel lateral derecho */}
       <div className="w-full max-w-sm bg-gray-900 border-l border-gray-700 flex flex-col h-full shadow-2xl">
 
         {/* Header */}
-        <div className={`px-5 py-4 border-b border-gray-800 ${
-          esHoy ? 'bg-green-950/30' : esPasado ? 'bg-gray-900' : 'bg-gray-900'
-        }`}>
-          <div className="flex items-center justify-between mb-1">
+        <div className={`px-5 py-4 border-b border-gray-800 ${esHoy ? 'bg-green-950/30' : 'bg-gray-900'}`}>
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <p className={`text-xs font-medium uppercase tracking-widest ${
-                esHoy ? 'text-green-400' : 'text-gray-500'
-              }`}>
+              <p className={`text-xs font-medium uppercase tracking-widest ${esHoy ? 'text-green-400' : 'text-gray-500'}`}>
                 {esHoy ? '● Hoy' : esPasado ? 'Pasado' : 'Próximo'}
               </p>
               <h3 className="text-white font-semibold text-base">{labelFecha}</h3>
@@ -207,58 +242,122 @@ function AgendaDia({ fecha, tareas, hoy, soloMia, onClose, onClickTarea }) {
             </button>
           </div>
 
-          {/* Stats rápidos */}
-          <div className="flex items-center gap-3 mt-2">
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3 h-3 text-gray-500" />
-              <span className="text-xs text-gray-500">
-                {formatDuracion(tareas.reduce((s, t) => s + (t.duracion_estimada_min ?? 60), 0))} estimado
+          {/* MEJORA 1: indicador de carga del día */}
+          <div className={`rounded-xl px-3 py-2.5 border ${cargaTotal.borde || 'border-gray-800'} ${cargaTotal.bg}`}>
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <Clock className={`w-3.5 h-3.5 ${cargaTotal.text}`} />
+                <span className={`text-sm font-bold ${cargaTotal.text}`}>
+                  {formatDuracion(minutosTotal)}
+                </span>
+                <span className="text-xs text-gray-500">estimado total</span>
+              </div>
+              <span className={`text-xs font-medium ${cargaTotal.text}`}>
+                {cargaTotal.label}
               </span>
             </div>
-            <span className="text-gray-700">·</span>
-            <span className="text-xs text-gray-500">{tareas.length} tareas</span>
+            {/* Barra de carga */}
+            <div className="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+              <div
+                className={`h-1.5 rounded-full transition-all duration-500 ${
+                  minutosTotal <= HORAS_OK    ? 'bg-green-500' :
+                  minutosTotal <= HORAS_LLENO ? 'bg-amber-500' : 'bg-red-500'
+                }`}
+                style={{ width: `${Math.min(100, (minutosTotal / (HORAS_LLENO * 1.5)) * 100)}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1">
+              <span className="text-[10px] text-gray-600">0h</span>
+              <span className="text-[10px] text-gray-600">6h</span>
+              <span className="text-[10px] text-gray-600">8h</span>
+              <span className="text-[10px] text-gray-600">12h+</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {tareas.length} tarea{tareas.length !== 1 ? 's' : ''}
+            </p>
           </div>
         </div>
 
-        {/* Filtro integrante (solo admin) */}
-        {!soloMia && integrantes.length > 1 && (
+        {/* MEJORA 2: distribución por integrante (solo admin) */}
+        {!soloMia && cargaPorIntegrante.length > 0 && (
           <div className="px-4 py-3 border-b border-gray-800">
             <div className="flex items-center gap-1.5 mb-2">
               <Users className="w-3 h-3 text-gray-500" />
-              <span className="text-xs text-gray-500 font-medium">Filtrar por integrante</span>
+              <span className="text-xs text-gray-500 font-medium">Carga por integrante</span>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                onClick={() => setFiltroIntegrante('todos')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition
-                  ${filtroIntegrante === 'todos'
-                    ? 'bg-blue-800 text-blue-200'
-                    : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-              >
-                Todos
-              </button>
-              {integrantes.map(nombre => (
-                <button
-                  key={nombre}
-                  onClick={() => setFiltroIntegrante(nombre)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition
-                    ${filtroIntegrante === nombre
-                      ? 'bg-blue-800 text-blue-200'
-                      : 'bg-gray-800 text-gray-400 hover:text-white'}`}
-                >
-                  <span className="w-4 h-4 rounded-full bg-blue-900 flex items-center justify-center text-[9px] text-blue-300 font-bold">
-                    {getIniciales(nombre)}
-                  </span>
-                  {nombre.split(' ')[0]}
-                </button>
-              ))}
+            <div className="space-y-1.5">
+              {cargaPorIntegrante.map(({ nombre, mins, carga }) => {
+                const pct = Math.min(100, (mins / (HORAS_LLENO * 1.5)) * 100)
+                return (
+                  <button
+                    key={nombre}
+                    onClick={() => setFiltroIntegrante(
+                      filtroIntegrante === nombre ? 'todos' : nombre
+                    )}
+                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg transition
+                      ${filtroIntegrante === nombre
+                        ? 'bg-blue-900/30 border border-blue-700/50'
+                        : 'hover:bg-gray-800/50'}`}
+                  >
+                    <span className="w-5 h-5 rounded-full bg-blue-900 flex items-center justify-center text-[9px] text-blue-300 font-bold shrink-0">
+                      {getIniciales(nombre)}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="text-xs text-gray-300 truncate">
+                          {nombre.split(' ')[0]} {nombre.split(' ')[1] ?? ''}
+                        </span>
+                        <span className={`text-[10px] font-bold shrink-0 ml-1 ${carga.text}`}>
+                          {formatDuracion(mins)}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-800 rounded-full h-1 overflow-hidden">
+                        <div
+                          className={`h-1 rounded-full transition-all duration-500 ${
+                            mins <= HORAS_OK    ? 'bg-green-500' :
+                            mins <= HORAS_LLENO ? 'bg-amber-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                    {mins > HORAS_LLENO && (
+                      <AlertTriangle className="w-3 h-3 text-red-400 shrink-0" />
+                    )}
+                  </button>
+                )
+              })}
             </div>
+            <p className="text-[10px] text-gray-600 mt-1.5 text-center">
+              Click en un integrante para filtrar los bloques
+            </p>
           </div>
         )}
 
-        {/* Leyenda duración */}
-        <div className="px-4 py-2 border-b border-gray-800/50 flex items-center gap-2">
-          <span className="text-xs text-gray-600">Altura del bloque proporcional a la duración estimada</span>
+        {/* Subheader filtrado activo */}
+        {filtroIntegrante !== 'todos' && (
+          <div className={`px-4 py-2 border-b border-gray-800/50 flex items-center justify-between ${getCargaColor(minutosFiltrados).bg}`}>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-300 font-medium">
+                {filtroIntegrante.split(' ')[0]}
+              </span>
+              <span className={`text-xs font-bold ${cargaFiltrada.text}`}>
+                {formatDuracion(minutosFiltrados)}
+              </span>
+              {cargaFiltrada.label && (
+                <span className={`text-[10px] ${cargaFiltrada.text}`}>· {cargaFiltrada.label}</span>
+              )}
+            </div>
+            <button onClick={() => setFiltroIntegrante('todos')}
+              className="text-[10px] text-gray-500 hover:text-white transition">
+              Ver todos
+            </button>
+          </div>
+        )}
+
+        {/* Leyenda altura */}
+        <div className="px-4 py-1.5 border-b border-gray-800/50">
+          <span className="text-[10px] text-gray-600">Altura proporcional a la duración estimada</span>
         </div>
 
         {/* Bloques agenda */}
@@ -287,7 +386,6 @@ function AgendaDia({ fecha, tareas, hoy, soloMia, onClose, onClickTarea }) {
                       ? 'opacity-40 cursor-not-allowed'
                       : 'cursor-pointer hover:brightness-110 hover:scale-[1.01]'}`}
                 >
-                  {/* Fila tipo + duración */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
                       {estaBloqueada
@@ -305,19 +403,16 @@ function AgendaDia({ fecha, tareas, hoy, soloMia, onClose, onClickTarea }) {
                     </div>
                   </div>
 
-                  {/* Nombre tarea */}
                   <p className={`text-sm font-semibold leading-snug ${
                     estaBloqueada ? 'text-gray-500' : 'text-white'
                   }`}>
                     {tarea.nombre_tarea}
                   </p>
 
-                  {/* Área */}
                   {tarea.area && (
                     <p className="text-xs text-gray-500 truncate">{tarea.area}</p>
                   )}
 
-                  {/* Responsable (solo admin) + estado */}
                   <div className="flex items-center justify-between mt-auto pt-1">
                     {!soloMia && tarea.responsable_nombre && (
                       <div className="flex items-center gap-1.5">
@@ -330,18 +425,18 @@ function AgendaDia({ fecha, tareas, hoy, soloMia, onClose, onClickTarea }) {
                       </div>
                     )}
                     <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ml-auto ${
-                      estaBloqueada                                              ? 'bg-gray-800 text-gray-600'
-                      : tarea.estado === 'completada'                           ? 'bg-green-900/60 text-green-300'
-                      : tarea.estado === 'completada_con_atraso'               ? 'bg-yellow-900/60 text-yellow-300'
-                      : tarea.alerta === 'fuera_de_plazo'                       ? 'bg-red-900/60 text-red-300'
-                      : tarea.alerta === 'por_vencer'                           ? 'bg-amber-900/60 text-amber-300'
+                      estaBloqueada                                ? 'bg-gray-800 text-gray-600'
+                      : tarea.estado === 'completada'             ? 'bg-green-900/60 text-green-300'
+                      : tarea.estado === 'completada_con_atraso'  ? 'bg-yellow-900/60 text-yellow-300'
+                      : tarea.alerta === 'fuera_de_plazo'         ? 'bg-red-900/60 text-red-300'
+                      : tarea.alerta === 'por_vencer'             ? 'bg-amber-900/60 text-amber-300'
                       : 'bg-gray-800 text-gray-400'
                     }`}>
-                      {estaBloqueada                              ? 'Bloqueada'
-                        : tarea.estado === 'completada'           ? '✓ Completada'
-                        : tarea.estado === 'completada_con_atraso'? '✓ Entregada'
-                        : tarea.alerta === 'fuera_de_plazo'       ? '⚠ Fuera plazo'
-                        : tarea.alerta === 'por_vencer'           ? '⏳ Por vencer'
+                      {estaBloqueada                               ? 'Bloqueada'
+                        : tarea.estado === 'completada'            ? '✓ Completada'
+                        : tarea.estado === 'completada_con_atraso' ? '✓ Entregada'
+                        : tarea.alerta === 'fuera_de_plazo'        ? '⚠ Fuera plazo'
+                        : tarea.alerta === 'por_vencer'            ? '⏳ Por vencer'
                         : 'Pendiente'}
                     </span>
                   </div>
@@ -361,11 +456,10 @@ export default function CalendarioTareas({ tareas, onClickTarea, soloMia = false
 
   const [vistaCompleta, setVistaCompleta] = useState(false)
   const [semanaOffset,  setSemanaOffset]  = useState(0)
-  const [agendaDia,     setAgendaDia]     = useState(null) // { fecha, tareas }
+  const [agendaDia,     setAgendaDia]     = useState(null)
 
-  // ── Semana ────────────────────────────────────────────────
   const diasSemana = useMemo(() => {
-    const lunes    = new Date(hoy)
+    const lunes     = new Date(hoy)
     const diaSemana = (hoy.getDay() + 6) % 7
     lunes.setDate(hoy.getDate() - diaSemana + semanaOffset * 7)
     return Array.from({ length: 7 }, (_, i) => {
@@ -373,12 +467,22 @@ export default function CalendarioTareas({ tareas, onClickTarea, soloMia = false
     })
   }, [semanaOffset])
 
-  // ── Mes ───────────────────────────────────────────────────
   const diasMes = useMemo(() => {
     const año  = hoy.getFullYear(), mes = hoy.getMonth()
     const dias = new Date(año, mes + 1, 0).getDate()
     return Array.from({ length: dias }, (_, i) => new Date(año, mes, i + 1))
   }, [])
+
+  // MEJORA 3: acumulado de horas por día para la semana
+  const horasPorDiaSemana = useMemo(() => {
+    return diasSemana.map(dia => {
+      const fs = `${dia.getFullYear()}-${String(dia.getMonth()+1).padStart(2,'0')}-${String(dia.getDate()).padStart(2,'0')}`
+      const t  = tareas.filter(t => t.fecha_termino === fs)
+      return minutosDelDia(t)
+    })
+  }, [diasSemana, tareas])
+
+  const totalSemana = horasPorDiaSemana.reduce((s, m) => s + m, 0)
 
   const semanaLabel = (() => {
     if (semanaOffset === 0)  return 'Esta semana'
@@ -404,11 +508,19 @@ export default function CalendarioTareas({ tareas, onClickTarea, soloMia = false
               <div className="w-2 h-2 rounded-full bg-amber-500" />
               <div className="w-2 h-2 rounded-full bg-red-500" />
             </div>
-            <h2 className="text-white font-semibold text-sm">
-              {vistaCompleta
-                ? `Calendario — ${hoy.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}`
-                : semanaLabel}
-            </h2>
+            <div>
+              <h2 className="text-white font-semibold text-sm">
+                {vistaCompleta
+                  ? `Calendario — ${hoy.toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })}`
+                  : semanaLabel}
+              </h2>
+              {/* MEJORA 3: total horas semana en header */}
+              {!vistaCompleta && totalSemana > 0 && (
+                <p className={`text-xs mt-0.5 ${getCargaColor(totalSemana / 5).text}`}>
+                  {formatDuracion(totalSemana)} esta semana
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {!vistaCompleta && (
@@ -442,7 +554,7 @@ export default function CalendarioTareas({ tareas, onClickTarea, soloMia = false
         </div>
 
         {/* Leyenda */}
-        <div className="flex items-center gap-4 px-5 py-2 border-b border-gray-800/50 bg-gray-800/20">
+        <div className="flex items-center gap-4 px-5 py-2 border-b border-gray-800/50 bg-gray-800/20 flex-wrap">
           {[
             { dot: 'bg-green-500', label: 'Completada' },
             { dot: 'bg-amber-500', label: 'Por vencer' },
@@ -454,9 +566,20 @@ export default function CalendarioTareas({ tareas, onClickTarea, soloMia = false
               <span className="text-xs text-gray-600">{label}</span>
             </div>
           ))}
-          <div className="flex items-center gap-1.5 ml-auto">
-            <Clock className="w-3 h-3 text-gray-600" />
-            <span className="text-xs text-gray-600">Click en el día para ver agenda</span>
+          <div className="flex items-center gap-3 ml-auto">
+            {/* MEJORA 4: leyenda carga */}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-green-500">●</span>
+              <span className="text-[10px] text-gray-600">&lt;6h</span>
+              <span className="text-[10px] text-amber-500">●</span>
+              <span className="text-[10px] text-gray-600">6-8h</span>
+              <span className="text-[10px] text-red-500">⚠</span>
+              <span className="text-[10px] text-gray-600">&gt;8h</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Clock className="w-3 h-3 text-gray-600" />
+              <span className="text-xs text-gray-600">Click para agenda</span>
+            </div>
           </div>
         </div>
 
@@ -467,9 +590,7 @@ export default function CalendarioTareas({ tareas, onClickTarea, soloMia = false
               const esHoy = dia.getTime() === hoy.getTime()
               return (
                 <DiaCol key={i} fecha={dia} tareas={tareas} hoy={hoy} esHoy={esHoy}
-                  onClickTarea={onClickTarea}
-                  onClickDia={abrirAgenda}
-                  soloMia={soloMia} />
+                  onClickTarea={onClickTarea} onClickDia={abrirAgenda} soloMia={soloMia} />
               )
             })}
           </div>
@@ -488,20 +609,23 @@ export default function CalendarioTareas({ tareas, onClickTarea, soloMia = false
                 <div key={`empty-${i}`} />
               ))}
               {diasMes.map((dia, i) => {
-                const esHoy     = dia.getTime() === hoy.getTime()
-                const esPasado  = dia < hoy && !esHoy
-                const fechaStr  = `${dia.getFullYear()}-${String(dia.getMonth()+1).padStart(2,'0')}-${String(dia.getDate()).padStart(2,'0')}`
+                const esHoy        = dia.getTime() === hoy.getTime()
+                const esPasado     = dia < hoy && !esHoy
+                const fechaStr     = `${dia.getFullYear()}-${String(dia.getMonth()+1).padStart(2,'0')}-${String(dia.getDate()).padStart(2,'0')}`
                 const tareasDelDia = tareas.filter(t => t.fecha_termino === fechaStr)
+                const minsDia      = minutosDelDia(tareasDelDia)
+                const sobrecargado = minsDia > HORAS_LLENO
+                const cargaDia     = getCargaColor(minsDia)
+
                 return (
                   <div key={i}
                     onClick={() => tareasDelDia.length > 0 && abrirAgenda(dia, tareasDelDia)}
                     className={`rounded-xl border p-1.5 min-h-[70px] transition
                       ${tareasDelDia.length > 0 ? 'cursor-pointer hover:bg-white/5' : ''}
-                      ${esHoy
-                        ? 'border-green-500/50 bg-green-950/20'
-                        : esPasado
-                        ? 'border-gray-800/30 bg-transparent'
-                        : 'border-gray-800/50 bg-gray-900/30'}`}
+                      ${esHoy              ? 'border-green-500/50 bg-green-950/20'
+                      : sobrecargado && !esPasado ? 'border-red-700/40 bg-gray-900/30'
+                      : esPasado           ? 'border-gray-800/30 bg-transparent'
+                      :                      'border-gray-800/50 bg-gray-900/30'}`}
                   >
                     <p className={`text-xs font-bold text-center mb-1 ${
                       esHoy ? 'text-green-400' : esPasado ? 'text-gray-700' : 'text-gray-400'
@@ -525,6 +649,12 @@ export default function CalendarioTareas({ tareas, onClickTarea, soloMia = false
                         <p className="text-[9px] text-gray-600 text-center">+{tareasDelDia.length - 3}</p>
                       )}
                     </div>
+                    {/* MEJORA 3+4: horas y alerta en vista mes */}
+                    {minsDia > 0 && !esPasado && (
+                      <p className={`text-[9px] font-medium text-center mt-0.5 ${cargaDia.text}`}>
+                        {formatDuracion(minsDia)}{sobrecargado ? ' ⚠' : ''}
+                      </p>
+                    )}
                   </div>
                 )
               })}
@@ -533,7 +663,6 @@ export default function CalendarioTareas({ tareas, onClickTarea, soloMia = false
         )}
       </div>
 
-      {/* Panel agenda */}
       {agendaDia && (
         <AgendaDia
           fecha={agendaDia.fecha}
