@@ -135,7 +135,17 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
               onChange={e => setPctLocal(Number(e.target.value))}
               onMouseUp={e  => guardar(Number(e.target.value))}
               onTouchEnd={e => guardar(Number(e.target.value))}
-              className="flex-1 accent-blue-500 disabled:opacity-50"
+              className="flex-1 disabled:opacity-50"
+              style={{
+                WebkitAppearance: 'none',
+                appearance: 'none',
+                background: `linear-gradient(to right, #3b82f6 ${pctLocal}%, #374151 ${pctLocal}%)`,
+                height: '4px',
+                borderRadius: '9999px',
+                outline: 'none',
+                cursor: guardando ? 'not-allowed' : 'pointer',
+                accentColor: '#3b82f6',
+              }}
             />
             {esAdmin && (
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
