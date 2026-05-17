@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { X, Plus, RefreshCw, Sparkles, CalendarClock, Clock } from 'lucide-react'
+import AreaSelector from './AreaSelector'
 import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } from '../lib/feriados'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -374,16 +375,13 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                 </button>
               </div>
             ) : (
-              <select
-                name="area" value={form.area} onChange={handleChange}
-                className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg
-                           px-3 py-2.5 text-sm focus:outline-none focus:border-green-500"
-              >
-                <option value="">Seleccionar área...</option>
-                {areas.map(a => (
-                  <option key={a.id} value={a.nombre}>{a.nombre}</option>
-                ))}
-              </select>
+              <AreaSelector
+                value={form.area}
+                onChange={v => setForm(prev => ({ ...prev, area: v }))}
+                areas={areas}
+                queryKey={['areas', deptoActivo]}
+                isAdmin={profile?.rol === 'admin'}
+              />
             )}
           </div>
 
