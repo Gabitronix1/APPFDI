@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import ProyectoCard from '../components/ProyectoCard'
 import ProyectoModal from '../components/ProyectoModal'
-import { Plus, FolderKanban, Camera, ChevronDown, ChevronUp, TrendingUp } from 'lucide-react'
+import { Plus, FolderKanban, Camera, ChevronDown, ChevronUp, TrendingUp, Trash2 } from 'lucide-react'
 
 const MESES_CORTO = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
@@ -107,7 +107,11 @@ function Ring({ pct, color, size = 56 }) {
 }
 
 // ─── HISTORIAL PROYECTO ───────────────────────────────────────────────────────
-function HistorialProyecto({ proyectoId }) {
+function HistorialProyecto({ proyectoId, isAdmin }) {
+  const queryClient = useQueryClient()
+  const [confirmandoId, setConfirmandoId] = useState(null)
+  const [eliminando,    setEliminando]    = useState(false)
+
   const { data: snapshots = [], isLoading } = useQuery({
     queryKey: ['snapshots', proyectoId],
     queryFn: async () => {
@@ -124,6 +128,17 @@ function HistorialProyecto({ proyectoId }) {
       return data ?? []
     }
   })
+
+  async function eliminarSnapshot(snapId) {
+    setEliminando(true)
+    const { error } = await supabase
+      .from('project_snapshots')
+      .delete()
+      .eq('id', snapId)
+    setEliminando(false)
+    setConfirmandoId(null)
+    if (!error) queryClient.invalidateQueries({ queryKey: ['snapshots', proyectoId] })
+  }
 
   if (isLoading) return (
     <div className="px-5 py-4 text-center">
@@ -168,6 +183,24 @@ function HistorialProyecto({ proyectoId }) {
 
           return (
             <div key={snap.id} className="bg-gray-800/50 rounded-xl px-4 py-3">
+              {/* Confirmación inline */}
+              {confirmandoId === snap.id ? (
+                <div className="flex items-center justify-between mb-2 bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">
+                  <span className="text-xs text-red-300">¿Eliminar este snapshot?</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setConfirmandoId(null)}
+                      className="text-xs text-gray-400 hover:text-white px-2 py-0.5 rounded"
+                    >Cancelar</button>
+                    <button
+                      onClick={() => eliminarSnapshot(snap.id)}
+                      disabled={eliminando}
+                      className="text-xs bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white px-2 py-0.5 rounded"
+                    >{eliminando ? '…' : 'Eliminar'}</button>
+                  </div>
+                </div>
+              ) : null}
+
               {/* Header fila */}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
@@ -195,6 +228,15 @@ function HistorialProyecto({ proyectoId }) {
                         {Math.round(snap.cumplimiento)}% cumpl.
                       </span>
                     </>
+                  )}
+                  {isAdmin && confirmandoId !== snap.id && (
+                    <button
+                      onClick={() => setConfirmandoId(snap.id)}
+                      className="ml-1 p-1 rounded hover:bg-red-900/40 text-gray-700 hover:text-red-400 transition-colors"
+                      title="Eliminar snapshot"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   )}
                 </div>
               </div>
@@ -238,7 +280,7 @@ function HistorialProyecto({ proyectoId }) {
 }
 
 // ─── PANEL HISTORIAL (acordeón por proyecto) ──────────────────────────────────
-function PanelHistorial({ proyectos }) {
+function PanelHistorial({ proyectos, isAdmin }) {
   const [expandido, setExpandido] = useState(null)
 
   if (proyectos.length === 0) return null
@@ -268,7 +310,7 @@ function PanelHistorial({ proyectos }) {
             </button>
             {expandido === p.id && (
               <div className="border-t border-gray-800/50">
-                <HistorialProyecto proyectoId={p.id} />
+                <HistorialProyecto proyectoId={p.id} isAdmin={isAdmin} />
               </div>
             )}
           </div>
@@ -675,7 +717,7 @@ export default function Proyectos() {
 
       {/* ── PANEL HISTORIAL ──────────────────────────────────────── */}
       {verHistorial && !isLoading && proyectos.length > 0 && (
-        <PanelHistorial proyectos={proyectos} />
+        <PanelHistorial proyectos={proyectos} isAdmin={profile?.rol === 'admin'} />
       )}
 
       {/* ── PANEL EJECUTIVO ──────────────────────────────────────── */}
