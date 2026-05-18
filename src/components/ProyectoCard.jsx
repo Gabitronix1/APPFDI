@@ -30,11 +30,30 @@ function calcularPctDesdeSubtareas(subtareas) {
   return Math.round(suma / totalPeso)
 }
 
+const PRIORIDADES_SUB = [
+  { value: 'alta',  label: '↑ Alta'  },
+  { value: 'media', label: '→ Media' },
+  { value: 'baja',  label: '↓ Baja'  },
+]
+
+function calcularDuracion(inicio, fin) {
+  if (!inicio || !fin) return null
+  const diff = Math.round((new Date(fin + 'T00:00:00') - new Date(inicio + 'T00:00:00')) / 86_400_000)
+  return diff > 0 ? diff : 1
+}
+
 // ─── ENTREGABLE ROW ───────────────────────────────────────────────────────────
 function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin }) {
   const queryClient = useQueryClient()
   const [pctLocal, setPctLocal]   = useState(Number(entregable.pct_real) || 0)
   const [guardando, setGuardando] = useState(false)
+  const [showAddForm,        setShowAddForm]        = useState(false)
+  const [nuevoNombre,        setNuevoNombre]        = useState('')
+  const [nuevaPrioridad,     setNuevaPrioridad]     = useState('media')
+  const [nuevoResponsableId, setNuevoResponsableId] = useState('')
+  const [nuevaFechaInicio,   setNuevaFechaInicio]   = useState('')
+  const [nuevaFechaFin,      setNuevaFechaFin]      = useState('')
+  const [guardandoSub,       setGuardandoSub]       = useState(false)
 
   const { data: subtareas = [] } = useQuery({
     queryKey: ['subtareas', entregable.id],
@@ -47,6 +66,17 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
       return data ?? []
     },
     staleTime: 30_000,
+  })
+
+  const { data: usuarios = [] } = useQuery({
+    queryKey: ['usuarios-cdg'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('users').select('id, nombre').eq('activo', true).order('nombre')
+      return data ?? []
+    },
+    enabled: esAdmin,
+    staleTime: 300_000,
   })
 
   const tieneSubtareas = subtareas.length > 0
@@ -120,6 +150,60 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
       .from('project_deliverables')
       .update({ pct_real: nuevoPct, estado: nuevoEstadoEntregable })
       .eq('id', entregable.id)
+
+    queryClient.invalidateQueries({ queryKey: ['subtareas', entregable.id] })
+    onActualizar()
+  }
+
+  async function eliminarSubtarea(subtareaId) {
+    await supabase.from('task_subtasks').delete().eq('id', subtareaId)
+
+    const restantes = subtareas.filter(s => s.id !== subtareaId)
+    const nuevoPct  = calcularPctDesdeSubtareas(restantes)
+    const nuevoEst  = nuevoPct === 100 ? 'completado' : nuevoPct > 0 ? 'en_progreso' : 'no_iniciado'
+
+    await supabase
+      .from('project_deliverables')
+      .update({ pct_real: nuevoPct, estado: nuevoEst })
+      .eq('id', entregable.id)
+
+    queryClient.invalidateQueries({ queryKey: ['subtareas', entregable.id] })
+    onActualizar()
+  }
+
+  async function crearSubtarea() {
+    if (!nuevoNombre.trim()) return
+    setGuardandoSub(true)
+
+    const dias = calcularDuracion(nuevaFechaInicio, nuevaFechaFin) ?? 1
+    await supabase.from('task_subtasks').insert({
+      deliverable_id: entregable.id,
+      nombre:         nuevoNombre.trim(),
+      responsable_id: nuevoResponsableId || null,
+      fecha_inicio:   nuevaFechaInicio   || null,
+      fecha_fin:      nuevaFechaFin      || null,
+      duracion_dias:  dias,
+      prioridad:      nuevaPrioridad,
+      estado:         'pendiente',
+      orden:          subtareas.length,
+    })
+
+    // pct_real con la nueva subtarea pendiente
+    const con = [...subtareas, { duracion_dias: dias, prioridad: nuevaPrioridad, estado: 'pendiente' }]
+    const nuevoPct = calcularPctDesdeSubtareas(con)
+    const nuevoEst = nuevoPct === 100 ? 'completado' : nuevoPct > 0 ? 'en_progreso' : 'no_iniciado'
+    await supabase
+      .from('project_deliverables')
+      .update({ pct_real: nuevoPct, estado: nuevoEst })
+      .eq('id', entregable.id)
+
+    setNuevoNombre('')
+    setNuevaPrioridad('media')
+    setNuevoResponsableId('')
+    setNuevaFechaInicio('')
+    setNuevaFechaFin('')
+    setShowAddForm(false)
+    setGuardandoSub(false)
 
     queryClient.invalidateQueries({ queryKey: ['subtareas', entregable.id] })
     onActualizar()
@@ -291,9 +375,136 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
                         {new Date(sub.fecha_fin    + 'T00:00:00').toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
                       </span>
                     )}
+
+                    {/* Eliminar subtarea */}
+                    {esAdmin && (
+                      <button
+                        onClick={() => eliminarSubtarea(sub.id)}
+                        className="shrink-0 p-0.5 text-gray-700 hover:text-red-400 transition opacity-0 group-hover:opacity-100"
+                        title="Eliminar subtarea"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
                   </div>
                 )
               })}
+
+            </div>
+          )}
+
+          {/* ── BOTÓN + FORMULARIO AGREGAR SUBTAREA ───────────────── */}
+          {esAdmin && (
+            <div className={`${tieneSubtareas ? 'mt-2' : 'mt-1'}`}>
+              {!showAddForm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAddForm(true)}
+                  className="flex items-center gap-1 text-[11px] text-gray-600 hover:text-blue-400
+                             transition opacity-0 group-hover:opacity-100"
+                >
+                  <Plus className="w-3 h-3" />
+                  Agregar subtarea
+                </button>
+              ) : (
+                <div className="bg-gray-800/70 border border-gray-700 rounded-xl p-3 space-y-2">
+                  {/* Nombre */}
+                  <input
+                    autoFocus
+                    type="text"
+                    value={nuevoNombre}
+                    onChange={e => setNuevoNombre(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') crearSubtarea(); if (e.key === 'Escape') setShowAddForm(false) }}
+                    placeholder="Nombre de la subtarea"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2
+                               text-white text-sm focus:outline-none focus:border-blue-500"
+                  />
+
+                  {/* Responsable */}
+                  <select
+                    value={nuevoResponsableId}
+                    onChange={e => setNuevoResponsableId(e.target.value)}
+                    className="w-full bg-gray-900 border border-gray-700 text-gray-300 rounded-lg
+                               px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Sin responsable</option>
+                    {usuarios.map(u => (
+                      <option key={u.id} value={u.id}>{u.nombre}</option>
+                    ))}
+                  </select>
+
+                  {/* Fechas */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-gray-500 mb-1">Inicio</label>
+                      <input
+                        type="date" value={nuevaFechaInicio}
+                        min={entregable.fecha_inicio || undefined}
+                        max={entregable.fecha_fin    || undefined}
+                        onChange={e => setNuevaFechaInicio(e.target.value)}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5
+                                   text-white text-xs focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-gray-500 mb-1">Fin</label>
+                      <input
+                        type="date" value={nuevaFechaFin}
+                        min={nuevaFechaInicio || entregable.fecha_inicio || undefined}
+                        max={entregable.fecha_fin || undefined}
+                        onChange={e => setNuevaFechaFin(e.target.value)}
+                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5
+                                   text-white text-xs focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                  {nuevaFechaInicio && nuevaFechaFin && (
+                    <p className="text-[10px] text-gray-600">
+                      Duración: <span className="text-gray-400">{calcularDuracion(nuevaFechaInicio, nuevaFechaFin)} días</span>
+                    </p>
+                  )}
+
+                  {/* Prioridad */}
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {PRIORIDADES_SUB.map(p => {
+                      const activa = nuevaPrioridad === p.value
+                      const cls = p.value === 'alta'  ? 'bg-red-900/40 border-red-700 text-red-300'
+                                : p.value === 'media' ? 'bg-amber-900/40 border-amber-700 text-amber-300'
+                                :                       'bg-gray-800 border-gray-600 text-gray-400'
+                      return (
+                        <button
+                          key={p.value} type="button"
+                          onClick={() => setNuevaPrioridad(p.value)}
+                          className={`py-1.5 rounded-lg border text-xs font-semibold transition
+                            ${activa ? cls : 'bg-gray-900 border-gray-700 text-gray-600 hover:border-gray-600'}`}
+                        >
+                          {p.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Acciones */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={crearSubtarea}
+                      disabled={!nuevoNombre.trim() || guardandoSub}
+                      className="flex-1 bg-blue-700 hover:bg-blue-600 disabled:opacity-40
+                                 text-white text-xs font-semibold py-2 rounded-lg transition"
+                    >
+                      {guardandoSub ? 'Guardando…' : 'Guardar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setShowAddForm(false); setNuevoNombre(''); setNuevaPrioridad('media'); setNuevoResponsableId(''); setNuevaFechaInicio(''); setNuevaFechaFin('') }}
+                      className="px-3 py-2 text-xs text-gray-500 hover:text-gray-300 transition"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
