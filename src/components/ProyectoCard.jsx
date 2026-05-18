@@ -6,6 +6,7 @@ import EntregableModal from './EntregableModal'
 import ProyectoModal from './ProyectoModal'
 import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Calendar } from 'lucide-react'
 import { calcularPonderado, BadgePrioridad, factorP } from '../pages/Proyectos'
+import CampoFecha from './CampoFecha'
 
 function calcularPctPlan(fechaInicio, fechaFin) {
   const hoy    = new Date()
@@ -453,24 +454,18 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[10px] text-gray-500 mb-1">Inicio</label>
-                      <input
-                        type="date" value={nuevaFechaInicio}
-                        min={entregable.fecha_inicio || undefined}
-                        max={entregable.fecha_fin    || undefined}
-                        onChange={e => setNuevaFechaInicio(e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5
-                                   text-white text-xs focus:outline-none focus:border-blue-500"
+                      <CampoFecha
+                        value={nuevaFechaInicio}
+                        onChange={v => setNuevaFechaInicio(v)}
+                        className="w-full"
                       />
                     </div>
                     <div>
                       <label className="block text-[10px] text-gray-500 mb-1">Fin</label>
-                      <input
-                        type="date" value={nuevaFechaFin}
-                        min={nuevaFechaInicio || entregable.fecha_inicio || undefined}
-                        max={entregable.fecha_fin || undefined}
-                        onChange={e => setNuevaFechaFin(e.target.value)}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5
-                                   text-white text-xs focus:outline-none focus:border-blue-500"
+                      <CampoFecha
+                        value={nuevaFechaFin}
+                        onChange={v => setNuevaFechaFin(v)}
+                        className="w-full"
                       />
                     </div>
                   </div>
