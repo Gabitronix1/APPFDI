@@ -54,6 +54,7 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
   const [nuevaFechaInicio,   setNuevaFechaInicio]   = useState('')
   const [nuevaFechaFin,      setNuevaFechaFin]      = useState('')
   const [guardandoSub,       setGuardandoSub]       = useState(false)
+  const [errorSub,           setErrorSub]           = useState('')
 
   const { data: subtareas = [] } = useQuery({
     queryKey: ['subtareas', entregable.id],
@@ -173,6 +174,21 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
 
   async function crearSubtarea() {
     if (!nuevoNombre.trim()) return
+    setErrorSub('')
+
+    if (nuevaFechaInicio && entregable.fecha_inicio && nuevaFechaInicio < entregable.fecha_inicio) {
+      setErrorSub(`La fecha de inicio no puede ser anterior al ${entregable.fecha_inicio}`)
+      return
+    }
+    if (nuevaFechaFin && entregable.fecha_fin && nuevaFechaFin > entregable.fecha_fin) {
+      setErrorSub(`La fecha de fin no puede ser posterior al ${entregable.fecha_fin}`)
+      return
+    }
+    if (nuevaFechaInicio && nuevaFechaFin && nuevaFechaFin < nuevaFechaInicio) {
+      setErrorSub('La fecha de fin no puede ser anterior a la de inicio')
+      return
+    }
+
     setGuardandoSub(true)
 
     const dias = calcularDuracion(nuevaFechaInicio, nuevaFechaFin) ?? 1
@@ -484,6 +500,11 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
                     })}
                   </div>
 
+                  {/* Error de validación de fechas */}
+                  {errorSub && (
+                    <p className="text-red-400 text-xs">{errorSub}</p>
+                  )}
+
                   {/* Acciones */}
                   <div className="flex items-center gap-2 pt-1">
                     <button
@@ -497,7 +518,7 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setShowAddForm(false); setNuevoNombre(''); setNuevaPrioridad('media'); setNuevoResponsableId(''); setNuevaFechaInicio(''); setNuevaFechaFin('') }}
+                      onClick={() => { setShowAddForm(false); setNuevoNombre(''); setNuevaPrioridad('media'); setNuevoResponsableId(''); setNuevaFechaInicio(''); setNuevaFechaFin(''); setErrorSub('') }}
                       className="px-3 py-2 text-xs text-gray-500 hover:text-gray-300 transition"
                     >
                       Cancelar
