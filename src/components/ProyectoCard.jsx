@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import EntregableModal from './EntregableModal'
 import ProyectoModal from './ProyectoModal'
 import { ChevronDown, ChevronUp, Plus, Trash2, Pencil, Calendar } from 'lucide-react'
-import { calcularPonderado, BadgePrioridad } from '../pages/Proyectos'
+import { calcularPonderado, BadgePrioridad, factorP } from '../pages/Proyectos'
 
 function calcularPctPlan(fechaInicio, fechaFin) {
   const hoy    = new Date()
@@ -18,15 +19,49 @@ function calcularPctPlan(fechaInicio, fechaFin) {
   return Math.round((pasado / total) * 100)
 }
 
+function calcularPctDesdeSubtareas(subtareas) {
+  if (subtareas.length === 0) return 0
+  const totalPeso = subtareas.reduce((sum, s) => sum + (s.duracion_dias || 1) * factorP(s.prioridad), 0)
+  if (totalPeso === 0) return 0
+  const suma = subtareas.reduce((sum, s) => {
+    if (s.estado !== 'completada') return sum
+    return sum + (s.duracion_dias || 1) * factorP(s.prioridad) * 100
+  }, 0)
+  return Math.round(suma / totalPeso)
+}
+
 // ─── ENTREGABLE ROW ───────────────────────────────────────────────────────────
 function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin }) {
+  const queryClient = useQueryClient()
   const [pctLocal, setPctLocal]   = useState(Number(entregable.pct_real) || 0)
   const [guardando, setGuardando] = useState(false)
 
-  const pctPlan = calcularPctPlan(entregable.fecha_inicio, entregable.fecha_fin)
-  const estado  = pctLocal === 100 ? 'completado' : pctLocal > 0 ? 'en_progreso' : 'no_iniciado'
+  const { data: subtareas = [] } = useQuery({
+    queryKey: ['subtareas', entregable.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('task_subtasks')
+        .select('*, responsable:users(id, nombre)')
+        .eq('deliverable_id', entregable.id)
+        .order('orden')
+      return data ?? []
+    },
+    staleTime: 30_000,
+  })
 
-  const cumplEntregable = pctPlan > 0 ? Math.round((pctLocal / pctPlan) * 100) : null
+  const tieneSubtareas = subtareas.length > 0
+
+  const pctCalculado = useMemo(() => {
+    if (!tieneSubtareas) return null
+    return calcularPctDesdeSubtareas(subtareas)
+  }, [subtareas, tieneSubtareas])
+
+  // Valor efectivo: calculado desde subtareas si las hay, slider manual si no
+  const pctEfectivo = tieneSubtareas ? (pctCalculado ?? 0) : pctLocal
+
+  const pctPlan     = calcularPctPlan(entregable.fecha_inicio, entregable.fecha_fin)
+  const estado      = pctEfectivo === 100 ? 'completado' : pctEfectivo > 0 ? 'en_progreso' : 'no_iniciado'
+  const cumplEntregable = pctPlan > 0 ? Math.round((pctEfectivo / pctPlan) * 100) : null
 
   const colorBadge = estado === 'completado'  ? 'bg-green-900/50 text-green-300'
     : estado === 'en_progreso' ? 'bg-blue-900/50 text-blue-300'
@@ -34,14 +69,14 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
   const labelBadge = estado === 'completado'  ? 'Completado'
     : estado === 'en_progreso' ? 'En progreso' : 'No iniciado'
 
-  const colorBarraReal = pctLocal === 100 ? 'bg-green-500'
-    : pctLocal >= pctPlan ? 'bg-blue-500'
-    : pctLocal > 0 ? 'bg-amber-500'
+  const colorBarraReal = pctEfectivo === 100 ? 'bg-green-500'
+    : pctEfectivo >= pctPlan ? 'bg-blue-500'
+    : pctEfectivo > 0 ? 'bg-amber-500'
     : 'bg-gray-700'
 
-  const colorTextoReal = pctLocal === 100 ? 'text-green-400'
-    : pctLocal >= pctPlan ? 'text-blue-400'
-    : pctLocal > 0 ? 'text-amber-400'
+  const colorTextoReal = pctEfectivo === 100 ? 'text-green-400'
+    : pctEfectivo >= pctPlan ? 'text-blue-400'
+    : pctEfectivo > 0 ? 'text-amber-400'
     : 'text-gray-500'
 
   const colorCumpl = cumplEntregable === null ? 'text-gray-500'
@@ -49,7 +84,6 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
     : cumplEntregable >= 75  ? 'text-amber-400'
     : 'text-red-400'
 
-  // Fondo tenue según estado — estilo C, sin separadores blancos
   const bgEstado = estado === 'completado'  ? 'bg-green-900/[0.07]'
     : estado === 'en_progreso' ? 'bg-blue-900/[0.07]'
     : 'bg-white/[0.02]'
@@ -63,6 +97,32 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
       .eq('id', entregable.id)
     onActualizar()
     setGuardando(false)
+  }
+
+  async function toggleSubtarea(subtarea) {
+    const nuevoEstado   = subtarea.estado === 'completada' ? 'pendiente' : 'completada'
+    const completado_at = nuevoEstado === 'completada' ? new Date().toISOString() : null
+
+    await supabase
+      .from('task_subtasks')
+      .update({ estado: nuevoEstado, completado_at, actualizado_at: new Date().toISOString() })
+      .eq('id', subtarea.id)
+
+    // Recalcular pct_real con el nuevo estado de esta subtarea
+    const actualizadas = subtareas.map(s =>
+      s.id === subtarea.id ? { ...s, estado: nuevoEstado } : s
+    )
+    const nuevoPct = calcularPctDesdeSubtareas(actualizadas)
+    const nuevoEstadoEntregable = nuevoPct === 100 ? 'completado'
+      : nuevoPct > 0 ? 'en_progreso' : 'no_iniciado'
+
+    await supabase
+      .from('project_deliverables')
+      .update({ pct_real: nuevoPct, estado: nuevoEstadoEntregable })
+      .eq('id', entregable.id)
+
+    queryClient.invalidateQueries({ queryKey: ['subtareas', entregable.id] })
+    onActualizar()
   }
 
   return (
@@ -115,57 +175,133 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
             </div>
           )}
 
-          {/* Barra doble plan + real — más delgada para que encaje con el estilo */}
+          {/* Barra doble plan + real */}
           <div className="relative w-full bg-gray-800/80 rounded-full h-1.5 mb-1">
             <div className="absolute top-0 left-0 h-1.5 rounded-full bg-gray-600/50 transition-all duration-500"
               style={{ width: `${pctPlan}%` }} />
             <div className={`absolute top-0 left-0 h-1.5 rounded-full transition-all duration-500 ${colorBarraReal}`}
-              style={{ width: `${pctLocal}%` }} />
+              style={{ width: `${pctEfectivo}%` }} />
           </div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs text-gray-600">Plan {pctPlan}%</span>
-            <span className={`text-xs font-medium ${colorTextoReal}`}>Real {pctLocal}%</span>
+            <span className={`text-xs font-medium ${colorTextoReal}`}>Real {pctEfectivo}%</span>
           </div>
 
-          {/* Slider */}
-          <div className="flex items-center gap-3">
-            <input
-              type="range" min="0" max="100" step="5"
-              value={pctLocal} disabled={guardando}
-              onChange={e => setPctLocal(Number(e.target.value))}
-              onMouseUp={e  => guardar(Number(e.target.value))}
-              onTouchEnd={e => guardar(Number(e.target.value))}
-              className="flex-1 disabled:opacity-50"
-              style={{
-                WebkitAppearance: 'none',
-                appearance: 'none',
-                background: `linear-gradient(to right, #3b82f6 ${pctLocal}%, #374151 ${pctLocal}%)`,
-                height: '4px',
-                borderRadius: '9999px',
-                outline: 'none',
-                cursor: guardando ? 'not-allowed' : 'pointer',
-                accentColor: '#3b82f6',
-              }}
-            />
-            {esAdmin && (
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
-                <button onClick={onEditar}
-                  className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition">
-                  <Pencil className="w-3.5 h-3.5" />
-                </button>
-                <button onClick={onEliminar}
-                  className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Slider (solo cuando NO hay subtareas) o indicador calculado */}
+          {tieneSubtareas ? (
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xs text-gray-600 italic">
+                % calculado desde {subtareas.length} subtarea{subtareas.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <input
+                type="range" min="0" max="100" step="5"
+                value={pctLocal} disabled={guardando}
+                onChange={e => setPctLocal(Number(e.target.value))}
+                onMouseUp={e  => guardar(Number(e.target.value))}
+                onTouchEnd={e => guardar(Number(e.target.value))}
+                className="flex-1 disabled:opacity-50"
+                style={{
+                  WebkitAppearance: 'none',
+                  appearance: 'none',
+                  background: `linear-gradient(to right, #3b82f6 ${pctLocal}%, #374151 ${pctLocal}%)`,
+                  height: '4px',
+                  borderRadius: '9999px',
+                  outline: 'none',
+                  cursor: guardando ? 'not-allowed' : 'pointer',
+                  accentColor: '#3b82f6',
+                }}
+              />
+              {esAdmin && (
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition shrink-0">
+                  <button onClick={onEditar}
+                    className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition">
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={onEliminar}
+                    className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Botones editar/eliminar cuando hay subtareas (fuera del slider row) */}
+          {tieneSubtareas && esAdmin && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition mb-2">
+              <button onClick={onEditar}
+                className="p-1.5 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={onEliminar}
+                className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* ── LISTA DE SUBTAREAS ─────────────────────────────────── */}
+          {tieneSubtareas && (
+            <div className="mt-2 space-y-1">
+              {subtareas.map(sub => {
+                const completada = sub.estado === 'completada'
+                return (
+                  <div
+                    key={sub.id}
+                    className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition
+                      ${completada
+                        ? 'bg-green-900/10 border border-green-900/20'
+                        : 'bg-gray-800/50 border border-gray-800'}`}
+                  >
+                    {/* Checkbox */}
+                    <input
+                      type="checkbox"
+                      checked={completada}
+                      onChange={() => toggleSubtarea(sub)}
+                      className="w-3.5 h-3.5 rounded accent-green-500 shrink-0 cursor-pointer"
+                      style={{ accentColor: '#22c55e' }}
+                    />
+
+                    {/* Nombre */}
+                    <span className={`flex-1 text-xs min-w-0 truncate ${
+                      completada ? 'line-through text-gray-600' : 'text-gray-300'
+                    }`}>
+                      {sub.nombre}
+                    </span>
+
+                    {/* Responsable (iniciales) */}
+                    {sub.responsable && (
+                      <span className="text-[10px] bg-gray-700 text-gray-400 px-1.5 py-0.5 rounded-full shrink-0"
+                        title={sub.responsable.nombre}>
+                        {sub.responsable.nombre.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()}
+                      </span>
+                    )}
+
+                    {/* Badge prioridad */}
+                    <BadgePrioridad prioridad={sub.prioridad} size="xs" />
+
+                    {/* Fechas */}
+                    {sub.fecha_inicio && sub.fecha_fin && (
+                      <span className="text-[10px] text-gray-600 shrink-0 hidden sm:block">
+                        {new Date(sub.fecha_inicio + 'T00:00:00').toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
+                        {' → '}
+                        {new Date(sub.fecha_fin    + 'T00:00:00').toLocaleDateString('es-CL', { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         {/* Números protagonistas */}
         <div className="flex flex-col items-end gap-1 shrink-0 min-w-[72px] pt-0.5">
           <span className={`text-2xl font-bold leading-none ${colorTextoReal}`}>
-            {guardando ? '…' : `${pctLocal}%`}
+            {guardando ? '…' : `${pctEfectivo}%`}
           </span>
           <span className="text-xs text-gray-600">real</span>
           {cumplEntregable !== null && estado !== 'no_iniciado' && (
@@ -319,7 +455,6 @@ export default function ProyectoCard({ proyecto, onCambio }) {
           {entregables.length === 0 ? (
             <div className="px-6 py-6 text-center text-gray-600 text-sm">Sin entregables aún</div>
           ) : (
-            // py-2 da respiro arriba y abajo, los EntregableRow tienen mx-3 my-1.5
             <div className="py-2">
               {[...entregables]
                 .sort((a, b) => {
