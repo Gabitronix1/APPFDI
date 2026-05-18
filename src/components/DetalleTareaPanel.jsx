@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useState } from 'react'
-import { X, CheckCircle2, Clock, AlertCircle, Download, FileText, Image, FileSpreadsheet, File, RefreshCw, Sparkles, Pencil, Save } from 'lucide-react'
+import { X, CheckCircle2, Clock, AlertCircle, Download, FileText, Image, FileSpreadsheet, File, RefreshCw, Sparkles, Pencil, Save, MessageSquare, Send, Trash2 } from 'lucide-react'
 
 function getIconoArchivo(tipo) {
   switch (tipo) {
@@ -384,8 +384,159 @@ export default function DetalleTareaPanel({ tarea, onClose }) {
             </div>
           )}
 
+          {/* ── COMENTARIOS ──────────────────────────────────────── */}
+          <SeccionComentarios tareaId={tarea.id} profile={profile} esAdmin={esAdminOGerente} />
+
         </div>
       </div>
     </>
+  )
+}
+
+// ─── SECCIÓN COMENTARIOS ───────────────────────────────────────────────────────
+function SeccionComentarios({ tareaId, profile, esAdmin }) {
+  const queryClient  = useQueryClient()
+  const [texto, setTexto]       = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  const { data: comentarios = [], isLoading } = useQuery({
+    queryKey: ['comentarios', tareaId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_comments')
+        .select('*, autor:users(id, nombre)')
+        .eq('task_id', tareaId)
+        .order('creado_at', { ascending: true })
+      if (error) throw error
+      return data ?? []
+    },
+  })
+
+  async function enviar() {
+    const t = texto.trim()
+    if (!t || enviando) return
+    setEnviando(true)
+    await supabase.from('task_comments').insert({
+      task_id: tareaId,
+      user_id: profile.id,
+      texto:   t,
+    })
+    setTexto('')
+    setEnviando(false)
+    queryClient.invalidateQueries({ queryKey: ['comentarios', tareaId] })
+  }
+
+  async function eliminar(comentarioId) {
+    await supabase.from('task_comments').delete().eq('id', comentarioId)
+    queryClient.invalidateQueries({ queryKey: ['comentarios', tareaId] })
+  }
+
+  function iniciales(nombre) {
+    if (!nombre) return '?'
+    return nombre.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
+  }
+
+  return (
+    <div>
+      <h3 className="text-white font-medium text-sm mb-3 flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 text-blue-400" />
+        Comentarios
+        {comentarios.length > 0 && (
+          <span className="text-xs text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full">
+            {comentarios.length}
+          </span>
+        )}
+      </h3>
+
+      {/* Lista */}
+      {isLoading ? (
+        <div className="flex justify-center py-4">
+          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : comentarios.length === 0 ? (
+        <div className="bg-gray-800/50 rounded-xl px-4 py-3 text-center mb-3">
+          <p className="text-gray-500 text-sm">Sin comentarios aún</p>
+        </div>
+      ) : (
+        <div className="space-y-2 mb-3">
+          {comentarios.map(c => {
+            const esMio    = c.user_id === profile?.id
+            const puedeEliminar = esMio || esAdmin
+            return (
+              <div key={c.id} className="flex items-start gap-2.5 group">
+                {/* Avatar */}
+                <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-[10px] font-bold text-gray-300">
+                    {iniciales(c.autor?.nombre)}
+                  </span>
+                </div>
+
+                {/* Burbuja */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 mb-0.5">
+                    <span className="text-xs font-medium text-gray-300 truncate">
+                      {c.autor?.nombre ?? 'Usuario'}
+                    </span>
+                    <span className="text-[10px] text-gray-600 shrink-0">
+                      {new Date(c.creado_at).toLocaleDateString('es-CL', {
+                        day: 'numeric', month: 'short',
+                        hour: '2-digit', minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  <div className="bg-gray-800/60 border border-gray-700/50 rounded-xl px-3 py-2">
+                    <p className="text-gray-200 text-sm whitespace-pre-wrap break-words">{c.texto}</p>
+                  </div>
+                </div>
+
+                {/* Eliminar */}
+                {puedeEliminar && (
+                  <button
+                    onClick={() => eliminar(c.id)}
+                    className="shrink-0 mt-1 p-1 text-gray-700 hover:text-red-400 transition
+                               opacity-0 group-hover:opacity-100"
+                    title="Eliminar comentario"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Input nuevo comentario */}
+      <div className="flex items-end gap-2">
+        <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center shrink-0 mb-0.5">
+          <span className="text-[10px] font-bold text-gray-300">
+            {iniciales(profile?.nombre)}
+          </span>
+        </div>
+        <div className="flex-1 flex items-end gap-2 bg-gray-800/60 border border-gray-700 rounded-xl px-3 py-2
+                        focus-within:border-blue-600 transition">
+          <textarea
+            value={texto}
+            onChange={e => setTexto(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar() }
+            }}
+            placeholder="Escribe un comentario… (Enter para enviar)"
+            rows={1}
+            className="flex-1 bg-transparent text-white text-sm placeholder-gray-600
+                       focus:outline-none resize-none leading-5"
+            style={{ maxHeight: '96px', overflowY: 'auto' }}
+          />
+          <button
+            onClick={enviar}
+            disabled={!texto.trim() || enviando}
+            className="shrink-0 p-1 text-blue-500 hover:text-blue-400 disabled:text-gray-700 transition"
+            title="Enviar"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

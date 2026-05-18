@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { X, Plus, Trash2 } from 'lucide-react'
 import { factorP, BadgePrioridad } from '../pages/Proyectos'
+import CampoFecha from './CampoFecha'
 
 const PRIORIDADES = [
   { value: 'alta',  label: '↑ Alta',  cls: 'bg-red-900/40 border-red-700 text-red-300'       },
@@ -423,24 +424,18 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">Fecha inicio</label>
-                        <input
-                          type="date" value={s.fecha_inicio}
-                          min={form.fecha_inicio || undefined}
-                          max={form.fecha_fin    || undefined}
-                          onChange={e => cambiarSubtarea(idx, 'fecha_inicio', e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5
-                                     text-white text-xs focus:outline-none focus:border-blue-500"
+                        <CampoFecha
+                          value={s.fecha_inicio}
+                          onChange={v => cambiarSubtarea(idx, 'fecha_inicio', v)}
+                          className="w-full"
                         />
                       </div>
                       <div>
                         <label className="block text-xs text-gray-500 mb-1">Fecha fin</label>
-                        <input
-                          type="date" value={s.fecha_fin}
-                          min={s.fecha_inicio   || form.fecha_inicio || undefined}
-                          max={form.fecha_fin    || undefined}
-                          onChange={e => cambiarSubtarea(idx, 'fecha_fin', e.target.value)}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5
-                                     text-white text-xs focus:outline-none focus:border-blue-500"
+                        <CampoFecha
+                          value={s.fecha_fin}
+                          onChange={v => cambiarSubtarea(idx, 'fecha_fin', v)}
+                          className="w-full"
                         />
                       </div>
                     </div>
