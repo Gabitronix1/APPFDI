@@ -684,12 +684,8 @@ export default function ProyectoCard({ proyecto, onCambio }) {
           ) : (
             <div className="py-2">
               {[...entregables]
-                .sort((a, b) => {
-                  const fp = { alta: 3, media: 2, baja: 1 }
-                  const pa = fp[a.prioridad] ?? 2, pb = fp[b.prioridad] ?? 2
-                  if (pa !== pb) return pb - pa
-                  return (a.orden ?? 0) - (b.orden ?? 0)
-                })
+                .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+                
                 .map(entregable => (
                   <EntregableRow
                     key={entregable.id}
