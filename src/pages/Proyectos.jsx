@@ -106,6 +106,110 @@ function Ring({ pct, color, size = 56 }) {
   )
 }
 
+// ─── HISTORIAL DEPARTAMENTO ───────────────────────────────────────────────────
+function HistorialDepartamento({ departamento }) {
+  const { data: snaps = [], isLoading } = useQuery({
+    queryKey: ['department_snapshots', departamento],
+    enabled: !!departamento,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('department_snapshots')
+        .select('*')
+        .eq('departamento', departamento)
+        .order('anio', { ascending: true })
+        .order('mes',  { ascending: true })
+      if (error) throw error
+      return data ?? []
+    }
+  })
+
+  if (isLoading) return (
+    <div className="px-5 py-4 text-center">
+      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
+    </div>
+  )
+
+  if (snaps.length === 0) return (
+    <div className="px-5 py-5 text-center">
+      <p className="text-gray-600 text-sm">Sin historial global aún</p>
+    </div>
+  )
+
+  return (
+    <div className="px-5 py-4">
+      <div className="space-y-2">
+        {snaps.map((snap, i) => {
+          const prev      = i > 0 ? snaps[i - 1] : null
+          const deltaReal = prev ? Math.round(snap.pct_real - prev.pct_real) : null
+
+          const colorReal = snap.pct_real === 100 ? 'text-green-400'
+            : snap.pct_real >= snap.pct_plan ? 'text-blue-400'
+            : snap.pct_real > 0 ? 'text-amber-400'
+            : 'text-gray-500'
+          const colorBarraReal = snap.pct_real === 100 ? 'bg-green-500'
+            : snap.pct_real >= snap.pct_plan ? 'bg-blue-500'
+            : snap.pct_real > 0 ? 'bg-amber-500'
+            : 'bg-gray-700'
+          const colorCumpl = snap.cumplimiento === null ? 'text-gray-500'
+            : snap.cumplimiento >= 100 ? 'text-green-400'
+            : snap.cumplimiento >= 75  ? 'text-amber-400'
+            : 'text-red-400'
+
+          return (
+            <div key={snap.id} className="bg-gray-800/50 rounded-xl px-4 py-3">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-white">
+                    {MESES_CORTO[(snap.mes ?? 1) - 1]} {snap.anio}
+                  </span>
+                  {deltaReal !== null && (
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${
+                      deltaReal > 0 ? 'bg-green-900/50 text-green-400'
+                      : deltaReal < 0 ? 'bg-red-900/50 text-red-400'
+                      : 'bg-gray-800 text-gray-500'
+                    }`}>
+                      {deltaReal > 0 ? `+${deltaReal}%` : deltaReal < 0 ? `${deltaReal}%` : '='}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-gray-600">
+                    {snap.total_proyectos} proy. · {snap.total_entregables} entregables
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-sm font-bold ${colorReal}`}>{Math.round(snap.pct_real)}%</span>
+                  <span className="text-gray-700 text-xs">/</span>
+                  <span className="text-sm text-gray-500">{Math.round(snap.pct_plan)}%</span>
+                  {snap.cumplimiento !== null && (
+                    <>
+                      <span className="w-px h-3 bg-gray-700" />
+                      <span className={`text-xs font-semibold ${colorCumpl}`}>
+                        {Math.round(snap.cumplimiento)}% cumpl.
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="relative w-full bg-gray-700 rounded-full h-1.5 mb-2">
+                <div className="absolute top-0 left-0 h-1.5 rounded-full bg-gray-600/60"
+                  style={{ width: `${snap.pct_plan}%` }} />
+                <div className={`absolute top-0 left-0 h-1.5 rounded-full ${colorBarraReal}`}
+                  style={{ width: `${snap.pct_real}%` }} />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <span className="text-[10px] text-green-400">{snap.completados} completados</span>
+                <span className="text-[10px] text-amber-400">{snap.en_progreso} en progreso</span>
+                <span className="text-[10px] text-gray-600">{snap.no_iniciados} no iniciados</span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── HISTORIAL PROYECTO ───────────────────────────────────────────────────────
 function HistorialProyecto({ proyectoId }) {
   const { data: snapshots = [], isLoading } = useQuery({
@@ -238,7 +342,7 @@ function HistorialProyecto({ proyectoId }) {
 }
 
 // ─── PANEL HISTORIAL (acordeón por proyecto) ──────────────────────────────────
-function PanelHistorial({ proyectos }) {
+function PanelHistorial({ proyectos, departamento }) {
   const [expandido, setExpandido] = useState(null)
 
   if (proyectos.length === 0) return null
@@ -248,6 +352,21 @@ function PanelHistorial({ proyectos }) {
       <div className="flex items-center gap-2 px-5 py-3.5 border-b border-gray-800">
         <TrendingUp className="w-4 h-4 text-blue-400" />
         <h2 className="text-white font-semibold text-sm">Historial de trazabilidad</h2>
+      </div>
+
+      {/* Resumen global departamental */}
+      {departamento && (
+        <div className="border-b border-gray-800">
+          <div className="flex items-center gap-2 px-5 pt-3.5 pb-0">
+            <span className="text-xs text-gray-400 font-medium uppercase tracking-widest">Resumen departamental</span>
+          </div>
+          <HistorialDepartamento departamento={departamento} />
+        </div>
+      )}
+
+      {/* Acordeón por proyecto */}
+      <div className="flex items-center gap-2 px-5 pt-3 pb-1">
+        <span className="text-xs text-gray-400 font-medium uppercase tracking-widest">Por proyecto</span>
       </div>
       <div className="divide-y divide-gray-800/50">
         {proyectos.map(p => (
@@ -478,8 +597,36 @@ export default function Proyectos() {
         }
       }
 
+      // Snapshot global del departamento
+      const allDeliverables   = proyectos.flatMap(p => p.project_deliverables ?? [])
+      const deptoReal         = calcularPonderadoGlobal(proyectos, 'pct_real')
+      const deptoPlan         = calcularPonderadoGlobal(proyectos, 'pct_plan')
+      const deptoCumpl        = deptoPlan > 0 ? Math.round(deptoReal / deptoPlan * 100) : null
+      const deptoCompletados  = allDeliverables.filter(d => Number(d.pct_real) === 100).length
+      const deptoEnProgreso   = allDeliverables.filter(d => Number(d.pct_real) > 0 && Number(d.pct_real) < 100).length
+      const deptoNoIniciados  = allDeliverables.length - deptoCompletados - deptoEnProgreso
+
+      const { error: errDepto } = await supabase
+        .from('department_snapshots')
+        .insert({
+          departamento:      profile?.departamento,
+          mes,
+          anio:              anioSnap,
+          pct_real:          deptoReal,
+          pct_plan:          deptoPlan,
+          cumplimiento:      deptoCumpl,
+          total_proyectos:   proyectos.length,
+          total_entregables: allDeliverables.length,
+          completados:       deptoCompletados,
+          en_progreso:       deptoEnProgreso,
+          no_iniciados:      deptoNoIniciados,
+          creado_por:        profile?.id ?? null,
+        })
+      if (errDepto) throw errDepto
+
       // Invalidar caché de snapshots
       queryClient.invalidateQueries({ queryKey: ['snapshots'] })
+      queryClient.invalidateQueries({ queryKey: ['department_snapshots', profile?.departamento] })
       setSnapMsg(`✓ Snapshot guardado — ${MESES_CORTO[mes - 1]} ${anioSnap}`)
       setTimeout(() => setSnapMsg(''), 4000)
     } catch (err) {
@@ -675,7 +822,7 @@ export default function Proyectos() {
 
       {/* ── PANEL HISTORIAL ──────────────────────────────────────── */}
       {verHistorial && !isLoading && proyectos.length > 0 && (
-        <PanelHistorial proyectos={proyectos} />
+        <PanelHistorial proyectos={proyectos} departamento={profile?.departamento} />
       )}
 
       {/* ── PANEL EJECUTIVO ──────────────────────────────────────── */}
