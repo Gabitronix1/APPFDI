@@ -70,6 +70,25 @@ function calcularPonderado(entregables, campo) {
   return Math.round(suma / totalPeso)
 }
 
+function calcularPonderadoGlobal(proyectos, campo) {
+  const totalPeso = proyectos.reduce((s, p) => {
+    const fp = factorP(p.prioridad)
+    return s + (p.project_deliverables ?? []).reduce((sd, d) =>
+      sd + (d.duracion_dias || 1) * factorP(d.prioridad) * fp, 0)
+  }, 0)
+  if (totalPeso === 0) return 0
+  const suma = proyectos.reduce((s, p) => {
+    const fp = factorP(p.prioridad)
+    return s + (p.project_deliverables ?? []).reduce((sd, d) => {
+      const valor = campo === 'pct_plan'
+        ? calcularPctPlan(d.fecha_inicio, d.fecha_fin)
+        : (Number(d.pct_real) || 0)
+      return sd + valor * (d.duracion_dias || 1) * factorP(d.prioridad) * fp
+    }, 0)
+  }, 0)
+  return Math.round(suma / totalPeso)
+}
+
 // ── Snapshot automático al cerrar ciclo ───────────────────────────────────
 // Se llama justo antes de crear el nuevo ciclo, guardando el estado actual
 // de todos los proyectos activos del departamento.
@@ -127,6 +146,31 @@ async function guardarSnapshotAutomatico(departamento, mes, anio) {
           .insert(detalles)
       }
     }
+    // Snapshot global del departamento
+    const allDeliverables   = proyectos.flatMap(p => p.project_deliverables ?? [])
+    const deptoReal         = calcularPonderadoGlobal(proyectos, 'pct_real')
+    const deptoPlan         = calcularPonderadoGlobal(proyectos, 'pct_plan')
+    const deptoCumpl        = deptoPlan > 0 ? Math.round(deptoReal / deptoPlan * 100) : null
+    const deptoCompletados  = allDeliverables.filter(d => Number(d.pct_real) === 100).length
+    const deptoEnProgreso   = allDeliverables.filter(d => Number(d.pct_real) > 0 && Number(d.pct_real) < 100).length
+    const deptoNoIniciados  = allDeliverables.length - deptoCompletados - deptoEnProgreso
+
+    await supabase
+      .from('department_snapshots')
+      .insert({
+        departamento,
+        mes,
+        anio,
+        pct_real:          deptoReal,
+        pct_plan:          deptoPlan,
+        cumplimiento:      deptoCumpl,
+        total_proyectos:   proyectos.length,
+        total_entregables: allDeliverables.length,
+        completados:       deptoCompletados,
+        en_progreso:       deptoEnProgreso,
+        no_iniciados:      deptoNoIniciados,
+        creado_por:        null,
+      })
   } catch (err) {
     // El snapshot es secundario — no interrumpe el cierre de ciclo si falla
     console.warn('Snapshot automático falló (no crítico):', err)
@@ -311,6 +355,7 @@ export function useCrearCiclo() {
       queryClient.invalidateQueries({ queryKey: ['ciclos'] })
       queryClient.invalidateQueries({ queryKey: ['tareas'] })
       queryClient.invalidateQueries({ queryKey: ['snapshots'] })
+      queryClient.invalidateQueries({ queryKey: ['department_snapshots'] })
     }
   })
 }
