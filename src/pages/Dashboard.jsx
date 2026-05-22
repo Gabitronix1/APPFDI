@@ -39,6 +39,15 @@ function PctBadge({ pct }) {
   return <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${color}`}>{pct}%</span>
 }
 
+function CondicionBadge({ condicion, frecuencia }) {
+  if (frecuencia === 'semanal' || frecuencia === 'quincenal') return null
+  if (condicion === 'habil')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-900/50 text-blue-300">Día hábil</span>
+  if (condicion === 'dia_real')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-800 text-gray-500">Día cal.</span>
+  return null
+}
+
 function TareaRow({ tarea, onClick, esCicloCerrado }) {
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
@@ -88,7 +97,10 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
             : <>Vence {tarea.fecha_termino}</>}
         </p>
       </div>
-      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${badge}`}>{label}</span>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <CondicionBadge condicion={tarea.condicion} frecuencia={tarea.frecuencia} />
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge}`}>{label}</span>
+      </div>
     </div>
   )
 }

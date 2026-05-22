@@ -31,6 +31,15 @@ const ALERTA_BORDER = {
   fuera_de_plazo: 'border-red-500',
 }
 
+function CondicionBadge({ condicion, frecuencia }) {
+  if (frecuencia === 'semanal' || frecuencia === 'quincenal') return null
+  if (condicion === 'habil')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-900/50 text-blue-300">Día hábil</span>
+  if (condicion === 'dia_real')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-800 text-gray-500">Día cal.</span>
+  return null
+}
+
 function nombreCiclo(mes, anio) {
   return `${MESES[mes - 1]} ${anio}`
 }
@@ -111,6 +120,7 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
           {tarea.total_evidencias > 0 && !estaBloqueada && (
             <span className="text-xs text-gray-600">{tarea.total_evidencias}📎</span>
           )}
+          <CondicionBadge condicion={tarea.condicion} frecuencia={tarea.frecuencia} />
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estilos.badge}`}>
             {estilos.label}
           </span>

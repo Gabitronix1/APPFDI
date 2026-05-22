@@ -36,6 +36,15 @@ const ESTADO_CONFIG = {
   pendiente:             { color: 'text-gray-400',   bg: 'bg-gray-800/50 border-gray-700',     icono: Clock,        label: 'Pendiente' },
 }
 
+function CondicionBadge({ condicion, frecuencia }) {
+  if (frecuencia === 'semanal' || frecuencia === 'quincenal') return null
+  if (condicion === 'habil')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-900/50 text-blue-300">Día hábil</span>
+  if (condicion === 'dia_real')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-800 text-gray-500">Día cal.</span>
+  return null
+}
+
 // ─── COMPONENTE DE AJUSTE DE CALIFICACIÓN ─────────────────────────────────────
 function AjusteCalificacion({ comp, tareaId, onGuardado }) {
   const { user } = useAuth()
@@ -252,7 +261,10 @@ export default function DetalleTareaPanel({ tarea, onClose }) {
             <Icono className={`w-5 h-5 ${cfg.color} shrink-0`} />
             <div>
               <p className={`text-sm font-medium ${cfg.color}`}>{cfg.label}</p>
-              <p className="text-gray-500 text-xs mt-0.5">Fecha límite: {tarea.fecha_termino}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-gray-500 text-xs">Fecha límite: {tarea.fecha_termino}</p>
+                <CondicionBadge condicion={tarea.condicion} frecuencia={tarea.frecuencia} />
+              </div>
             </div>
           </div>
 
