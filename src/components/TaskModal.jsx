@@ -22,11 +22,7 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
   const fechaTermino = new Date(tarea.fecha_termino + 'T00:00:00')
   const diasAtraso   = Math.max(0, Math.floor((hoy - fechaTermino) / (1000 * 60 * 60 * 24)))
 
-  const pctEstimado = diasAtraso === 0 ? 100
-    : diasAtraso === 1 ? 90
-    : diasAtraso === 2 ? 80
-    : diasAtraso === 3 ? 70
-    : 50
+  const pctEstimado = Math.max(0, 100 - (diasAtraso * 10))
 
   const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente'
 
