@@ -79,6 +79,19 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
     }
   })
 
+  // Al abrir el modal, si es día hábil buscar el número desde la plantilla
+  useEffect(() => {
+    if (tarea.condicion !== 'habil' || !tarea.template_id) return
+    supabase
+      .from('task_templates')
+      .select('dia_del_mes')
+      .eq('id', tarea.template_id)
+      .single()
+      .then(({ data }) => {
+        if (data?.dia_del_mes) setDiaHabilNum(String(data.dia_del_mes))
+      })
+  }, [])
+
   const [tareasSeriePreview, setTareasSeriePreview] = useState([])
   useEffect(() => {
     if (!esSerie) return
