@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { X, Save, RefreshCw, CalendarClock, Sparkles, Clock } from 'lucide-react'
-import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente } from '../lib/feriados'
+import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } from '../lib/feriados'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -98,8 +98,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
     const num = parseInt(diaHabilNum)
     if (isNaN(num) || num < 1 || num > 31) return
     try {
-      const fechaBase = new Date(anioCiclo, mesCiclo - 1, num, 12, 0, 0)
-      const fecha     = ajustarAlDiaHabilSiguiente(fechaBase, feriadosComb)
+      const fecha = getNesimoHabilDelMes(mesCiclo, anioCiclo, num, feriadosComb)
       setFechaTermino(fecha.toISOString().split('T')[0])
     } catch (e) {}
   }, [diaHabilFijo, diaHabilNum])
@@ -333,7 +332,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
                       <label className="block text-sm text-gray-400 mb-1">
-                        Día del mes <span className="text-red-400">*</span>
+                        Día hábil N° <span className="text-red-400">*</span>
                       </label>
                       <input
                         type="number" min="1" max="31"
@@ -355,7 +354,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                   </div>
                   {fechaTermino && (
                     <p className="text-xs text-blue-400">
-                      📅 Calculada para {nombreMesCiclo}. Si cae en finde o feriado se ajusta al siguiente hábil.
+                      📅 El día hábil N° {diaHabilNum} de {nombreMesCiclo} corresponde al {fechaTermino}.
                     </p>
                   )}
                 </div>
