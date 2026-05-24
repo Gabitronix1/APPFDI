@@ -39,6 +39,15 @@ function PctBadge({ pct }) {
   return <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${color}`}>{pct}%</span>
 }
 
+function CondicionBadge({ condicion, frecuencia }) {
+  if (frecuencia === 'semanal' || frecuencia === 'quincenal') return null
+  if (condicion === 'habil')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-900/50 text-blue-300">Día hábil</span>
+  if (condicion === 'dia_real')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-800 text-gray-500">Día cal.</span>
+  return null
+}
+
 function TareaRow({ tarea, onClick, esCicloCerrado }) {
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
@@ -88,7 +97,10 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
             : <>Vence {tarea.fecha_termino}</>}
         </p>
       </div>
-      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${badge}`}>{label}</span>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <CondicionBadge condicion={tarea.condicion} frecuencia={tarea.frecuencia} />
+        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge}`}>{label}</span>
+      </div>
     </div>
   )
 }
@@ -96,8 +108,12 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
 // ─── BARRA GLOBAL ADMIN ───────────────────────────────────────────────────────
 function BarraGlobalAdmin({ tareas, departamento, tituloCiclo }) {
   const hoy = new Date(); hoy.setHours(0,0,0,0)
-  const exigibles   = tareas.filter(t =>
-    !(t.serie_id && t.fecha_inicio && new Date(t.fecha_inicio + 'T00:00:00') > hoy))
+  // Solo tareas con fecha_termino <= hoy y no bloqueadas
+  const exigibles   = tareas.filter(t => {
+    const bloqueada = t.serie_id && t.fecha_inicio && new Date(t.fecha_inicio + 'T00:00:00') > hoy
+    const debida    = t.fecha_termino && new Date(t.fecha_termino + 'T00:00:00') <= hoy
+    return !bloqueada && debida
+  })
   const completadas = exigibles.filter(t =>
     t.estado === 'completada' || t.estado === 'completada_con_atraso').length
   const total       = exigibles.length
@@ -174,8 +190,12 @@ function FilaMetricas({ tareasCierre, tareasRecurrentes, tareasPuntuales,
 
   const calcStats = (tareas) => {
     const hoy = new Date(); hoy.setHours(0,0,0,0)
-    const exigibles = tareas.filter(t =>
-      !(t.serie_id && t.fecha_inicio && new Date(t.fecha_inicio + 'T00:00:00') > hoy))
+    // Solo tareas con fecha_termino <= hoy y no bloqueadas
+    const exigibles = tareas.filter(t => {
+      const bloqueada = t.serie_id && t.fecha_inicio && new Date(t.fecha_inicio + 'T00:00:00') > hoy
+      const debida    = t.fecha_termino && new Date(t.fecha_termino + 'T00:00:00') <= hoy
+      return !bloqueada && debida
+    })
     const completadas = exigibles.filter(t => t.estado === 'completada').length
     const atraso      = exigibles.filter(t => t.estado === 'completada_con_atraso').length
     const pendientes  = exigibles.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
@@ -302,8 +322,12 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
   // Stats del modal recalculadas sobre las tareas filtradas
   const calcModalStats = (tareasBloq) => {
     const hoy = new Date(); hoy.setHours(0,0,0,0)
-    const exigibles = tareasBloq.filter(t =>
-      !(t.serie_id && t.fecha_inicio && new Date(t.fecha_inicio + 'T00:00:00') > hoy))
+    // Solo tareas con fecha_termino <= hoy y no bloqueadas
+    const exigibles = tareasBloq.filter(t => {
+      const bloqueada = t.serie_id && t.fecha_inicio && new Date(t.fecha_inicio + 'T00:00:00') > hoy
+      const debida    = t.fecha_termino && new Date(t.fecha_termino + 'T00:00:00') <= hoy
+      return !bloqueada && debida
+    })
     return {
       total:        exigibles.length,
       completadas:  exigibles.filter(t => t.estado === 'completada').length,
@@ -561,19 +585,29 @@ function GrupoTareasUsuario({ titulo, icono, iconoColor, tareas, onClickTarea, d
 function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTarea }) {
   const [tareaDetalle, setTareaDetalle] = useState(null)
 
+  const hoy = new Date(); hoy.setHours(0,0,0,0)
+  const esDebida = t => {
+    const bloqueada = t.serie_id && t.fecha_inicio && new Date(t.fecha_inicio + 'T00:00:00') > hoy
+    const debida    = t.fecha_termino && new Date(t.fecha_termino + 'T00:00:00') <= hoy
+    return !bloqueada && debida
+  }
+
   const misTareas            = tareas.filter(t => t.responsable_nombre === profile?.nombre)
-  const misCompletadas       = misTareas.filter(t => t.estado === 'completada').length
-  const misCompletadasAtraso = misTareas.filter(t => t.estado === 'completada_con_atraso').length
-  const misPendientes        = misTareas.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
-  const misAtrasadas         = misTareas.filter(t => t.estado === 'con_atraso').length
-  const miPct                = misTareas.length
-    ? Math.round(((misCompletadas + misCompletadasAtraso) / misTareas.length) * 100) : 0
+  // Para el indicador de cumplimiento: solo tareas que debían estar listas a hoy
+  const misTareasDebidas     = misTareas.filter(esDebida)
+  const misCompletadas       = misTareasDebidas.filter(t => t.estado === 'completada').length
+  const misCompletadasAtraso = misTareasDebidas.filter(t => t.estado === 'completada_con_atraso').length
+  const misPendientes        = misTareasDebidas.filter(t => t.estado === 'pendiente' || t.estado === 'en_progreso').length
+  const misAtrasadas         = misTareasDebidas.filter(t => t.estado === 'con_atraso').length
+  const miPct                = misTareasDebidas.length
+    ? Math.round(((misCompletadas + misCompletadasAtraso) / misTareasDebidas.length) * 100) : 0
   const miPctCalidad = (() => {
-    const conPct = misTareas.filter(t => t.porcentaje_cumplimiento !== null)
+    const conPct = misTareasDebidas.filter(t => t.porcentaje_cumplimiento !== null)
     if (!conPct.length) return null
     return Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
   })()
 
+  // Lista de pendientes activas: todas sin importar fecha (sirve como TODO)
   const misPendientesActivas  = misTareas.filter(t =>
     t.estado !== 'completada' && t.estado !== 'completada_con_atraso' && t.estado !== 'no_completada'
   )
@@ -581,11 +615,13 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
   const pendientesRecurrentes = misPendientesActivas.filter(t => t.tipo === 'recurrente_mes')
   const pendientesPuntuales   = misPendientesActivas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id))
 
-  const totalEquipo       = tareas.length
-  const completadasEquipo = tareas.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
-  const pctEquipo         = totalEquipo ? Math.round((completadasEquipo / totalEquipo) * 100) : 0
+  // Cumplimiento del equipo: también solo tareas debidas a hoy
+  const tareasDebidasEquipo = tareas.filter(esDebida)
+  const totalEquipo         = tareasDebidasEquipo.length
+  const completadasEquipo   = tareasDebidasEquipo.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
+  const pctEquipo           = totalEquipo ? Math.round((completadasEquipo / totalEquipo) * 100) : 0
 
-  const tareasConDato = misTareas.filter(t =>
+  const tareasConDato = misTareasDebidas.filter(t =>
     t.estado === 'completada' || t.estado === 'completada_con_atraso' ||
     t.estado === 'no_completada' || t.estado === 'con_atraso'
   )

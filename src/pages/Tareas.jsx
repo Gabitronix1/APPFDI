@@ -31,6 +31,15 @@ const ALERTA_BORDER = {
   fuera_de_plazo: 'border-red-500',
 }
 
+function CondicionBadge({ condicion, frecuencia }) {
+  if (frecuencia === 'semanal' || frecuencia === 'quincenal') return null
+  if (condicion === 'habil')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-900/50 text-blue-300">Día hábil</span>
+  if (condicion === 'dia_real')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-800 text-gray-500">Día cal.</span>
+  return null
+}
+
 function nombreCiclo(mes, anio) {
   return `${MESES[mes - 1]} ${anio}`
 }
@@ -111,6 +120,7 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
           {tarea.total_evidencias > 0 && !estaBloqueada && (
             <span className="text-xs text-gray-600">{tarea.total_evidencias}📎</span>
           )}
+          <CondicionBadge condicion={tarea.condicion} frecuencia={tarea.frecuencia} />
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estilos.badge}`}>
             {estilos.label}
           </span>
@@ -205,6 +215,7 @@ export default function Tareas({ cicloSeleccionado }) {
   const [eliminarRecurrente, setEliminarRecurrente] = useState(false)
   const [eliminarSerie, setEliminarSerie]           = useState(false)
   const [loadingEliminar, setLoadingEliminar]       = useState(false)
+  const [templateIdEliminar, setTemplateIdEliminar] = useState(null)
   const [tareaDetalle, setTareaDetalle]             = useState(null)
   const [editando, setEditando]                     = useState(null)
   const [tareasSerieSeleccionadas, setTareasSerieSeleccionadas] = useState([])
@@ -286,6 +297,16 @@ export default function Tareas({ cicloSeleccionado }) {
   async function handleAbrirEliminar(tareaId) {
     setEliminando(tareaId)
     const tarea = tareas.find(t => t.id === tareaId)
+
+    // Obtener template_id directo de la tabla tasks para que funcione
+    // independientemente del estado de la tarea (completada, atrasada, etc.)
+    const { data: taskData } = await supabase
+      .from('tasks')
+      .select('template_id')
+      .eq('id', tareaId)
+      .single()
+    setTemplateIdEliminar(taskData?.template_id ?? null)
+
     if (tarea?.serie_id) {
       const { data } = await supabase
         .from('tasks')
@@ -314,10 +335,11 @@ export default function Tareas({ cicloSeleccionado }) {
       await supabase.from('task_completions').delete().in('task_id', idsAEliminar)
       await supabase.from('tasks').delete().in('id', idsAEliminar)
 
-      if (eliminarRecurrente && tareaAEliminar?.template_id) {
+      const templateId = tareaAEliminar?.template_id || templateIdEliminar
+      if (eliminarRecurrente && templateId) {
         await supabase.from('task_templates')
           .update({ activo: false })
-          .eq('id', tareaAEliminar.template_id)
+          .eq('id', templateId)
       }
 
       queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
@@ -326,6 +348,7 @@ export default function Tareas({ cicloSeleccionado }) {
       setEliminarSerie(false)
       setTareasSerieSeleccionadas([])
       setTareasSerieDelCiclo([])
+      setTemplateIdEliminar(null)
     } catch (err) {
       console.error('Error al eliminar:', err)
     } finally {
@@ -594,7 +617,7 @@ export default function Tareas({ cicloSeleccionado }) {
               </div>
             )}
 
-            {tareaAEliminar?.template_id && (
+            {(tareaAEliminar?.template_id || templateIdEliminar) && (
               <label className={`flex items-start gap-3 rounded-xl px-4 py-3 mb-4 cursor-pointer border transition
                 ${eliminarRecurrente ? 'bg-red-950 border-red-700' : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
               >
@@ -637,6 +660,7 @@ export default function Tareas({ cicloSeleccionado }) {
                   setEliminarSerie(false)
                   setTareasSerieSeleccionadas([])
                   setTareasSerieDelCiclo([])
+                  setTemplateIdEliminar(null)
                 }}
                 disabled={loadingEliminar}
                 className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300

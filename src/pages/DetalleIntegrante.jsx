@@ -46,6 +46,15 @@ const ESTADO_STYLES = {
   fuera_de_plazo:        { badge: 'bg-orange-900 text-orange-300', label: 'Fuera de plazo' },
 }
 
+function CondicionBadge({ condicion, frecuencia }) {
+  if (frecuencia === 'semanal' || frecuencia === 'quincenal') return null
+  if (condicion === 'habil')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-900/50 text-blue-300">Día hábil</span>
+  if (condicion === 'dia_real')
+    return <span className="text-xs px-1.5 py-0.5 rounded font-medium bg-gray-800 text-gray-500">Día cal.</span>
+  return null
+}
+
 function TareaItem({ tarea, onClick, esCicloCerrado }) {
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
@@ -114,6 +123,7 @@ function TareaItem({ tarea, onClick, esCicloCerrado }) {
         {tarea.total_evidencias > 0 && !estaBloqueada && (
           <span className="text-xs text-gray-500">{tarea.total_evidencias} 📎</span>
         )}
+        <CondicionBadge condicion={tarea.condicion} frecuencia={tarea.frecuencia} />
         {!estaBloqueada && (
           pct !== null
             ? <PctBadge pct={pct} />
