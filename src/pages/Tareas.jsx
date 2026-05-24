@@ -300,12 +300,12 @@ export default function Tareas({ cicloSeleccionado }) {
 
     // Obtener template_id directo de la tabla tasks para que funcione
     // independientemente del estado de la tarea (completada, atrasada, etc.)
-    const { data: tareaDb } = await supabase
+    const { data: taskData } = await supabase
       .from('tasks')
       .select('template_id')
       .eq('id', tareaId)
       .single()
-    setTemplateIdEliminar(tareaDb?.template_id ?? null)
+    setTemplateIdEliminar(taskData?.template_id ?? null)
 
     if (tarea?.serie_id) {
       const { data } = await supabase
@@ -335,10 +335,11 @@ export default function Tareas({ cicloSeleccionado }) {
       await supabase.from('task_completions').delete().in('task_id', idsAEliminar)
       await supabase.from('tasks').delete().in('id', idsAEliminar)
 
-      if (eliminarRecurrente && templateIdEliminar) {
+      const templateId = tareaAEliminar?.template_id || templateIdEliminar
+      if (eliminarRecurrente && templateId) {
         await supabase.from('task_templates')
           .update({ activo: false })
-          .eq('id', templateIdEliminar)
+          .eq('id', templateId)
       }
 
       queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
@@ -616,7 +617,7 @@ export default function Tareas({ cicloSeleccionado }) {
               </div>
             )}
 
-            {templateIdEliminar && (
+            {(tareaAEliminar?.template_id || templateIdEliminar) && (
               <label className={`flex items-start gap-3 rounded-xl px-4 py-3 mb-4 cursor-pointer border transition
                 ${eliminarRecurrente ? 'bg-red-950 border-red-700' : 'bg-gray-800 border-gray-700 hover:border-gray-600'}`}
               >
