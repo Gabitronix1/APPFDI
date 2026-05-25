@@ -830,6 +830,15 @@ export default function Proyectos() {
         <PanelEjecutivo proyectos={proyectos} onClickProyecto={scrollAProyecto} />
       )}
 
+      {/* ── SUBTÍTULO PROYECTOS ──────────────────────────────────── */}
+      {!isLoading && proyectos.length > 0 && (
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-1 h-5 bg-blue-500 rounded-full" />
+          <h2 className="text-white font-semibold text-base">Proyectos</h2>
+          <div className="flex-1 h-px bg-gray-800" />
+        </div>
+      )}
+
       {/* ── LISTA PROYECTOS ──────────────────────────────────────── */}
       {isLoading ? (
         <div className="flex justify-center py-20">

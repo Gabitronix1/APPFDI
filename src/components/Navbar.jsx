@@ -13,12 +13,12 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
   const esGerente = profile?.rol === 'gerente'
 
   const links = esGerente ? [
-    { to: '/gerente',   label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/proyectos', label: 'Proyectos', icon: FolderKanban },
+    { to: '/gerente',   label: 'Dashboard',      icon: LayoutDashboard },
+    { to: '/proyectos', label: 'Plan Operativo',  icon: FolderKanban },
   ] : [
-    { to: '/',          label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/tareas',    label: 'Tareas',    icon: ListChecks },
-    { to: '/proyectos', label: 'Proyectos', icon: FolderKanban },
+    { to: '/',          label: 'Dashboard',      icon: LayoutDashboard },
+    { to: '/tareas',    label: 'Tareas',          icon: ListChecks },
+    { to: '/proyectos', label: 'Plan Operativo',  icon: FolderKanban },
   ]
 
   console.log('mostrarAyuda:', mostrarAyuda)
