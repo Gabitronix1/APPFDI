@@ -49,7 +49,7 @@ function nombreCierre(mes, anio) {
   return `Cierre de ${MESES[mes - 2]} ${anio}`
 }
 
-function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCicloCerrado }) {
+function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCicloCerrado, esCicloInactivo }) {
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
 
@@ -124,7 +124,7 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estilos.badge}`}>
             {estilos.label}
           </span>
-          {!esCicloCerrado && !estaBloqueada && (
+          {!esCicloCerrado && !esCicloInactivo && !estaBloqueada && (
             <button
               onClick={e => { e.stopPropagation(); onEditar?.() }}
               className="p-1 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition"
@@ -148,7 +148,7 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
 
 // ─── COLUMNA KANBAN ───────────────────────────────────────────────────────────
 function ColumnaKanban({ titulo, icono, iconoColor, accentBg, tareas, profile,
-  esCicloCerrado, onClickTarea, onEditar, onEliminar, activa, onTabClick }) {
+  esCicloCerrado, esCicloInactivo, onClickTarea, onEditar, onEliminar, activa, onTabClick }) {
 
   const ordenadas = [...tareas].sort((a, b) => a.nombre_tarea.localeCompare(b.nombre_tarea, 'es'))
 
@@ -190,9 +190,10 @@ function ColumnaKanban({ titulo, icono, iconoColor, accentBg, tareas, profile,
               tarea={tarea}
               profile={profile}
               esCicloCerrado={esCicloCerrado}
+              esCicloInactivo={esCicloInactivo}
               onClickTarea={() => onClickTarea(tarea)}
               onEditar={() => onEditar(tarea)}
-              onEliminar={esCicloCerrado ? null : () => onEliminar(tarea.id)}
+              onEliminar={(esCicloCerrado || esCicloInactivo) ? null : () => onEliminar(tarea.id)}
             />
           ))}
         </div>
@@ -270,7 +271,8 @@ export default function Tareas({ cicloSeleccionado }) {
 
   const tituloCiclo    = cicloSeleccionado ? nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio) : ''
   const tituloCierre   = cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : ''
-  const esCicloCerrado = cicloSeleccionado?.estado === 'cerrado'
+  const esCicloCerrado  = cicloSeleccionado?.estado === 'cerrado'
+  const esCicloInactivo = cicloSeleccionado?.estado === 'inactivo'
   const tareaAEliminar = tareas.find(t => t.id === eliminando)
   const hayFiltrosActivos = busqueda || soloMias || filtroIntegrante !== 'todos' || filtroArea !== 'todas'
 
@@ -287,7 +289,10 @@ export default function Tareas({ cicloSeleccionado }) {
   }
 
   function handleClickTarea(tarea) {
-    if (esCicloCerrado || tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada') {
+    // Ciclo inactivo: pendiente y con_atraso se pueden completar normalmente
+    if (esCicloInactivo && (tarea.estado === 'pendiente' || tarea.estado === 'con_atraso')) {
+      setTareaActiva(tarea)
+    } else if (esCicloCerrado || tarea.estado === 'completada' || tarea.estado === 'completada_con_atraso' || tarea.estado === 'no_completada') {
       setTareaDetalle(tarea)
     } else {
       setTareaActiva(tarea)
@@ -395,7 +400,7 @@ export default function Tareas({ cicloSeleccionado }) {
             {' · '}{tareasFiltradas.length} tareas
           </p>
         </div>
-        {!esCicloCerrado && (
+        {cicloSeleccionado?.estado === 'activo' && (
           <button
             onClick={() => setMostrarNueva(true)}
             className="flex items-center gap-2 bg-green-700 hover:bg-green-600
@@ -481,6 +486,14 @@ export default function Tareas({ cicloSeleccionado }) {
         </div>
       )}
 
+      {esCicloInactivo && (
+        <div className="flex items-center gap-2 bg-amber-950/40 border border-amber-800
+                        rounded-xl px-4 py-3 mb-4 text-sm text-amber-300">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          Este ciclo está inactivo — solo puedes completar tareas pendientes.
+        </div>
+      )}
+
       {/* Kanban */}
       {isLoading ? (
         <div className="flex justify-center py-16">
@@ -498,6 +511,7 @@ export default function Tareas({ cicloSeleccionado }) {
                 onTabClick={() => {}}
                 profile={profile}
                 esCicloCerrado={esCicloCerrado}
+                esCicloInactivo={esCicloInactivo}
                 onClickTarea={handleClickTarea}
                 onEditar={setEditando}
                 onEliminar={handleAbrirEliminar}
@@ -532,6 +546,7 @@ export default function Tareas({ cicloSeleccionado }) {
                 onTabClick={() => {}}
                 profile={profile}
                 esCicloCerrado={esCicloCerrado}
+                esCicloInactivo={esCicloInactivo}
                 onClickTarea={handleClickTarea}
                 onEditar={setEditando}
                 onEliminar={handleAbrirEliminar}

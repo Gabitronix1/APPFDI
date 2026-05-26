@@ -222,10 +222,10 @@ export function useCrearCiclo() {
       const anioSnap   = ahora.getFullYear()
       await guardarSnapshotAutomatico(departamento, mesSnap, anioSnap)
 
-      // 2. Cerrar ciclo activo anterior
+      // 2. Marcar ciclo activo anterior como inactivo
       await supabase
         .from('monthly_cycles')
-        .update({ estado: 'cerrado' })
+        .update({ estado: 'inactivo' })
         .eq('estado', 'activo')
 
       // 3. Crear nuevo ciclo
