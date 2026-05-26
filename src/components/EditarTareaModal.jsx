@@ -8,6 +8,8 @@ import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
+const DIAS_SEMANA = ['Lunes','Martes','Miércoles','Jueves','Viernes']
+
 const DURACIONES_RAPIDAS = [
   { label: '30m', value: 30  },
   { label: '1h',  value: 60  },
@@ -42,6 +44,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const [nuevaAreaNombre,     setNuevaAreaNombre]     = useState('')
 
   const esSerie = !!tarea.serie_id
+  const [diasSemanaTemplate, setDiasSemanaTemplate] = useState(null)
 
   const mesCiclo  = tarea.mes  ?? new Date().getMonth() + 1
   const anioCiclo = tarea.anio ?? new Date().getFullYear()
@@ -91,6 +94,24 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
         if (data?.dia_del_mes) setDiaHabilNum(String(data.dia_del_mes))
       })
   }, [])
+
+  // Para series semanales: cargar los días configurados en la plantilla
+  useEffect(() => {
+    if (!tarea.template_id || tarea.frecuencia !== 'semanal' || !tarea.serie_id) return
+    supabase
+      .from('task_templates')
+      .select('dias_semana, dia_del_mes')
+      .eq('id', tarea.template_id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          const dias = (data.dias_semana && data.dias_semana.length > 0)
+            ? data.dias_semana
+            : [data.dia_del_mes]
+          setDiasSemanaTemplate(dias)
+        }
+      })
+  }, [tarea.template_id])
 
   const [tareasSeriePreview, setTareasSeriePreview] = useState([])
   useEffect(() => {
@@ -318,6 +339,23 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                   ))}
                 </select>
               )}
+            </div>
+          )}
+
+          {/* Info de serie semanal multi-día — solo informativo, no editable */}
+          {esSerie && tarea.frecuencia === 'semanal' && diasSemanaTemplate && (
+            <div className="bg-purple-950/20 border border-purple-800/50 rounded-xl px-4 py-3">
+              <p className="text-xs text-gray-500 mb-1">Configuración de la serie</p>
+              <p className="text-sm text-purple-300 font-medium">
+                Serie semanal:{' '}
+                {[...diasSemanaTemplate]
+                  .sort((a, b) => a - b)
+                  .map(d => DIAS_SEMANA[d - 1])
+                  .join(', ')}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Los días se definen al crear la tarea y no se pueden modificar aquí.
+              </p>
             </div>
           )}
 

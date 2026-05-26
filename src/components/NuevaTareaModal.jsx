@@ -77,7 +77,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     area:                  '',
     tipo:                  'puntual',
     frecuencia:            'mensual',
-    dia_semana:            0,
+    dias_semana:           [0],
     dia_quincena_1:        1,
     dia_quincena_2:        16,
     condicion:             'dia_real',
@@ -161,7 +161,9 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
   }
 
   const fechasSemanales = form.tipo === 'recurrente_mes' && form.frecuencia === 'semanal'
-    ? calcularFechasSemanales(parseInt(form.dia_semana), mesCiclo, anioCiclo, feriadosCombCiclo, esCicloActivo)
+    ? form.dias_semana
+        .flatMap(dia => calcularFechasSemanales(dia, mesCiclo, anioCiclo, feriadosCombCiclo, esCicloActivo))
+        .sort((a, b) => a - b)
     : []
 
   const fechasQuincenales = form.tipo === 'recurrente_mes' && form.frecuencia === 'quincenal'
@@ -208,10 +210,13 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
             departamento:          deptoActivo,
             condicion:             'habil',
             dia_del_mes:           form.frecuencia === 'semanal'
-                                     ? parseInt(form.dia_semana) + 1
+                                     ? form.dias_semana[0] + 1      // primer día, 1-5 (getDay Mon-Fri)
                                      : parseInt(form.dia_quincena_1),
             dia_del_mes_2:         form.frecuencia === 'quincenal'
                                      ? parseInt(form.dia_quincena_2)
+                                     : null,
+            dias_semana:           form.frecuencia === 'semanal'
+                                     ? form.dias_semana.map(d => d + 1)  // todos los días, 1-5
                                      : null,
             responsable_id:        form.responsable_id,
             tipo:                  'recurrente_mes',
@@ -471,36 +476,51 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           {/* Semanal */}
           {form.tipo === 'recurrente_mes' && form.frecuencia === 'semanal' && (
             <div className="bg-purple-950/20 border border-purple-800/50 rounded-xl p-4 space-y-3">
-              <label className="block text-sm text-gray-400">Día de la semana</label>
+              <label className="block text-sm text-gray-400">
+                Días de la semana
+                <span className="text-gray-600 font-normal ml-1">(selecciona uno o más)</span>
+              </label>
               <div className="grid grid-cols-5 gap-1.5">
-                {DIAS_SEMANA.map((dia, i) => (
-                  <button
-                    key={i} type="button"
-                    onClick={() => setForm(prev => ({ ...prev, dia_semana: i }))}
-                    className={`py-2 rounded-lg border text-xs font-medium transition
-                      ${form.dia_semana === i
-                        ? 'bg-purple-700 border-purple-500 text-white'
-                        : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
-                  >
-                    {dia.slice(0, 3)}
-                  </button>
-                ))}
+                {DIAS_SEMANA.map((dia, i) => {
+                  const seleccionado = form.dias_semana.includes(i)
+                  return (
+                    <button
+                      key={i} type="button"
+                      onClick={() => setForm(prev => {
+                        const nuevos = prev.dias_semana.includes(i)
+                          ? prev.dias_semana.filter(d => d !== i)
+                          : [...prev.dias_semana, i].sort((a, b) => a - b)
+                        return nuevos.length > 0 ? { ...prev, dias_semana: nuevos } : prev
+                      })}
+                      className={`py-2 rounded-lg border text-xs font-medium transition
+                        ${seleccionado
+                          ? 'bg-purple-700 border-purple-500 text-white'
+                          : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
+                    >
+                      {dia.slice(0, 3)}
+                    </button>
+                  )
+                })}
               </div>
               {fechasSemanales.length > 0 && (
                 <div>
                   <p className="text-xs text-gray-500 mb-2">
                     Se crearán {fechasSemanales.length} tareas para {nombreMesCiclo}:
                   </p>
-                  <div className="space-y-1">
-                    {fechasSemanales.map((f, i) => (
-                      <div key={i} className="flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
-                        <span className="text-xs text-purple-300">{fechaStr(f)}</span>
-                        {f > hoy
-                          ? <span className="text-xs text-gray-600">🔒 bloqueada</span>
-                          : <span className="text-xs text-green-500">● activa</span>}
-                      </div>
-                    ))}
+                  <div className="space-y-1 max-h-40 overflow-y-auto scroll-dark pr-1">
+                    {fechasSemanales.map((f, i) => {
+                      const diaNombre = DIAS_SEMANA[f.getDay() - 1]
+                      return (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                          <span className="text-xs text-purple-300">{fechaStr(f)}</span>
+                          <span className="text-xs text-gray-500">{diaNombre}</span>
+                          {f > hoy
+                            ? <span className="text-xs text-gray-600">🔒 bloqueada</span>
+                            : <span className="text-xs text-green-500">● activa</span>}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
