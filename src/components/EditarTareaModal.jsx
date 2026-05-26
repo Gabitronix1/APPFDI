@@ -8,16 +8,13 @@ import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
-// Opciones de duración predefinidas
-const DURACIONES = [
-  { label: '15 min',    value: 15  },
-  { label: '30 min',    value: 30  },
-  { label: '45 min',    value: 45  },
-  { label: '1 hora',    value: 60  },
-  { label: '1.5 h',     value: 90  },
-  { label: '2 horas',   value: 120 },
-  { label: '3 horas',   value: 180 },
-  { label: 'Día comp.', value: 480 },
+const DURACIONES_RAPIDAS = [
+  { label: '30m', value: 30  },
+  { label: '1h',  value: 60  },
+  { label: '2h',  value: 120 },
+  { label: '4h',  value: 240 },
+  { label: '6h',  value: 360 },
+  { label: '8h',  value: 480 },
 ]
 
 export default function EditarTareaModal({ tarea, onClose, cicloId }) {
@@ -35,6 +32,9 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
     tarea.condicion === 'habil' ? String(tarea.dia_del_mes ?? '') : ''
   )
   const [duracion,        setDuracion]        = useState(tarea.duracion_estimada_min ?? 60)
+  // Estado local del selector híbrido, inicializado desde la tarea actual
+  const [durHoras,   setDurHoras]   = useState(Math.floor((tarea.duracion_estimada_min ?? 60) / 60))
+  const [durMinutos, setDurMinutos] = useState((tarea.duracion_estimada_min ?? 60) % 60)
   const [propagarSerie,   setPropagar]        = useState(false)
   const [loading,         setLoading]         = useState(false)
   const [error,           setError]           = useState('')
@@ -395,11 +395,19 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
               <Clock className="w-3.5 h-3.5 text-gray-500" />
               <label className="text-sm text-gray-400">Duración estimada</label>
             </div>
-            <div className="grid grid-cols-4 gap-1.5">
-              {DURACIONES.map(d => (
+
+            {/* Acceso rápido */}
+            <div className="grid grid-cols-6 gap-1.5 mb-3">
+              {DURACIONES_RAPIDAS.map(d => (
                 <button
                   key={d.value} type="button"
-                  onClick={() => setDuracion(d.value)}
+                  onClick={() => {
+                    const h = Math.floor(d.value / 60)
+                    const m = d.value % 60
+                    setDurHoras(h)
+                    setDurMinutos(m)
+                    setDuracion(d.value)
+                  }}
                   className={`py-2 px-1 rounded-lg border text-xs font-medium transition
                     ${duracion === d.value
                       ? 'bg-green-900/50 border-green-600 text-green-300'
@@ -409,8 +417,38 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-600 mt-1.5">
-              Usado para visualizar bloques en la agenda del calendario
+
+            {/* Inputs manuales */}
+            <div className="flex items-center gap-2">
+              <input
+                type="number" min="0" value={durHoras}
+                onChange={e => {
+                  const h = Math.max(0, parseInt(e.target.value) || 0)
+                  setDurHoras(h)
+                  setDuracion(h * 60 + durMinutos)
+                }}
+                className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-2
+                           text-white text-sm text-center focus:outline-none focus:border-green-500"
+              />
+              <span className="text-gray-400 text-sm">h</span>
+              <input
+                type="number" min="0" max="59" value={durMinutos}
+                onChange={e => {
+                  const m = Math.min(59, Math.max(0, parseInt(e.target.value) || 0))
+                  setDurMinutos(m)
+                  setDuracion(durHoras * 60 + m)
+                }}
+                className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-2
+                           text-white text-sm text-center focus:outline-none focus:border-green-500"
+              />
+              <span className="text-gray-400 text-sm">min</span>
+            </div>
+
+            {/* Resumen */}
+            <p className="text-xs text-gray-500 mt-1.5">
+              {duracion === 0
+                ? 'Sin duración definida'
+                : `Duración total: ${Math.floor(duracion / 60)} h ${duracion % 60} min`}
             </p>
           </div>
 
