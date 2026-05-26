@@ -1,12 +1,15 @@
 import { createContext, useContext, useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import { generarNotificaciones } from '../hooks/useNotificaciones'
 
 const AuthContext = createContext({})
 
 export function AuthProvider({ children }) {
-  const [user, setUser]     = useState(null)
+  const [user, setUser]       = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const queryClient           = useQueryClient()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -30,8 +33,25 @@ export function AuthProvider({ children }) {
       .select('*')
       .eq('id', userId)
       .single()
+
     setProfile(data)
     setLoading(false)
+
+    if (data) {
+      // Generar notificaciones en background (no bloquea el login)
+      generarNotificaciones(userId, data.rol, data.departamento, data.last_seen_at)
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ['notificaciones', userId] })
+        })
+        .catch(console.error)
+
+      // Actualizar last_seen_at para la próxima sesión
+      supabase
+        .from('users')
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq('id', userId)
+        .then()
+    }
   }
 
   async function signIn(email, password) {

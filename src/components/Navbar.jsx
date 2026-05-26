@@ -1,33 +1,38 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { LayoutDashboard, ListChecks, LogOut, FolderKanban, HelpCircle } from 'lucide-react'
+import { LayoutDashboard, ListChecks, LogOut, FolderKanban, HelpCircle, Bell } from 'lucide-react'
+import { useState } from 'react'
 import CambiadorMes from './CambiadorMes'
 import PanelAyuda from './PanelAyuda'
+import NotificacionesPanel from './NotificacionesPanel'
+import { useNotificaciones } from '../hooks/useNotificaciones'
 import logo from '../assets/logo_fdi.png'
-import { useState } from 'react'
 
 export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
-  const [mostrarAyuda, setMostrarAyuda] = useState(false)
+  const [mostrarAyuda,  setMostrarAyuda]  = useState(false)
+  const [mostrarNotif,  setMostrarNotif]  = useState(false)
   const { profile, signOut } = useAuth()
-  const location  = useLocation()
-  const esGerente = profile?.rol === 'gerente'
+  const location   = useLocation()
+  const esGerente  = profile?.rol === 'gerente'
+
+  const { totalNoLeidas } = useNotificaciones()
 
   const links = esGerente ? [
-    { to: '/gerente',   label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/proyectos', label: 'Proyectos', icon: FolderKanban },
+    { to: '/gerente',   label: 'Dashboard',      icon: LayoutDashboard },
+    { to: '/proyectos', label: 'Plan Operativo',  icon: FolderKanban },
   ] : [
-    { to: '/',          label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/tareas',    label: 'Tareas',    icon: ListChecks },
-    { to: '/proyectos', label: 'Proyectos', icon: FolderKanban },
+    { to: '/',          label: 'Dashboard',      icon: LayoutDashboard },
+    { to: '/tareas',    label: 'Tareas',          icon: ListChecks },
+    { to: '/proyectos', label: 'Plan Operativo',  icon: FolderKanban },
   ]
 
-  console.log('mostrarAyuda:', mostrarAyuda)
-  console.log('esGerente:', esGerente)
-  
   function isActive(to) {
     if (to === '/gerente') return location.pathname.startsWith('/gerente')
     return location.pathname === to
   }
+
+  // Badge: máximo "9+"
+  const badgeLabel = totalNoLeidas > 9 ? '9+' : String(totalNoLeidas)
 
   return (
     <>
@@ -67,6 +72,8 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
                 onCambiarCiclo={onCambiarCiclo}
               />
             )}
+
+            {/* Ayuda */}
             <button
               onClick={() => setMostrarAyuda(true)}
               className="text-gray-400 hover:text-blue-400 transition p-1.5"
@@ -74,6 +81,24 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
             >
               <HelpCircle className="w-4 h-4" />
             </button>
+
+            {/* Campana de notificaciones */}
+            <button
+              onClick={() => setMostrarNotif(v => !v)}
+              className="relative text-gray-400 hover:text-amber-400 transition p-1.5"
+              title="Notificaciones"
+            >
+              <Bell className="w-4 h-4" />
+              {totalNoLeidas > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-0.5
+                                 bg-red-500 text-white text-[10px] font-bold
+                                 rounded-full flex items-center justify-center leading-none">
+                  {badgeLabel}
+                </span>
+              )}
+            </button>
+
+            {/* Cerrar sesión */}
             <button
               onClick={signOut}
               className="text-gray-400 hover:text-red-400 transition p-1.5"
@@ -86,9 +111,13 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
         </div>
       </nav>
 
-      {/* Panel ayuda — fuera del nav */}
+      {/* Paneles — fuera del nav */}
       {mostrarAyuda && (
         <PanelAyuda onClose={() => setMostrarAyuda(false)} />
+      )}
+
+      {mostrarNotif && (
+        <NotificacionesPanel onClose={() => setMostrarNotif(false)} />
       )}
     </>
   )
