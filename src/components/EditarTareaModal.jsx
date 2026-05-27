@@ -153,6 +153,8 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const mesCalendarioPreview  = tarea.mes_calendario  ?? mesCiclo
   const anioCalendarioPreview = tarea.anio_calendario ?? anioCiclo
 
+  const hoyStr = new Date().toISOString().split('T')[0]
+
   const fechasPreview = esSemanalEditable && diasSemana.length > 0
     ? diasSemana
         .flatMap(dia => {
@@ -160,11 +162,10 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
           const diasEnMes = new Date(anioCalendarioPreview, mesCalendarioPreview, 0).getDate()
           const result    = []
           for (let d = 1; d <= diasEnMes; d++) {
-            const fecha = new Date(anioCalendarioPreview, mesCalendarioPreview - 1, d)
-            if (fecha.getDay() === jsDay) {
-              result.push(
-                `${anioCalendarioPreview}-${String(mesCalendarioPreview).padStart(2,'0')}-${String(d).padStart(2,'0')}`
-              )
+            const fecha    = new Date(anioCalendarioPreview, mesCalendarioPreview - 1, d)
+            const fechaStr = `${anioCalendarioPreview}-${String(mesCalendarioPreview).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+            if (fecha.getDay() === jsDay && fechaStr >= hoyStr) {
+              result.push(fechaStr)
             }
           }
           return result
