@@ -73,13 +73,23 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
 
   async function handleConfirmarCierre() {
     setCargandoCierre(true)
+    const hoy = new Date().toISOString().split('T')[0]
     try {
-      // 1. Marcar tareas pendientes/con_atraso como no_completada
+      // 1a. Marcar como no_completada solo las tareas disponibles (fecha_inicio <= hoy)
       await supabase
         .from('tasks')
         .update({ estado: 'no_completada' })
         .eq('ciclo_id', cicloSeleccionado.id)
         .in('estado', ['pendiente', 'con_atraso'])
+        .or(`fecha_inicio.is.null,fecha_inicio.lte.${hoy}`)
+
+      // 1b. Eliminar las tareas bloqueadas (fecha_inicio > hoy) — nunca estuvieron disponibles
+      await supabase
+        .from('tasks')
+        .delete()
+        .eq('ciclo_id', cicloSeleccionado.id)
+        .in('estado', ['pendiente', 'con_atraso'])
+        .gt('fecha_inicio', hoy)
 
       // 2. Cerrar el ciclo
       await supabase
