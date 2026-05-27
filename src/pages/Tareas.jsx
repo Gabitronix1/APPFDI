@@ -132,7 +132,9 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
               <Pencil className="w-3.5 h-3.5" />
             </button>
           )}
-          {profile?.rol === 'admin' && onEliminar && !estaBloqueada && (
+          {onEliminar && !estaBloqueada &&
+            (profile?.rol === 'admin' ||
+             (tarea.responsable_id === profile?.id && tarea.estado === 'pendiente')) && (
             <button
               onClick={e => { e.stopPropagation(); onEliminar() }}
               className="p-1 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition"
@@ -301,6 +303,10 @@ export default function Tareas({ cicloSeleccionado }) {
 
   async function handleAbrirEliminar(tareaId) {
     setEliminando(tareaId)
+
+    // Usuarios (no admin): modal simple, sin opciones de serie ni ciclos futuros
+    if (profile?.rol !== 'admin') return
+
     const tarea = tareas.find(t => t.id === tareaId)
 
     // Obtener template_id directo de la tabla tasks para que funcione
@@ -578,6 +584,47 @@ export default function Tareas({ cicloSeleccionado }) {
 
       {eliminando && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+
+          {/* ── Modal simple para usuarios (no admin) ── */}
+          {profile?.rol !== 'admin' ? (
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="p-2 bg-red-900/40 rounded-xl">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <h3 className="text-white font-semibold">¿Eliminar tarea?</h3>
+              </div>
+              <p className="text-white text-sm font-medium bg-gray-800 rounded-lg px-3 py-2 mb-3">
+                {tareaAEliminar?.nombre_tarea}
+              </p>
+              <p className="text-gray-500 text-xs mb-6">
+                Solo se eliminará del ciclo actual.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setEliminando(null)}
+                  disabled={loadingEliminar}
+                  className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300
+                             py-2.5 rounded-xl text-sm transition disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleEliminar}
+                  disabled={loadingEliminar}
+                  className="flex-1 flex items-center justify-center gap-2 bg-red-700
+                             hover:bg-red-600 text-white py-2.5 rounded-xl text-sm
+                             font-semibold transition disabled:opacity-50"
+                >
+                  {loadingEliminar
+                    ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Eliminando...</>
+                    : <><Trash2 className="w-4 h-4" /> Eliminar</>}
+                </button>
+              </div>
+            </div>
+
+          ) : (
+          /* ── Modal completo para admin ── */
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
             <div className="flex items-center gap-3 mb-3">
               <div className="p-2 bg-red-900/40 rounded-xl">
@@ -696,6 +743,7 @@ export default function Tareas({ cicloSeleccionado }) {
               </button>
             </div>
           </div>
+          )}
         </div>
       )}
 
