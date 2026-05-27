@@ -222,10 +222,10 @@ export function useCrearCiclo() {
       const anioSnap   = ahora.getFullYear()
       await guardarSnapshotAutomatico(departamento, mesSnap, anioSnap)
 
-      // 2. Cerrar ciclo activo anterior
+      // 2. Marcar ciclo activo anterior como inactivo
       await supabase
         .from('monthly_cycles')
-        .update({ estado: 'cerrado' })
+        .update({ estado: 'inactivo' })
         .eq('estado', 'activo')
 
       // 3. Crear nuevo ciclo
@@ -257,10 +257,15 @@ export function useCrearCiclo() {
         const duracion    = p.duracion_estimada_min ?? 60
         const ponderacion = p.ponderacion ?? null
 
-        // ── Semanal → N tareas con serie_id ──────────────────
+        // ── Semanal → N tareas con serie_id (soporta múltiples días) ─────
         if (p.tipo === 'recurrente_mes' && p.frecuencia === 'semanal') {
-          const serieId = generarUUID()
-          const fechas  = calcularFechasSemanales(p.dia_del_mes, mes, anio)
+          const serieId   = generarUUID()
+          const diasArray = (p.dias_semana && p.dias_semana.length > 0)
+            ? p.dias_semana
+            : [p.dia_del_mes]
+          const fechas = diasArray
+            .flatMap(dia => calcularFechasSemanales(dia, mes, anio))
+            .sort((a, b) => a - b)
           for (const fecha of fechas) {
             tareas.push({
               ciclo_id:              ciclo.id,

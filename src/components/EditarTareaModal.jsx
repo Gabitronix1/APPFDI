@@ -8,6 +8,8 @@ import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
+const DIAS_SEMANA = ['Lunes','Martes','Miércoles','Jueves','Viernes']
+
 const DURACIONES_RAPIDAS = [
   { label: '30m', value: 30  },
   { label: '1h',  value: 60  },
@@ -42,6 +44,13 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const [nuevaAreaNombre,     setNuevaAreaNombre]     = useState('')
 
   const esSerie = !!tarea.serie_id
+  const esSemanalEditable = tarea.tipo === 'recurrente_mes' &&
+    tarea.frecuencia === 'semanal' &&
+    !!tarea.template_id &&
+    !!tarea.serie_id
+
+  const [diasSemana,         setDiasSemana]         = useState([])
+  const [diasSemanaOriginal, setDiasSemanaOriginal] = useState([])
 
   const mesCiclo  = tarea.mes  ?? new Date().getMonth() + 1
   const anioCiclo = tarea.anio ?? new Date().getFullYear()
@@ -79,16 +88,29 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
     }
   })
 
-  // Al abrir el modal, si es día hábil buscar el número desde la plantilla
+  // Al abrir: traer dia_del_mes (para hábil) y dias_semana (para semanal) en una sola query
   useEffect(() => {
-    if (tarea.condicion !== 'habil' || !tarea.template_id) return
+    if (!tarea.template_id) return
     supabase
       .from('task_templates')
-      .select('dia_del_mes')
+      .select('dia_del_mes, dias_semana')
       .eq('id', tarea.template_id)
       .single()
       .then(({ data }) => {
-        if (data?.dia_del_mes) setDiaHabilNum(String(data.dia_del_mes))
+        if (!data) return
+        // dia_del_mes para la sección de día hábil
+        if (tarea.condicion === 'habil' && data.dia_del_mes) {
+          setDiaHabilNum(String(data.dia_del_mes))
+        }
+        // dias_semana para series semanales editables (DB 1-5 → UI 0-4)
+        if (esSemanalEditable) {
+          const diasDB = (data.dias_semana && data.dias_semana.length > 0)
+            ? data.dias_semana
+            : (data.dia_del_mes ? [data.dia_del_mes] : [1])
+          const diasUI = diasDB.map(d => d - 1)  // DB 1-5 → UI 0-4 (0=Lun…4=Vie)
+          setDiasSemana(diasUI)
+          setDiasSemanaOriginal(diasUI)
+        }
       })
   }, [])
 
@@ -170,7 +192,8 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
           condicion:             cambios.condicion,
           duracion_estimada_min: duracion,
         }
-        if (diaHabilFijo && diaHabilNum) {
+        // Para series semanales, dia_del_mes lo gestiona el bloque de sync más abajo
+        if (diaHabilFijo && diaHabilNum && !esSemanalEditable) {
           cambiosPlantilla.dia_del_mes = parseInt(diaHabilNum)
         }
         await supabase
@@ -178,6 +201,79 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
           .update(cambiosPlantilla)
           .eq('id', tarea.template_id)
       }
+
+      // ── Sync de días para series semanales ──────────────────────────────────
+      if (esSemanalEditable && diasSemana.length > 0) {
+        const diasAgregados  = diasSemana.filter(d => !diasSemanaOriginal.includes(d))
+        const diasEliminados = diasSemanaOriginal.filter(d => !diasSemana.includes(d))
+
+        const mesCalendario  = tarea.mes_calendario  ?? mesCiclo
+        const anioCalendario = tarea.anio_calendario ?? anioCiclo
+        const hoy            = new Date().toISOString().split('T')[0]
+
+        // DÍAS AGREGADOS → crear tareas pendientes para fechas futuras del mes
+        for (const dia of diasAgregados) {
+          const jsDay     = dia + 1  // UI 0-4 → getDay 1-5 (1=Lun…5=Vie)
+          const diasEnMes = new Date(anioCalendario, mesCalendario, 0).getDate()
+          const fechas    = []
+          for (let d = 1; d <= diasEnMes; d++) {
+            const fecha    = new Date(anioCalendario, mesCalendario - 1, d)
+            const fechaStr = `${anioCalendario}-${String(mesCalendario).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+            if (fecha.getDay() === jsDay && fechaStr >= hoy) fechas.push(fechaStr)
+          }
+          if (fechas.length > 0) {
+            const nuevasTareas = fechas.map(f => ({
+              ciclo_id:              tarea.ciclo_id,
+              template_id:           tarea.template_id,
+              responsable_id:        cambios.responsable_id,
+              nombre_tarea:          cambios.nombre_tarea,
+              area:                  cambios.area,
+              departamento:          tarea.departamento,
+              condicion:             'habil',
+              fecha_inicio:          f,
+              fecha_termino:         f,
+              estado:                'pendiente',
+              tipo_tarea:            'adicional',
+              tipo:                  'recurrente_mes',
+              frecuencia:            'semanal',
+              serie_id:              tarea.serie_id,
+              mes_calendario:        mesCalendario,
+              anio_calendario:       anioCalendario,
+              duracion_estimada_min: duracion,
+            }))
+            const { error: errNuevas } = await supabase.from('tasks').insert(nuevasTareas)
+            if (errNuevas) throw errNuevas
+          }
+        }
+
+        // DÍAS ELIMINADOS → borrar solo tareas pendientes del ciclo actual
+        for (const dia of diasEliminados) {
+          const jsDay = dia + 1
+          const { data: tareasAEliminar } = await supabase
+            .from('tasks')
+            .select('id, fecha_termino')
+            .eq('serie_id', tarea.serie_id)
+            .eq('ciclo_id', tarea.ciclo_id)
+            .in('estado', ['pendiente'])
+            .gte('fecha_termino', hoy)
+          const idsEliminar = (tareasAEliminar ?? [])
+            .filter(t => new Date(t.fecha_termino + 'T12:00:00').getDay() === jsDay)
+            .map(t => t.id)
+          if (idsEliminar.length > 0) {
+            await supabase.from('tasks').delete().in('id', idsEliminar)
+          }
+        }
+
+        // Actualizar plantilla con los días nuevos (UI 0-4 → DB 1-5)
+        await supabase
+          .from('task_templates')
+          .update({
+            dias_semana: diasSemana.map(d => d + 1),
+            dia_del_mes: diasSemana[0] + 1,
+          })
+          .eq('id', tarea.template_id)
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       queryClient.invalidateQueries({ queryKey: ['tareas', cicloId] })
       onClose()
@@ -321,6 +417,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
             </div>
           )}
 
+          {/* Días de la semana — editable para series semanales */}
           {/* Día hábil fijo + fecha */}
           {!esSerie && (
             <>
@@ -387,6 +484,41 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                 </div>
               )}
             </>
+          )}
+
+          {/* ── DÍAS DE LA SEMANA — editable para series semanales ─────── */}
+          {esSemanalEditable && (
+            <div className="bg-purple-950/20 border border-purple-800/50 rounded-xl p-4 space-y-3">
+              <label className="block text-sm text-gray-400 font-medium">
+                Días de la semana
+              </label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {DIAS_SEMANA.map((dia, i) => {
+                  const seleccionado = diasSemana.includes(i)
+                  return (
+                    <button
+                      key={i} type="button"
+                      onClick={() => setDiasSemana(prev => {
+                        const nuevos = prev.includes(i)
+                          ? prev.filter(d => d !== i)
+                          : [...prev, i].sort((a, b) => a - b)
+                        return nuevos.length > 0 ? nuevos : prev  // mínimo 1 día
+                      })}
+                      className={`py-2 rounded-lg border text-xs font-medium transition
+                        ${seleccionado
+                          ? 'bg-purple-700 border-purple-500 text-white'
+                          : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}`}
+                    >
+                      {dia.slice(0, 3)}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Agregar días crea tareas desde hoy.{' '}
+                Quitar días elimina solo las tareas pendientes.
+              </p>
+            </div>
           )}
 
           {/* ── DURACIÓN ESTIMADA ──────────────────────────────────────── */}
