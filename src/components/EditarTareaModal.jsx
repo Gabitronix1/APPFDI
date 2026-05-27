@@ -128,6 +128,18 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
       .then(({ data }) => setTareasSeriePreview(data ?? []))
   }, [tarea.serie_id])
 
+  const [tareasSerieDelCiclo, setTareasSerieDelCiclo] = useState([])
+  useEffect(() => {
+    if (!esSemanalEditable) return
+    supabase
+      .from('tasks')
+      .select('id, fecha_termino, estado')
+      .eq('serie_id', tarea.serie_id)
+      .eq('ciclo_id', tarea.ciclo_id)
+      .order('fecha_termino', { ascending: true })
+      .then(({ data }) => setTareasSerieDelCiclo(data ?? []))
+  }, [tarea.serie_id, tarea.ciclo_id])
+
   useEffect(() => {
     if (!diaHabilFijo || !diaHabilNum) return
     const num = parseInt(diaHabilNum)
@@ -137,6 +149,28 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
       setFechaTermino(fecha.toISOString().split('T')[0])
     } catch (e) {}
   }, [diaHabilFijo, diaHabilNum])
+
+  const mesCalendarioPreview  = tarea.mes_calendario  ?? mesCiclo
+  const anioCalendarioPreview = tarea.anio_calendario ?? anioCiclo
+
+  const fechasPreview = esSemanalEditable && diasSemana.length > 0
+    ? diasSemana
+        .flatMap(dia => {
+          const jsDay     = dia + 1
+          const diasEnMes = new Date(anioCalendarioPreview, mesCalendarioPreview, 0).getDate()
+          const result    = []
+          for (let d = 1; d <= diasEnMes; d++) {
+            const fecha = new Date(anioCalendarioPreview, mesCalendarioPreview - 1, d)
+            if (fecha.getDay() === jsDay) {
+              result.push(
+                `${anioCalendarioPreview}-${String(mesCalendarioPreview).padStart(2,'0')}-${String(d).padStart(2,'0')}`
+              )
+            }
+          }
+          return result
+        })
+        .sort()
+    : []
 
   const tipoBadge = tarea.tipo === 'cierre'
     ? { label: 'Cierre',     color: 'bg-blue-900 text-blue-300',     icono: <RefreshCw className="w-3 h-3" /> }
@@ -514,6 +548,31 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                   )
                 })}
               </div>
+              {diasSemana.length > 0 && fechasPreview.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Fechas de {MESES[mesCalendarioPreview - 1]} {anioCalendarioPreview}:
+                  </p>
+                  <div className="space-y-1 max-h-40 overflow-y-auto scroll-dark pr-1">
+                    {fechasPreview.map((f, i) => {
+                      const diaNombre      = DIAS_SEMANA[new Date(f + 'T12:00:00').getDay() - 1]
+                      const tareaExistente = tareasSerieDelCiclo.find(t => t.fecha_termino === f)
+                      return (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                          <span className="text-xs text-purple-300">{f}</span>
+                          <span className="text-xs text-gray-500">{diaNombre}</span>
+                          {tareaExistente
+                            ? tareaExistente.estado === 'completada'
+                              ? <span className="text-xs text-gray-400">✅ completada</span>
+                              : <span className="text-xs text-amber-400">⏳ pendiente</span>
+                            : <span className="text-xs text-green-400">✨ nueva</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               <p className="text-xs text-gray-500 leading-relaxed">
                 Agregar días crea tareas desde hoy.{' '}
                 Quitar días elimina solo las tareas pendientes.
