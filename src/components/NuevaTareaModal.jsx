@@ -286,9 +286,16 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           .eq('ciclo_id', cicloActivoId)
           .eq('template_id', templateId)
         const { data: tareasDestino } = await supabase
-          .from('tasks').select('id')
-          .eq('ciclo_id', cicloActivoId)
+          .from('tasks').select('id, ciclo_id')
           .eq('template_id', dep.depends_on.id)
+          .in('ciclo_id', (
+            await supabase
+              .from('monthly_cycles')
+              .select('id')
+              .eq('estado', 'activo')
+              .then(({ data }) => data?.map(c => c.id) ?? [])
+          ))
+          .limit(1)
         if (tareasOrigen?.length && tareasDestino?.length) {
           await supabase.from('task_dependencies').insert({
             task_id:         tareasOrigen[0].id,
