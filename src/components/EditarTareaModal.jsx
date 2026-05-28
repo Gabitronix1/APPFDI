@@ -448,6 +448,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
             .from('monthly_cycles')
             .select('id')
             .eq('estado', 'activo')
+            .eq('departamento', tarea.departamento)
             .maybeSingle()
           cicloActivoId = cicloAct?.id ?? null
         }

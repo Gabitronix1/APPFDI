@@ -262,6 +262,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
       .from('monthly_cycles')
       .select('id')
       .eq('estado', 'activo')
+      .eq('departamento', deptoActivo)
       .maybeSingle()
     const cicloActivoId = cicloAct?.id ?? null
 
