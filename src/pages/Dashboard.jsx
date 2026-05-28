@@ -48,7 +48,7 @@ function CondicionBadge({ condicion, frecuencia }) {
   return null
 }
 
-function TareaRow({ tarea, onClick, esCicloCerrado }) {
+function TareaRow({ tarea, onClick, esCicloCerrado, impactoDep }) {
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
   const estaBloqueada = tarea.serie_id && tarea.fecha_inicio &&
@@ -99,6 +99,14 @@ function TareaRow({ tarea, onClick, esCicloCerrado }) {
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
         <CondicionBadge condicion={tarea.condicion} frecuencia={tarea.frecuencia} />
+        {impactoDep && (
+          <span
+            className="text-xs px-1.5 py-0.5 rounded font-medium bg-amber-900/50 text-amber-300"
+            title={`Depende de "${impactoDep.nombre_tarea}" (${impactoDep.departamento}) con ${impactoDep.impacto_atraso} día${impactoDep.impacto_atraso !== 1 ? 's' : ''} de atraso`}
+          >
+            ⚠️ Dep. con atraso
+          </span>
+        )}
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${badge}`}>{label}</span>
       </div>
     </div>
@@ -256,7 +264,7 @@ function FilaMetricas({ tareasCierre, tareasRecurrentes, tareasPuntuales,
 }
 
 // ─── DASHBOARD ADMIN ──────────────────────────────────────────────────────────
-function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, profile, esCicloCerrado }) {
+function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, profile, esCicloCerrado, impactosDep = {} }) {
   const navigate    = useNavigate()
   const queryClient = useQueryClient()
   const [modalBloque,        setModalBloque]        = useState(null)
@@ -438,7 +446,8 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
             {misTareasPendientes.map(tarea => (
               <TareaRow key={tarea.id} tarea={tarea}
                 onClick={() => !esCicloCerrado && handleClickTarea(tarea)}
-                esCicloCerrado={esCicloCerrado} />
+                esCicloCerrado={esCicloCerrado}
+                impactoDep={impactosDep[tarea.id]} />
             ))}
           </div>
         </div>
@@ -542,7 +551,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
 }
 
 // ─── GRUPO COLAPSABLE USUARIO ─────────────────────────────────────────────────
-function GrupoTareasUsuario({ titulo, icono, iconoColor, tareas, onClickTarea, defaultAbierto = true }) {
+function GrupoTareasUsuario({ titulo, icono, iconoColor, tareas, onClickTarea, defaultAbierto = true, impactosDep = {} }) {
   const [abierto, setAbierto] = useState(defaultAbierto)
   if (tareas.length === 0) return null
 
@@ -573,7 +582,8 @@ function GrupoTareasUsuario({ titulo, icono, iconoColor, tareas, onClickTarea, d
       {abierto && (
         <div className="space-y-2 mt-1">
           {tareas.map(tarea => (
-            <TareaRow key={tarea.id} tarea={tarea} onClick={() => onClickTarea(tarea)} esCicloCerrado={false} />
+            <TareaRow key={tarea.id} tarea={tarea} onClick={() => onClickTarea(tarea)} esCicloCerrado={false}
+              impactoDep={impactosDep[tarea.id]} />
           ))}
         </div>
       )}
@@ -582,7 +592,7 @@ function GrupoTareasUsuario({ titulo, icono, iconoColor, tareas, onClickTarea, d
 }
 
 // ─── DASHBOARD USUARIO ────────────────────────────────────────────────────────
-function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTarea }) {
+function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTarea, impactosDep = {} }) {
   const [tareaDetalle, setTareaDetalle] = useState(null)
 
   const hoy = new Date(); hoy.setHours(0,0,0,0)
@@ -720,11 +730,11 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
         ) : (
           <div className="space-y-3">
             <GrupoTareasUsuario titulo="Cierre" icono={<RefreshCw className="w-3 h-3" />}
-              iconoColor="text-blue-400" tareas={pendientesCierre} onClickTarea={onClickTarea} />
+              iconoColor="text-blue-400" tareas={pendientesCierre} onClickTarea={onClickTarea} impactosDep={impactosDep} />
             <GrupoTareasUsuario titulo="Recurrentes del mes" icono={<CalendarClock className="w-3 h-3" />}
-              iconoColor="text-purple-400" tareas={pendientesRecurrentes} onClickTarea={onClickTarea} />
+              iconoColor="text-purple-400" tareas={pendientesRecurrentes} onClickTarea={onClickTarea} impactosDep={impactosDep} />
             <GrupoTareasUsuario titulo="Puntuales" icono={<Sparkles className="w-3 h-3" />}
-              iconoColor="text-amber-400" tareas={pendientesPuntuales} onClickTarea={onClickTarea} />
+              iconoColor="text-amber-400" tareas={pendientesPuntuales} onClickTarea={onClickTarea} impactosDep={impactosDep} />
           </div>
         )}
       </div>
@@ -815,6 +825,30 @@ export default function Dashboard({ cicloSeleccionado }) {
     }
   })
 
+  const taskIds = useMemo(() => tareas.map(t => t.id), [tareas])
+
+  const { data: impactosDep = {} } = useQuery({
+    queryKey: ['impactos-dep', cicloSeleccionado?.id, taskIds],
+    enabled:  taskIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_dependencies')
+        .select('task_id, impacto_atraso, depends_on:depends_on_id(nombre_tarea, departamento)')
+        .in('task_id', taskIds)
+        .gt('impacto_atraso', 0)
+      if (error) throw error
+      const mapa = {}
+      for (const row of data ?? []) {
+        mapa[row.task_id] = {
+          impacto_atraso: row.impacto_atraso,
+          nombre_tarea:   row.depends_on?.nombre_tarea ?? '',
+          departamento:   row.depends_on?.departamento ?? '',
+        }
+      }
+      return mapa
+    }
+  })
+
   const tituloCiclo    = cicloSeleccionado ? nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio) : ''
   const esCicloCerrado = cicloSeleccionado?.estado === 'cerrado'
   const esAdmin        = profile?.rol === 'admin'
@@ -848,12 +882,14 @@ export default function Dashboard({ cicloSeleccionado }) {
           tareas={tareas} tituloCiclo={tituloCiclo}
           cicloSeleccionado={cicloSeleccionado} isLoading={isLoading}
           profile={profile} esCicloCerrado={esCicloCerrado}
+          impactosDep={impactosDep}
         />
       ) : (
         <DashboardUsuario
           tareas={tareas} profile={profile}
           tituloCiclo={tituloCiclo} isLoading={isLoading}
           onClickTarea={setTareaActiva}
+          impactosDep={impactosDep}
         />
       )}
 
