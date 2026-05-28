@@ -30,7 +30,8 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
   const idx      = ciclos.findIndex(c => c.id === cicloSeleccionado.id)
   const anterior  = ciclos[idx + 1] ?? null
   const siguiente = ciclos[idx - 1] ?? null
-  const esActivo  = cicloSeleccionado.estado === 'activo'
+  const esActivo   = cicloSeleccionado.estado === 'activo'
+  const esInactivo = cicloSeleccionado.estado === 'inactivo'
 
   const ciclosOrdenados = [...ciclos].sort((a, b) =>
     a.anio !== b.anio ? a.anio - b.anio : a.mes - b.mes
@@ -96,7 +97,9 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
           {nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio)}
           {esActivo
             ? <span className="ml-1.5 text-xs text-green-400">● activo</span>
-            : <span className="ml-1.5 text-xs text-gray-600">🔒 cerrado</span>}
+            : esInactivo
+              ? <span className="ml-1.5 text-xs text-amber-400">● inactivo</span>
+              : <span className="ml-1.5 text-xs text-red-500">🔒 cerrado</span>}
         </span>
 
         {/* Avanzar */}
