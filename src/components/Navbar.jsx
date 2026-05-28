@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, ListChecks, LogOut, FolderKanban,
-  HelpCircle, Bell, Lock, AlertTriangle
+  HelpCircle, Bell, Lock, AlertTriangle, GitBranch
 } from 'lucide-react'
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -37,10 +37,12 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
   const links = esGerente ? [
     { to: '/gerente',   label: 'Dashboard',      icon: LayoutDashboard },
     { to: '/proyectos', label: 'Plan Operativo',  icon: FolderKanban },
+    { to: '/flujos',    label: 'Flujos',          icon: GitBranch },
   ] : [
     { to: '/',          label: 'Dashboard',      icon: LayoutDashboard },
     { to: '/tareas',    label: 'Tareas',          icon: ListChecks },
     { to: '/proyectos', label: 'Plan Operativo',  icon: FolderKanban },
+    { to: '/flujos',    label: 'Flujos',          icon: GitBranch },
   ]
 
   function isActive(to) {
