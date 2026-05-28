@@ -386,6 +386,33 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
 
       } else {
         // Tarea única (cierre, puntual, recurrente mensual)
+        let plantillaSimple = null
+
+        // 1. Crear plantilla primero si es cierre o recurrente mensual
+        if (form.tipo === 'cierre' || form.tipo === 'recurrente_mes') {
+          const diaDelMes = form.dia_habil_fijo
+            ? parseInt(form.dia_habil_num)
+            : new Date(form.fecha_termino + 'T12:00:00').getDate()
+          const { data: plantillaData } = await supabase
+            .from('task_templates')
+            .insert({
+              nombre_tarea:          form.nombre_tarea.trim(),
+              area:                  form.area || 'General',
+              departamento:          deptoActivo,
+              condicion:             form.dia_habil_fijo ? 'habil' : form.condicion,
+              dia_del_mes:           diaDelMes,
+              responsable_id:        form.responsable_id,
+              tipo:                  form.tipo,
+              frecuencia:            form.tipo === 'recurrente_mes' ? form.frecuencia : null,
+              activo:                true,
+              duracion_estimada_min: duracion,
+            })
+            .select()
+            .single()
+          plantillaSimple = plantillaData
+        }
+
+        // 2. Crear la tarea con template_id cuando existe
         const { error: errTarea } = await supabase.from('tasks').insert({
           ciclo_id:              cicloSeleccionado.id,
           responsable_id:        form.responsable_id,
@@ -404,34 +431,12 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           mes_calendario:        mesCiclo,
           anio_calendario:       anioCiclo,
           duracion_estimada_min: duracion,
+          template_id:           plantillaSimple?.id ?? null,
         })
         if (errTarea) throw errTarea
 
-        // Guardar plantilla si es cierre o recurrente mensual
-        if (form.tipo === 'cierre' || form.tipo === 'recurrente_mes') {
-          const diaDelMes = form.dia_habil_fijo
-            ? parseInt(form.dia_habil_num)
-            : new Date(form.fecha_termino + 'T12:00:00').getDate()
-          const { data: plantillaSimple } = await supabase
-            .from('task_templates')
-            .insert({
-              nombre_tarea:          form.nombre_tarea.trim(),
-              area:                  form.area || 'General',
-              departamento:          deptoActivo,
-              condicion:             form.dia_habil_fijo ? 'habil' : form.condicion,
-              dia_del_mes:           diaDelMes,
-              responsable_id:        form.responsable_id,
-              tipo:                  form.tipo,
-              frecuencia:            form.tipo === 'recurrente_mes' ? form.frecuencia : null,
-              activo:                true,
-              duracion_estimada_min: duracion,
-            })
-            .select()
-            .single()
-
-          if (plantillaSimple) {
-            await crearDependenciasParaNuevaPlantilla(plantillaSimple.id)
-          }
+        if (plantillaSimple) {
+          await crearDependenciasParaNuevaPlantilla(plantillaSimple.id)
         }
       }
 
