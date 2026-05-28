@@ -123,7 +123,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
       .eq('serie_id', tarea.serie_id)
       .eq('ciclo_id', tarea.ciclo_id)
       .neq('id', tarea.id)
-      .gt('fecha_inicio', new Date().toISOString().split('T')[0])
+      .gte('fecha_termino', new Date().toISOString().split('T')[0])
       .order('fecha_termino', { ascending: true })
       .then(({ data }) => setTareasSeriePreview(data ?? []))
   }, [tarea.serie_id])
@@ -178,6 +178,13 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
     : tarea.tipo === 'recurrente_mes'
     ? { label: 'Recurrente', color: 'bg-purple-900 text-purple-300', icono: <CalendarClock className="w-3 h-3" /> }
     : { label: 'Puntual',    color: 'bg-amber-900 text-amber-300',   icono: <Sparkles className="w-3 h-3" /> }
+
+  const hayCambiosMetadata =
+    nombre !== tarea.nombre_tarea ||
+    area !== (tarea.area ?? '') ||
+    responsableId !== (tarea.responsable_id ?? '') ||
+    duracion !== (tarea.duracion_estimada_min ?? 60) ||
+    observaciones !== (tarea.observaciones ?? '')
 
   async function handleGuardar(e) {
     e.preventDefault()
@@ -247,6 +254,16 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
         const hoy            = new Date().toISOString().split('T')[0]
 
         // DÍAS AGREGADOS → crear tareas pendientes para fechas futuras del mes
+        // Obtener fechas ya existentes en la serie para evitar duplicados
+        const { data: tareasExistentes } = await supabase
+          .from('tasks')
+          .select('fecha_termino')
+          .eq('serie_id', tarea.serie_id)
+          .eq('ciclo_id', tarea.ciclo_id)
+        const fechasExistentes = new Set(
+          tareasExistentes?.map(t => t.fecha_termino) ?? []
+        )
+
         for (const dia of diasAgregados) {
           const jsDay     = dia + 1  // UI 0-4 → getDay 1-5 (1=Lun…5=Vie)
           const diasEnMes = new Date(anioCalendario, mesCalendario, 0).getDate()
@@ -256,8 +273,9 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
             const fechaStr = `${anioCalendario}-${String(mesCalendario).padStart(2,'0')}-${String(d).padStart(2,'0')}`
             if (fecha.getDay() === jsDay && fechaStr >= hoy) fechas.push(fechaStr)
           }
-          if (fechas.length > 0) {
-            const nuevasTareas = fechas.map(f => ({
+          const fechasFiltradas = fechas.filter(f => !fechasExistentes.has(f))
+          if (fechasFiltradas.length > 0) {
+            const nuevasTareas = fechasFiltradas.map(f => ({
               ciclo_id:              tarea.ciclo_id,
               template_id:           tarea.template_id,
               responsable_id:        cambios.responsable_id,
@@ -658,7 +676,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
           </div>
 
           {/* Propagación a serie */}
-          {esSerie && tareasSeriePreview.length > 0 && (
+          {esSerie && tareasSeriePreview.length > 0 && hayCambiosMetadata && (
             <label className={`flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer border transition
               ${propagarSerie
                 ? 'bg-purple-950/40 border-purple-700'
