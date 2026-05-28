@@ -175,7 +175,7 @@ function BarraGlobalAdmin({ tareas, departamento, tituloCiclo }) {
           {calidad !== null && (
             <div className="flex items-center gap-1">
               <span className="w-2 h-1 inline-block rounded bg-yellow-500" />
-              <span className="text-xs text-gray-600">Calidad</span>
+              <span className="text-xs text-gray-600">Desempeño</span>
             </div>
           )}
         </div>
@@ -245,7 +245,7 @@ function FilaMetricas({ tareasCierre, tareasRecurrentes, tareasPuntuales,
             </div>
             <div className="flex items-center justify-between text-xs text-gray-600">
               <span>{s.completadas + s.atraso}/{s.total}</span>
-              {s.calidad !== null && <span className="text-yellow-600">{s.calidad}% cal.</span>}
+              {s.calidad !== null && <span className="text-yellow-600">{s.calidad}% des.</span>}
               {s.atrasadas > 0 && <span className="text-red-500">{s.atrasadas} ⚠</span>}
             </div>
           </div>
@@ -488,7 +488,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
               <div className="grid grid-cols-4 gap-2 px-5 py-4 border-b border-gray-800">
                 {[
                   { label: 'Total',         value: stats.total,        color: 'text-gray-300',   bg: 'bg-gray-800' },
-                  { label: 'Completadas',   value: stats.completadas,  color: 'text-green-300',  bg: 'bg-green-900/40' },
+                  { label: 'Terminadas',    value: stats.completadas,  color: 'text-green-300',  bg: 'bg-green-900/40' },
                   { label: 'Entregadas',    value: stats.atraso,       color: 'text-yellow-300', bg: 'bg-yellow-900/40' },
                   { label: 'Sin completar', value: stats.sinCompletar, color: 'text-red-300',    bg: 'bg-red-900/40' },
                 ].map(s => (
@@ -662,7 +662,7 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
         <div className="grid grid-cols-4 gap-2">
           {[
             { label: 'Total',       value: misTareas.length,                     color: 'text-gray-300',  bg: 'bg-gray-800' },
-            { label: 'Completadas', value: misCompletadas + misCompletadasAtraso, color: 'text-green-300', bg: 'bg-green-900/40' },
+            { label: 'Terminadas',  value: misCompletadas + misCompletadasAtraso, color: 'text-green-300', bg: 'bg-green-900/40' },
             { label: 'Pendientes',  value: misPendientes,                         color: 'text-amber-300', bg: 'bg-amber-900/40' },
             { label: 'Vencidas',    value: misAtrasadas,                          color: 'text-red-300',   bg: 'bg-red-900/40' },
           ].map(s => (
@@ -681,7 +681,7 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
             {miPctCalidad !== null && (
               <div className="flex items-center gap-1.5">
                 <span className="w-2 h-0.5 bg-yellow-500 inline-block rounded" />
-                <span className="text-xs text-gray-600">Calidad: <span className="text-yellow-400">{miPctCalidad}%</span></span>
+                <span className="text-xs text-gray-600">Desempeño: <span className="text-yellow-400">{miPctCalidad}%</span></span>
               </div>
             )}
           </div>
@@ -735,7 +735,7 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-green-400" />
-              <h2 className="text-white font-semibold text-sm">Mi % de calidad</h2>
+              <h2 className="text-white font-semibold text-sm">Mi % de desempeño</h2>
             </div>
             <span className={`text-2xl font-bold ${
               miPromedioCalidad === 100 ? 'text-green-400'
@@ -785,7 +785,7 @@ function DashboardUsuario({ tareas, profile, tituloCiclo, isLoading, onClickTare
           <div className={`h-2 rounded-full transition-all duration-700 ${pctEquipo === 100 ? 'bg-green-500' : pctEquipo > 50 ? 'bg-amber-500' : 'bg-red-500'}`}
             style={{ width: `${pctEquipo}%` }} />
         </div>
-        <p className="text-xs text-gray-600 mt-1.5">{completadasEquipo} de {totalEquipo} tareas completadas</p>
+        <p className="text-xs text-gray-600 mt-1.5">{completadasEquipo} de {totalEquipo} tareas terminadas</p>
       </div>
 
       {tareaDetalle && <DetalleTareaPanel tarea={tareaDetalle} onClose={() => setTareaDetalle(null)} />}
