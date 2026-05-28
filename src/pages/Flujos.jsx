@@ -10,6 +10,11 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
+const MESES = [
+  'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+  'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
+]
+
 const DEPARTAMENTOS = [
   { nombre: 'CDG',                        inicial: 'CDG' },
   { nombre: 'Maquinarias',                inicial: 'MAQ' },
@@ -1232,7 +1237,7 @@ function PanelSolicitudes({
 }
 
 // ─── Página principal ────────────────────────────────────────────────────────
-export default function Flujos() {
+export default function Flujos({ cicloSeleccionado }) {
   const { profile } = useAuth()
   const [deptoSeleccionado, setDeptoSeleccionado] = useState(null)
   const [solicitudAbierta, setSolicitudAbierta] = useState(null)
@@ -1241,8 +1246,13 @@ export default function Flujos() {
   const [tabPanel, setTabPanel] = useState('todas')
 
   const { data: solicitudes = [], isLoading } = useQuery({
-    queryKey: ['department_requests'],
+    queryKey: ['department_requests', cicloSeleccionado?.id],
+    enabled: !!cicloSeleccionado?.id,
     queryFn: async () => {
+      const primerDia = `${cicloSeleccionado.anio}-${String(cicloSeleccionado.mes).padStart(2,'0')}-01`
+      const ultimoDia = new Date(cicloSeleccionado.anio, cicloSeleccionado.mes, 0)
+        .toISOString().split('T')[0]
+
       const { data, error } = await supabase
         .from('department_requests')
         .select(`
@@ -1255,27 +1265,26 @@ export default function Flujos() {
             autor:user_id(nombre)
           )
         `)
+        .lte('creado_at', ultimoDia + 'T23:59:59')
+        .or(`fecha_limite.gte.${primerDia},fecha_limite.is.null`)
         .order('creado_at', { ascending: false })
       if (error) throw error
       return data ?? []
     }
   })
 
-  const { data: cicloActivo } = useQuery({
-    queryKey: ['ciclo-activo-flujos'],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('monthly_cycles')
-        .select('id')
-        .eq('estado', 'activo')
-        .maybeSingle()
-      return data
-    }
-  })
-
   const { data: dependencias = [] } = useQuery({
-    queryKey: ['task-dependencies-flujos'],
+    queryKey: ['task-dependencies-flujos', cicloSeleccionado?.id],
+    enabled: !!cicloSeleccionado?.id,
     queryFn: async () => {
+      const { data: tareasDelCiclo } = await supabase
+        .from('tasks')
+        .select('id')
+        .eq('ciclo_id', cicloSeleccionado.id)
+
+      const idsDelCiclo = tareasDelCiclo?.map(t => t.id) ?? []
+      if (idsDelCiclo.length === 0) return []
+
       const { data, error } = await supabase
         .from('task_dependencies')
         .select(`
@@ -1283,6 +1292,7 @@ export default function Flujos() {
           task:task_id(id, nombre_tarea, departamento, estado, ciclo_id),
           depends_on:depends_on_id(id, nombre_tarea, departamento, estado, ciclo_id)
         `)
+        .in('task_id', idsDelCiclo)
       if (error) throw error
       return (data ?? []).filter(d =>
         d.task?.departamento &&
@@ -1292,11 +1302,12 @@ export default function Flujos() {
     }
   })
 
-  // Para el mapa: solo dependencias del ciclo activo
-  const dependenciasMapa = useMemo(() => {
-    if (!cicloActivo?.id) return []
-    return dependencias.filter(d => d.task?.ciclo_id === cicloActivo.id)
-  }, [dependencias, cicloActivo])
+  // Las dependencias ya vienen filtradas por el ciclo seleccionado
+  const dependenciasMapa = dependencias
+
+  const nombreCiclo = cicloSeleccionado
+    ? `${MESES[cicloSeleccionado.mes - 1]} ${cicloSeleccionado.anio}`
+    : ''
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
@@ -1308,6 +1319,8 @@ export default function Flujos() {
             Flujos interdepartamentales
           </h1>
           <p className="text-gray-400 text-sm">
+            {nombreCiclo && <span className="text-gray-300 font-medium">{nombreCiclo}</span>}
+            {nombreCiclo && ' · '}
             Solicitudes y dependencias entre departamentos
           </p>
         </div>
@@ -1330,7 +1343,7 @@ export default function Flujos() {
         </div>
       </div>
 
-      {isLoading ? (
+      {(!cicloSeleccionado || isLoading) ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
         </div>
@@ -1356,7 +1369,7 @@ export default function Flujos() {
             <PanelSolicitudes
               solicitudes={solicitudes}
               dependencias={dependencias}
-              cicloActivoId={cicloActivo?.id}
+              cicloActivoId={cicloSeleccionado?.id}
               deptoSeleccionado={deptoSeleccionado}
               profile={profile}
               onAbrirSolicitud={s => setSolicitudAbierta(s)}
