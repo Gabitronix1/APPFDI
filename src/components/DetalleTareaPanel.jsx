@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useState } from 'react'
-import { X, CheckCircle2, Clock, AlertCircle, Download, FileText, Image, FileSpreadsheet, File, RefreshCw, Sparkles, Pencil, Save, MessageSquare, Send, Trash2 } from 'lucide-react'
+import { X, CheckCircle2, Clock, AlertCircle, Download, FileText, Image, FileSpreadsheet, File, RefreshCw, Sparkles, Pencil, Save, MessageSquare, Send, Trash2, Link2 } from 'lucide-react'
 
 function getIconoArchivo(tipo) {
   switch (tipo) {
@@ -399,6 +399,9 @@ export default function DetalleTareaPanel({ tarea, onClose }) {
           {/* ── COMENTARIOS ──────────────────────────────────────── */}
           <SeccionComentarios tareaId={tarea.id} profile={profile} esAdmin={esAdminOGerente} />
 
+          {/* ── DEPENDENCIAS ─────────────────────────────────────── */}
+          <SeccionDependencias tarea={tarea} />
+
         </div>
       </div>
     </>
@@ -549,6 +552,142 @@ function SeccionComentarios({ tareaId, profile, esAdmin }) {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── SECCIÓN DEPENDENCIAS ──────────────────────────────────────────────────────
+function iconoEstadoDep(estado) {
+  if (estado === 'completada' || estado === 'completada_con_atraso')
+    return <span className="text-green-400" title="Completada">✅</span>
+  if (estado === 'con_atraso')
+    return <span className="text-red-400" title="Atrasada">🔴</span>
+  return <span className="text-gray-400" title="Pendiente">⏳</span>
+}
+
+function labelEstadoDep(estado) {
+  if (estado === 'completada')             return 'Completada'
+  if (estado === 'completada_con_atraso')  return 'Entregada'
+  if (estado === 'con_atraso')             return 'Atrasada'
+  if (estado === 'no_completada')          return 'No completada'
+  return 'Pendiente'
+}
+
+function SeccionDependencias({ tarea }) {
+  const { data: misDepends = [], isLoading: loadingMisDep } = useQuery({
+    queryKey: ['task-deps-mis', tarea.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_dependencies')
+        .select(`
+          id, tipo, impacto_atraso,
+          depends_on:depends_on_id(
+            id, nombre_tarea, estado, departamento, fecha_termino
+          )
+        `)
+        .eq('task_id', tarea.id)
+      if (error) throw error
+      return data ?? []
+    }
+  })
+
+  const { data: dependenDeEsta = [], isLoading: loadingDeEsta } = useQuery({
+    queryKey: ['task-deps-de-esta', tarea.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_dependencies')
+        .select(`
+          id, tipo,
+          tarea:task_id(id, nombre_tarea, estado, departamento)
+        `)
+        .eq('depends_on_id', tarea.id)
+      if (error) throw error
+      return data ?? []
+    }
+  })
+
+  const loading = loadingMisDep || loadingDeEsta
+  if (loading) return null
+  if (misDepends.length === 0 && dependenDeEsta.length === 0) return null
+
+  return (
+    <div>
+      <h3 className="text-white font-medium text-sm mb-3 flex items-center gap-2">
+        <Link2 className="w-4 h-4 text-green-400" />
+        Dependencias
+      </h3>
+
+      {misDepends.length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs text-gray-400 mb-2">🔗 Esta tarea hace referencia a:</p>
+          <div className="space-y-2">
+            {misDepends.map(d => {
+              const dep = d.depends_on
+              if (!dep) return null
+              const completada = dep.estado === 'completada' || dep.estado === 'completada_con_atraso'
+              const pendiente  = dep.estado === 'pendiente' || dep.estado === 'con_atraso'
+              return (
+                <div
+                  key={d.id}
+                  className="bg-gray-800/50 border border-gray-800 rounded-xl p-3"
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="text-base leading-none mt-0.5">{iconoEstadoDep(dep.estado)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-medium truncate">{dep.nombre_tarea}</p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
+                          {dep.departamento}
+                        </span>
+                        {dep.fecha_termino && (
+                          <span className="text-xs text-gray-600">📅 {dep.fecha_termino}</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        {completada && d.impacto_atraso > 0 && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-900/60 text-amber-300">
+                            ⚠️ Completada con {d.impacto_atraso}d de atraso
+                          </span>
+                        )}
+                        {pendiente && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-900/60 text-blue-300">
+                            ⏳ {labelEstadoDep(dep.estado)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {dependenDeEsta.length > 0 && (
+        <div>
+          <p className="text-xs text-gray-400 mb-2">📌 Tareas que usan esta como referencia:</p>
+          <div className="space-y-1">
+            {dependenDeEsta.map(d => {
+              const t = d.tarea
+              if (!t) return null
+              return (
+                <div
+                  key={d.id}
+                  className="flex items-center gap-2 bg-gray-800/40 border border-gray-800 rounded-lg px-3 py-2"
+                >
+                  <span className="text-sm leading-none">{iconoEstadoDep(t.estado)}</span>
+                  <span className="text-sm text-gray-200 truncate flex-1">{t.nombre_tarea}</span>
+                  <span className="text-xs text-gray-500 shrink-0">·</span>
+                  <span className="text-xs text-gray-400 shrink-0">{t.departamento}</span>
+                  <span className="text-xs text-gray-500 shrink-0">·</span>
+                  <span className="text-xs text-gray-400 shrink-0">{labelEstadoDep(t.estado)}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
