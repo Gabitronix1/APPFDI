@@ -145,7 +145,6 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
 
     const mapaEnlaces = new Map()
     solicitudes.forEach(s => {
-      if (s.estado === 'entregado') return
       const key = `${s.depto_origen}→${s.depto_destino}`
       if (!mapaEnlaces.has(key)) {
         mapaEnlaces.set(key, {
@@ -158,13 +157,20 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
     })
 
     const enlaces = Array.from(mapaEnlaces.values()).map(e => {
-      const sorted = [...e.solicitudes].sort((a, b) => {
-        const ord = { alta: 0, media: 1, baja: 2 }
-        return (ord[a.prioridad] ?? 2) - (ord[b.prioridad] ?? 2)
+      // Activas first, then entregadas
+      const activas = e.solicitudes.filter(s => s.estado !== 'entregado')
+      const todas = [...activas, ...e.solicitudes.filter(s => s.estado === 'entregado')]
+      const sorted = [...todas].sort((a, b) => {
+        const prioOrd = { alta: 0, media: 1, baja: 2 }
+        const estadoOrd = { atrasado: 0, en_proceso: 1, por_vencer: 1, solicitado: 2, entregado: 3 }
+        const sDiff = (estadoOrd[a.estado] ?? 2) - (estadoOrd[b.estado] ?? 2)
+        if (sDiff !== 0) return sDiff
+        return (prioOrd[a.prioridad] ?? 2) - (prioOrd[b.prioridad] ?? 2)
       })
       const top = sorted[0]
+      const esEntregado = activas.length === 0
       let estadoLinea = top.estado
-      if (estadoLinea !== 'atrasado' && estadoLinea !== 'entregado') {
+      if (!esEntregado && estadoLinea !== 'atrasado' && estadoLinea !== 'entregado') {
         const d = diasHasta(top.fecha_limite)
         if (d !== null && d < 0) estadoLinea = 'atrasado'
         else if (d !== null && d <= 3) estadoLinea = 'por_vencer'
@@ -173,6 +179,7 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
         ...e,
         prioridad: top.prioridad,
         estado: estadoLinea,
+        esEntregado,
         principal: top,
       }
     })
@@ -230,10 +237,11 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
       .join('g')
       .attr('class', 'link')
       .attr('opacity', d => {
-        if (!deptoSeleccionado) return 1
+        const base = d.esEntregado ? 0.35 : 1
+        if (!deptoSeleccionado) return base
         const sourceId = d.source.id ?? d.source
         const targetId = d.target.id ?? d.target
-        return (sourceId === deptoSeleccionado || targetId === deptoSeleccionado) ? 1 : 0.15
+        return (sourceId === deptoSeleccionado || targetId === deptoSeleccionado) ? base : 0.1
       })
 
     linkSel.append('path')
@@ -242,6 +250,7 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
       .attr('stroke', d => COLOR_ESTADO_HEX[d.estado] ?? '#60a5fa')
       .attr('stroke-width', d => PRIORIDAD_MAP[d.prioridad]?.grosor ?? 1)
       .attr('stroke-linecap', 'round')
+      .attr('stroke-dasharray', d => d.esEntregado ? '6,4' : null)
       .attr('marker-end', d => `url(#arrow-${d.estado in COLOR_ESTADO_HEX ? d.estado : 'solicitado'})`)
       .style('cursor', 'pointer')
       .on('mouseenter', function(event, d) {
@@ -269,8 +278,9 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
         else onClickSolicitud?.(d.principal)
       })
 
-    // Partículas animadas a lo largo del enlace
-    linkSel.append('circle')
+    // Partículas animadas a lo largo del enlace (solo activos)
+    linkSel.filter(d => !d.esEntregado)
+      .append('circle')
       .attr('class', 'particle')
       .attr('r', d => Math.max(2, (PRIORIDAD_MAP[d.prioridad]?.grosor ?? 1) + 1))
       .attr('fill', d => COLOR_ESTADO_HEX[d.estado] ?? '#60a5fa')
@@ -1076,7 +1086,7 @@ export default function Flujos() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-4" style={{ height: 'calc(100vh - 180px)' }}>
           {/* Mapa */}
-          <div className={`sm:col-span-3 ${vistaMobile === 'mapa' ? 'block' : 'hidden'} sm:block h-full min-h-[400px]`}>
+          <div className={`sm:col-span-3 ${vistaMobile === 'mapa' ? 'block' : 'hidden'} sm:block h-full min-h-0 overflow-hidden`}>
             <MapaFlujos
               solicitudes={solicitudes}
               deptoSeleccionado={deptoSeleccionado}
@@ -1086,7 +1096,7 @@ export default function Flujos() {
           </div>
 
           {/* Panel */}
-          <div className={`sm:col-span-2 ${vistaMobile === 'panel' ? 'block' : 'hidden'} sm:block h-full min-h-[400px]`}>
+          <div className={`sm:col-span-2 ${vistaMobile === 'panel' ? 'block' : 'hidden'} sm:block h-full min-h-0 overflow-hidden`}>
             <PanelSolicitudes
               solicitudes={solicitudes}
               deptoSeleccionado={deptoSeleccionado}
