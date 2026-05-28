@@ -221,10 +221,16 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
     })
 
     const sim = d3.forceSimulation(nodos)
-      .force('charge', d3.forceManyBody().strength(-450))
-      .force('center', d3.forceCenter(cx, cy).strength(0.05))
-      .force('collision', d3.forceCollide().radius(60))
+      .force('charge', d3.forceManyBody().strength(-250))
+      .force('center', d3.forceCenter(cx, cy).strength(0.15))
+      .force('collision', d3.forceCollide().radius(70))
       .force('link', d3.forceLink(enlaces).id(d => d.id).distance(180).strength(0.1))
+      .force('bounds', () => {
+        nodos.forEach(n => {
+          n.x = Math.max(60, Math.min(w - 60, n.x))
+          n.y = Math.max(60, Math.min(h - 60, n.y))
+        })
+      })
       .alphaDecay(0.05)
 
     simulationRef.current = sim
