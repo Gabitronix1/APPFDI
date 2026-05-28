@@ -123,7 +123,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
       .eq('serie_id', tarea.serie_id)
       .eq('ciclo_id', tarea.ciclo_id)
       .neq('id', tarea.id)
-      .gt('fecha_inicio', new Date().toISOString().split('T')[0])
+      .gte('fecha_termino', new Date().toISOString().split('T')[0])
       .order('fecha_termino', { ascending: true })
       .then(({ data }) => setTareasSeriePreview(data ?? []))
   }, [tarea.serie_id])
