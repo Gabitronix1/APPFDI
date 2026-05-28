@@ -45,6 +45,16 @@ const COLOR_ESTADO_HEX = {
   por_vencer: '#fbbf24',
 }
 
+const COLOR_DEPENDENCIA = '#a78bfa'
+
+const ESTADO_TAREA_MAP = {
+  pendiente:             { label: 'Pendiente',    color: 'bg-gray-700 text-gray-300' },
+  con_atraso:            { label: 'Atrasada',     color: 'bg-red-900 text-red-300' },
+  completada:            { label: 'Completada',   color: 'bg-green-900 text-green-300' },
+  completada_con_atraso: { label: 'Entregada',    color: 'bg-yellow-900 text-yellow-300' },
+  no_completada:         { label: 'No completada',color: 'bg-gray-800 text-gray-500' },
+}
+
 const NODO_GLOW = {
   verde: 'drop-shadow(0 0 12px rgba(52, 211, 153, 0.7))',
   ambar: 'drop-shadow(0 0 12px rgba(251, 191, 36, 0.7))',
@@ -100,7 +110,7 @@ function formatFecha(fechaStr) {
 }
 
 // ─── Mapa interactivo con D3 ──────────────────────────────────────────────────
-function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSolicitud }) {
+function MapaFlujos({ solicitudes, dependencias = [], deptoSeleccionado, onSelectDepto, onClickSolicitud, onClickDependencia }) {
   const svgRef = useRef(null)
   const containerRef = useRef(null)
   const simulationRef = useRef(null)
@@ -187,6 +197,28 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
     return { nodos, enlaces }
   }, [solicitudes])
 
+  // Enlaces de dependencias (capa inferior, violetas)
+  const depLinks = useMemo(() => {
+    const mapaDepLinks = new Map()
+    dependencias.forEach(d => {
+      if (!d.task?.departamento || !d.depends_on?.departamento) return
+      if (d.task.departamento === d.depends_on.departamento) return
+      const key = `${d.task.departamento}→${d.depends_on.departamento}`
+      if (!mapaDepLinks.has(key)) {
+        mapaDepLinks.set(key, {
+          source: d.task.departamento,
+          target: d.depends_on.departamento,
+          deps:   [],
+        })
+      }
+      mapaDepLinks.get(key).deps.push(d)
+    })
+    return Array.from(mapaDepLinks.values()).map(l => ({
+      ...l,
+      conImpacto: l.deps.some(d => (d.impacto_atraso ?? 0) > 0),
+    }))
+  }, [dependencias])
+
   useEffect(() => {
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()
@@ -209,6 +241,19 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
         .attr('d', 'M0,-5L10,0L0,5')
         .attr('fill', color)
     })
+
+    // Marcador de flecha para dependencias (violeta)
+    defs.append('marker')
+      .attr('id', 'arrow-dep')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 22)
+      .attr('refY', 0)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('fill', COLOR_DEPENDENCIA)
 
     // Posición inicial en círculo
     const cx = w / 2
@@ -234,6 +279,62 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
       .alphaDecay(0.05)
 
     simulationRef.current = sim
+
+    // Mapa nombre → nodo para resolver source/target de dep links
+    const nodoPorId = new Map(nodos.map(n => [n.id, n]))
+
+    // ── Capa de DEPENDENCIAS (debajo de las solicitudes) ────────────────────
+    const depGroup = svg.append('g').attr('class', 'dep-links')
+
+    const depResolved = depLinks
+      .map(d => ({
+        ...d,
+        sourceNode: nodoPorId.get(d.source),
+        targetNode: nodoPorId.get(d.target),
+      }))
+      .filter(d => d.sourceNode && d.targetNode)
+
+    const depSel = depGroup.selectAll('g.dep-link')
+      .data(depResolved, d => `${d.source}→${d.target}`)
+      .join('g')
+      .attr('class', 'dep-link')
+      .attr('opacity', d => {
+        if (!deptoSeleccionado) return 0.5
+        return (d.source === deptoSeleccionado || d.target === deptoSeleccionado) ? 0.7 : 0.08
+      })
+
+    depSel.append('path')
+      .attr('class', 'dep-path')
+      .attr('fill', 'none')
+      .attr('stroke', COLOR_DEPENDENCIA)
+      .attr('stroke-width', 1.5)
+      .attr('stroke-linecap', 'round')
+      .attr('stroke-dasharray', '4,2')
+      .attr('marker-end', 'url(#arrow-dep)')
+      .style('cursor', 'pointer')
+      .on('mouseenter', function(event, d) {
+        d3.select(this).attr('stroke-width', 2.5)
+        const rect = containerRef.current.getBoundingClientRect()
+        setTooltip({
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+          titulo: `${d.deps.length} ${d.deps.length === 1 ? 'dependencia' : 'dependencias'} entre ${d.source} y ${d.target}`,
+          estado: d.conImpacto ? '⚠️ Con impacto registrado' : 'Sin impacto registrado',
+          extra: null,
+        })
+      })
+      .on('mousemove', function(event) {
+        const rect = containerRef.current.getBoundingClientRect()
+        setTooltip(t => t ? { ...t, x: event.clientX - rect.left, y: event.clientY - rect.top } : null)
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('stroke-width', 1.5)
+        setTooltip(null)
+      })
+      .on('click', function(event) {
+        event.stopPropagation()
+        onClickDependencia?.()
+      })
 
     // Capa de enlaces
     const linkGroup = svg.append('g').attr('class', 'links')
@@ -385,6 +486,17 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
         // ligera curva
         return `M${d.source.x},${d.source.y} A${dr * 1.5},${dr * 1.5} 0 0,1 ${d.target.x},${d.target.y}`
       })
+      depSel.select('path.dep-path').attr('d', d => {
+        const sx = d.sourceNode.x
+        const sy = d.sourceNode.y
+        const tx = d.targetNode.x
+        const ty = d.targetNode.y
+        const dx = tx - sx
+        const dy = ty - sy
+        const dr = Math.sqrt(dx * dx + dy * dy)
+        // curva opuesta (sweep flag 0) para que no se superponga con la solicitud
+        return `M${sx},${sy} A${dr * 1.8},${dr * 1.8} 0 0,0 ${tx},${ty}`
+      })
       nodeSel.attr('transform', d => `translate(${d.x},${d.y})`)
     }
 
@@ -415,7 +527,7 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
       cancelAnimationFrame(raf)
       sim.stop()
     }
-  }, [nodos, enlaces, deptoSeleccionado, onSelectDepto, onClickSolicitud])
+  }, [nodos, enlaces, depLinks, deptoSeleccionado, onSelectDepto, onClickSolicitud, onClickDependencia])
 
   return (
     <div ref={containerRef} className="relative w-full h-full bg-gray-950 rounded-2xl overflow-hidden">
@@ -436,6 +548,12 @@ function MapaFlujos({ solicitudes, deptoSeleccionado, onSelectDepto, onClickSoli
         <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-400" />En proceso / por vencer</div>
         <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-400" />Atrasado</div>
         <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-400" />Entregado</div>
+        <div className="flex items-center gap-2">
+          <svg width="14" height="4" className="shrink-0">
+            <line x1="0" y1="2" x2="14" y2="2" stroke="#a78bfa" strokeWidth="1.5" strokeDasharray="4,2" />
+          </svg>
+          Dependencia entre tareas
+        </div>
       </div>
     </div>
   )
@@ -924,18 +1042,68 @@ function SolicitudModal({ solicitud, modoCrear, onClose, onGuardado }) {
 }
 
 // ─── Panel lateral de solicitudes ─────────────────────────────────────────────
+// ─── Card de dependencia ──────────────────────────────────────────────────────
+function DependenciaCard({ dependencia }) {
+  const t = dependencia.task
+  const d = dependencia.depends_on
+  const estadoT = ESTADO_TAREA_MAP[t?.estado] ?? ESTADO_TAREA_MAP.pendiente
+  const estadoD = ESTADO_TAREA_MAP[d?.estado] ?? ESTADO_TAREA_MAP.pendiente
+  const impacto = dependencia.impacto_atraso ?? 0
+
+  return (
+    <div className="bg-gray-950 border border-gray-800 rounded-xl p-3 space-y-2">
+      <div className="space-y-2">
+        <div>
+          <p className="text-white text-sm font-medium leading-tight">{t?.nombre_tarea ?? '—'}</p>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-300 font-medium">
+              {INICIALES[t?.departamento] ?? t?.departamento ?? '—'}
+            </span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${estadoT.color}`}>
+              {estadoT.label}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center justify-center text-gray-500">
+          <ArrowRight className="w-4 h-4" />
+        </div>
+        <div>
+          <p className="text-white text-sm font-medium leading-tight">{d?.nombre_tarea ?? '—'}</p>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-300 font-medium">
+              {INICIALES[d?.departamento] ?? d?.departamento ?? '—'}
+            </span>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${estadoD.color}`}>
+              {estadoD.label}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {impacto > 0 && (
+        <div className="bg-amber-950/40 border border-amber-800/50 rounded-lg px-2.5 py-1.5">
+          <p className="text-amber-300 text-[11px] font-medium">
+            ⚠️ Impacto: {impacto}d atraso
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PanelSolicitudes({
-  solicitudes, deptoSeleccionado, profile,
-  onAbrirSolicitud, onNueva,
+  solicitudes, dependencias = [], cicloActivoId, deptoSeleccionado, profile,
+  onAbrirSolicitud, onNueva, tab, onTabChange,
 }) {
-  const [tab, setTab] = useState('todas')
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [filtroPrioridad, setFiltroPrioridad] = useState('todas')
 
   const puedeCrear = profile?.rol === 'admin' || profile?.rol === 'gerente'
   const miDepto = profile?.departamento
+  const esTabDeps = tab === 'dependencias'
 
   const filtradas = useMemo(() => {
+    if (esTabDeps) return []
     let arr = solicitudes
     if (deptoSeleccionado) {
       arr = arr.filter(s => s.depto_origen === deptoSeleccionado || s.depto_destino === deptoSeleccionado)
@@ -945,23 +1113,41 @@ function PanelSolicitudes({
     if (filtroEstado !== 'todos') arr = arr.filter(s => s.estado === filtroEstado)
     if (filtroPrioridad !== 'todas') arr = arr.filter(s => s.prioridad === filtroPrioridad)
     return arr
-  }, [solicitudes, deptoSeleccionado, tab, filtroEstado, filtroPrioridad, miDepto])
+  }, [solicitudes, deptoSeleccionado, tab, filtroEstado, filtroPrioridad, miDepto, esTabDeps])
+
+  const depsFiltradas = useMemo(() => {
+    if (!esTabDeps) return []
+    let arr = dependencias
+    if (cicloActivoId) {
+      arr = arr.filter(d => d.task?.ciclo_id === cicloActivoId)
+    }
+    if (deptoSeleccionado) {
+      arr = arr.filter(d =>
+        d.task?.departamento === deptoSeleccionado ||
+        d.depends_on?.departamento === deptoSeleccionado
+      )
+    }
+    return arr
+  }, [dependencias, cicloActivoId, deptoSeleccionado, esTabDeps])
 
   return (
     <div className="flex flex-col h-full bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
       {/* Tabs */}
       <div className="flex border-b border-gray-800">
         {[
-          { value: 'todas',     label: 'Todas' },
-          { value: 'entrantes', label: 'Entrantes' },
-          { value: 'salientes', label: 'Salientes' },
+          { value: 'todas',         label: 'Todas' },
+          { value: 'entrantes',     label: 'Entrantes' },
+          { value: 'salientes',     label: 'Salientes' },
+          { value: 'dependencias',  label: 'Dependencias' },
         ].map(t => (
           <button
             key={t.value}
-            onClick={() => setTab(t.value)}
-            className={`flex-1 py-2.5 text-sm font-medium transition
+            onClick={() => onTabChange?.(t.value)}
+            className={`flex-1 py-2.5 text-xs sm:text-sm font-medium transition
               ${tab === t.value
-                ? 'text-green-300 border-b-2 border-green-500 bg-green-900/10'
+                ? (t.value === 'dependencias'
+                    ? 'text-purple-300 border-b-2 border-purple-500 bg-purple-900/10'
+                    : 'text-green-300 border-b-2 border-green-500 bg-green-900/10')
                 : 'text-gray-400 hover:text-white'}`}
           >
             {t.label}
@@ -969,47 +1155,68 @@ function PanelSolicitudes({
         ))}
       </div>
 
-      {/* Filtros */}
-      <div className="px-3 py-2 border-b border-gray-800 space-y-2">
-        <div className="flex items-center gap-2">
-          <Filter className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-          <select
-            value={filtroEstado}
-            onChange={e => setFiltroEstado(e.target.value)}
-            className="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none"
-          >
-            <option value="todos">Todos los estados</option>
-            {ESTADO_OPCIONES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-          <select
-            value={filtroPrioridad}
-            onChange={e => setFiltroPrioridad(e.target.value)}
-            className="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none"
-          >
-            <option value="todas">Todas prioridades</option>
-            {PRIORIDAD_OPCIONES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-          </select>
+      {/* Filtros — solo en tabs de solicitudes */}
+      {!esTabDeps && (
+        <div className="px-3 py-2 border-b border-gray-800 space-y-2">
+          <div className="flex items-center gap-2">
+            <Filter className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+            <select
+              value={filtroEstado}
+              onChange={e => setFiltroEstado(e.target.value)}
+              className="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none"
+            >
+              <option value="todos">Todos los estados</option>
+              {ESTADO_OPCIONES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select
+              value={filtroPrioridad}
+              onChange={e => setFiltroPrioridad(e.target.value)}
+              className="flex-1 bg-gray-950 border border-gray-800 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none"
+            >
+              <option value="todas">Todas prioridades</option>
+              {PRIORIDAD_OPCIONES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
+          {deptoSeleccionado && (
+            <p className="text-[10px] text-amber-400">
+              Filtrando por depto: <span className="font-semibold">{deptoSeleccionado}</span>
+            </p>
+          )}
         </div>
-        {deptoSeleccionado && (
-          <p className="text-[10px] text-amber-400">
+      )}
+
+      {/* Info en tab Dependencias */}
+      {esTabDeps && deptoSeleccionado && (
+        <div className="px-3 py-2 border-b border-gray-800">
+          <p className="text-[10px] text-purple-400">
             Filtrando por depto: <span className="font-semibold">{deptoSeleccionado}</span>
           </p>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Lista */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2 scroll-dark">
-        {filtradas.length === 0 ? (
-          <p className="text-gray-600 text-sm text-center py-8">Sin solicitudes</p>
+        {esTabDeps ? (
+          depsFiltradas.length === 0 ? (
+            <p className="text-gray-600 text-sm text-center py-8">Sin dependencias interdepartamentales</p>
+          ) : (
+            depsFiltradas.map(d => (
+              <DependenciaCard key={d.id} dependencia={d} />
+            ))
+          )
         ) : (
-          filtradas.map(s => (
-            <SolicitudCard key={s.id} solicitud={s} onClick={() => onAbrirSolicitud(s)} />
-          ))
+          filtradas.length === 0 ? (
+            <p className="text-gray-600 text-sm text-center py-8">Sin solicitudes</p>
+          ) : (
+            filtradas.map(s => (
+              <SolicitudCard key={s.id} solicitud={s} onClick={() => onAbrirSolicitud(s)} />
+            ))
+          )
         )}
       </div>
 
-      {/* Botón crear */}
-      {puedeCrear && (
+      {/* Botón crear — solo en tabs de solicitudes */}
+      {puedeCrear && !esTabDeps && (
         <div className="border-t border-gray-800 p-3">
           <button
             onClick={onNueva}
@@ -1031,6 +1238,7 @@ export default function Flujos() {
   const [solicitudAbierta, setSolicitudAbierta] = useState(null)
   const [mostrarNueva, setMostrarNueva] = useState(false)
   const [vistaMobile, setVistaMobile] = useState('mapa')
+  const [tabPanel, setTabPanel] = useState('todas')
 
   const { data: solicitudes = [], isLoading } = useQuery({
     queryKey: ['department_requests'],
@@ -1052,6 +1260,43 @@ export default function Flujos() {
       return data ?? []
     }
   })
+
+  const { data: cicloActivo } = useQuery({
+    queryKey: ['ciclo-activo-flujos'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('monthly_cycles')
+        .select('id')
+        .eq('estado', 'activo')
+        .maybeSingle()
+      return data
+    }
+  })
+
+  const { data: dependencias = [] } = useQuery({
+    queryKey: ['task-dependencies-flujos'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_dependencies')
+        .select(`
+          id, tipo, impacto_atraso,
+          task:task_id(id, nombre_tarea, departamento, estado, ciclo_id),
+          depends_on:depends_on_id(id, nombre_tarea, departamento, estado, ciclo_id)
+        `)
+      if (error) throw error
+      return (data ?? []).filter(d =>
+        d.task?.departamento &&
+        d.depends_on?.departamento &&
+        d.task.departamento !== d.depends_on.departamento
+      )
+    }
+  })
+
+  // Para el mapa: solo dependencias del ciclo activo
+  const dependenciasMapa = useMemo(() => {
+    if (!cicloActivo?.id) return []
+    return dependencias.filter(d => d.task?.ciclo_id === cicloActivo.id)
+  }, [dependencias, cicloActivo])
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4">
@@ -1095,9 +1340,14 @@ export default function Flujos() {
           <div className={`sm:col-span-3 ${vistaMobile === 'mapa' ? 'block' : 'hidden'} sm:block h-full min-h-0 overflow-hidden`}>
             <MapaFlujos
               solicitudes={solicitudes}
+              dependencias={dependenciasMapa}
               deptoSeleccionado={deptoSeleccionado}
               onSelectDepto={setDeptoSeleccionado}
               onClickSolicitud={s => setSolicitudAbierta(s)}
+              onClickDependencia={() => {
+                setTabPanel('dependencias')
+                setVistaMobile('panel')
+              }}
             />
           </div>
 
@@ -1105,10 +1355,14 @@ export default function Flujos() {
           <div className={`sm:col-span-2 ${vistaMobile === 'panel' ? 'block' : 'hidden'} sm:block h-full min-h-0 overflow-hidden`}>
             <PanelSolicitudes
               solicitudes={solicitudes}
+              dependencias={dependencias}
+              cicloActivoId={cicloActivo?.id}
               deptoSeleccionado={deptoSeleccionado}
               profile={profile}
               onAbrirSolicitud={s => setSolicitudAbierta(s)}
               onNueva={() => setMostrarNueva(true)}
+              tab={tabPanel}
+              onTabChange={setTabPanel}
             />
           </div>
         </div>
