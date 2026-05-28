@@ -2,8 +2,18 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
-import { X, Save, RefreshCw, CalendarClock, Sparkles, Clock } from 'lucide-react'
+import { X, Save, RefreshCw, CalendarClock, Sparkles, Clock, Trash2, Link2 } from 'lucide-react'
 import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } from '../lib/feriados'
+
+const DEPARTAMENTOS_DEPS = [
+  'CDG',
+  'Maquinarias',
+  'Compras y Adquisiciones',
+  'Administración',
+  'Personas',
+  'SST',
+  'Gerencia',
+]
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -139,6 +149,103 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
       .order('fecha_termino', { ascending: true })
       .then(({ data }) => setTareasSerieDelCiclo(data ?? []))
   }, [tarea.serie_id, tarea.ciclo_id])
+
+  // ── DEPENDENCIAS ───────────────────────────────────────────────
+  const esAdmin      = profile?.rol === 'admin'
+  const mostrarDeps  = esAdmin && !!tarea.template_id
+
+  const [dependencias,         setDependencias]         = useState([])
+  const [dependenciasOriginal, setDependenciasOriginal] = useState([])
+  const [mostrarFormDep,       setMostrarFormDep]       = useState(false)
+  const [deptoFormDep,         setDeptoFormDep]         = useState('')
+  const [templateFormDep,      setTemplateFormDep]      = useState('')
+  const [descripcionFormDep,   setDescripcionFormDep]   = useState('')
+  const [errorDep,             setErrorDep]             = useState('')
+  const [plantillasDepto,      setPlantillasDepto]      = useState([])
+
+  useEffect(() => {
+    if (!mostrarDeps) return
+    supabase
+      .from('template_dependencies')
+      .select(`
+        id, tipo, descripcion,
+        depends_on:depends_on_template_id(
+          id, nombre_tarea, departamento
+        )
+      `)
+      .eq('template_id', tarea.template_id)
+      .eq('activo', true)
+      .then(({ data }) => {
+        const list = data ?? []
+        setDependencias(list)
+        setDependenciasOriginal(list)
+      })
+  }, [mostrarDeps, tarea.template_id])
+
+  useEffect(() => {
+    if (!deptoFormDep) { setPlantillasDepto([]); return }
+    supabase
+      .from('task_templates')
+      .select('id, nombre_tarea')
+      .eq('departamento', deptoFormDep)
+      .eq('activo', true)
+      .order('nombre_tarea')
+      .then(({ data }) => setPlantillasDepto(data ?? []))
+  }, [deptoFormDep])
+
+  async function detectarCiclo(templateId, dependsOnId, visitados = new Set()) {
+    if (visitados.has(dependsOnId)) return true
+    if (dependsOnId === templateId) return true
+    visitados.add(dependsOnId)
+    const { data } = await supabase
+      .from('template_dependencies')
+      .select('depends_on_template_id')
+      .eq('template_id', dependsOnId)
+      .eq('activo', true)
+    for (const dep of (data ?? [])) {
+      if (await detectarCiclo(templateId, dep.depends_on_template_id, visitados))
+        return true
+    }
+    return false
+  }
+
+  async function handleAgregarDep() {
+    setErrorDep('')
+    if (!templateFormDep) {
+      setErrorDep('Seleccionar una plantilla')
+      return
+    }
+    if (dependencias.some(d => d.depends_on?.id === templateFormDep)) {
+      setErrorDep('Esta dependencia ya existe')
+      return
+    }
+    const ciclo = await detectarCiclo(tarea.template_id, templateFormDep)
+    if (ciclo) {
+      setErrorDep('⚠️ No se puede agregar: crearía una dependencia circular')
+      return
+    }
+    const plantilla = plantillasDepto.find(p => p.id === templateFormDep)
+    setDependencias(prev => [...prev, {
+      id:          `nueva-${Date.now()}-${Math.random()}`,
+      _nueva:      true,
+      tipo:        'referencia',
+      descripcion: descripcionFormDep.trim() || null,
+      depends_on:  {
+        id:           templateFormDep,
+        nombre_tarea: plantilla?.nombre_tarea ?? '',
+        departamento: deptoFormDep,
+      },
+    }])
+    setMostrarFormDep(false)
+    setDeptoFormDep('')
+    setTemplateFormDep('')
+    setDescripcionFormDep('')
+  }
+
+  function handleEliminarDep(id) {
+    setDependencias(prev => prev.filter(d => d.id !== id))
+  }
+  // ───────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!diaHabilFijo || !diaHabilNum) return
@@ -325,6 +432,66 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
             dia_del_mes: diasSemana[0] + 1,
           })
           .eq('id', tarea.template_id)
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
+      // ── Sync de dependencias entre plantillas ─────────────────────────────
+      if (mostrarDeps) {
+        const originalIds = new Set(dependenciasOriginal.map(d => d.id))
+        const actualIds   = new Set(dependencias.map(d => d.id))
+        const nuevas      = dependencias.filter(d => d._nueva || !originalIds.has(d.id))
+        const eliminadas  = dependenciasOriginal.filter(d => !actualIds.has(d.id))
+
+        let cicloActivoId = null
+        if (nuevas.length > 0) {
+          const { data: cicloAct } = await supabase
+            .from('monthly_cycles')
+            .select('id')
+            .eq('estado', 'activo')
+            .maybeSingle()
+          cicloActivoId = cicloAct?.id ?? null
+        }
+
+        for (const dep of nuevas) {
+          const { data: tplDep, error: errTplDep } = await supabase
+            .from('template_dependencies')
+            .insert({
+              template_id:            tarea.template_id,
+              depends_on_template_id: dep.depends_on.id,
+              tipo:                   'referencia',
+              descripcion:            dep.descripcion ?? null,
+              activo:                 true,
+            })
+            .select()
+            .single()
+          if (errTplDep) throw errTplDep
+
+          if (cicloActivoId && tplDep) {
+            const { data: tareasOrigen } = await supabase
+              .from('tasks').select('id')
+              .eq('ciclo_id', cicloActivoId)
+              .eq('template_id', tarea.template_id)
+            const { data: tareasDestino } = await supabase
+              .from('tasks').select('id')
+              .eq('ciclo_id', cicloActivoId)
+              .eq('template_id', dep.depends_on.id)
+            if (tareasOrigen?.length && tareasDestino?.length) {
+              await supabase.from('task_dependencies').insert({
+                task_id:         tareasOrigen[0].id,
+                depends_on_id:   tareasDestino[0].id,
+                tipo:            'referencia',
+                template_dep_id: tplDep.id,
+              })
+            }
+          }
+        }
+
+        if (eliminadas.length > 0) {
+          await supabase
+            .from('template_dependencies')
+            .update({ activo: false })
+            .in('id', eliminadas.map(d => d.id))
+        }
       }
       // ────────────────────────────────────────────────────────────────────────
 
@@ -661,6 +828,130 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                 : `Duración total: ${Math.floor(duracion / 60)} h ${duracion % 60} min`}
             </p>
           </div>
+
+          {/* Dependencias */}
+          {mostrarDeps && (
+            <div className="bg-gray-800/40 border border-gray-700 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Link2 className="w-4 h-4 text-green-400" />
+                <div>
+                  <p className="text-sm text-white font-medium">Dependencias</p>
+                  <p className="text-xs text-gray-500">Esta tarea hace referencia a:</p>
+                </div>
+              </div>
+
+              {dependencias.length === 0 && !mostrarFormDep && (
+                <p className="text-gray-500 text-xs text-center py-1.5">Sin dependencias</p>
+              )}
+
+              {dependencias.length > 0 && (
+                <div className="space-y-1.5">
+                  {dependencias.map(d => (
+                    <div
+                      key={d.id}
+                      className="flex items-center justify-between gap-2 bg-gray-900 border border-gray-800 rounded-lg px-3 py-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-white truncate">{d.depends_on?.nombre_tarea}</p>
+                        <p className="text-xs text-gray-500">{d.depends_on?.departamento}</p>
+                        {d.descripcion && (
+                          <p className="text-xs text-gray-400 mt-0.5">{d.descripcion}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleEliminarDep(d.id)}
+                        className="text-gray-500 hover:text-red-400 transition p-1 shrink-0"
+                        title="Eliminar dependencia"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!mostrarFormDep ? (
+                <button
+                  type="button"
+                  onClick={() => { setMostrarFormDep(true); setErrorDep('') }}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition"
+                >
+                  + Agregar dependencia
+                </button>
+              ) : (
+                <div className="bg-gray-900 border border-gray-800 rounded-lg p-3 space-y-2">
+                  <select
+                    value={deptoFormDep}
+                    onChange={e => { setDeptoFormDep(e.target.value); setTemplateFormDep('') }}
+                    className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg
+                               px-3 py-2 text-sm focus:outline-none focus:border-green-500"
+                  >
+                    <option value="">Seleccionar departamento...</option>
+                    {DEPARTAMENTOS_DEPS.filter(d => d !== tarea.departamento).map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={templateFormDep}
+                    onChange={e => setTemplateFormDep(e.target.value)}
+                    disabled={!deptoFormDep}
+                    className="w-full bg-gray-800 border border-gray-700 text-gray-300 rounded-lg
+                               px-3 py-2 text-sm focus:outline-none focus:border-green-500 disabled:opacity-50"
+                  >
+                    <option value="">
+                      {!deptoFormDep
+                        ? 'Selecciona primero un departamento...'
+                        : plantillasDepto.length === 0
+                          ? 'Sin plantillas activas'
+                          : 'Seleccionar plantilla...'}
+                    </option>
+                    {plantillasDepto.map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre_tarea}</option>
+                    ))}
+                  </select>
+
+                  <input
+                    type="text"
+                    value={descripcionFormDep}
+                    onChange={e => setDescripcionFormDep(e.target.value)}
+                    placeholder="Descripción (opcional)"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2
+                               text-white text-sm focus:outline-none focus:border-green-500"
+                  />
+
+                  {errorDep && (
+                    <p className="text-amber-400 text-xs">{errorDep}</p>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMostrarFormDep(false)
+                        setErrorDep('')
+                        setDeptoFormDep('')
+                        setTemplateFormDep('')
+                        setDescripcionFormDep('')
+                      }}
+                      className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-400 py-1.5 rounded-lg text-xs transition"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAgregarDep}
+                      disabled={!templateFormDep}
+                      className="flex-1 bg-green-700 hover:bg-green-600 disabled:opacity-50 text-white py-1.5 rounded-lg text-xs font-semibold transition"
+                    >
+                      Agregar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Observaciones */}
           <div>

@@ -49,7 +49,7 @@ function nombreCierre(mes, anio) {
   return `Cierre de ${MESES[mes - 2]} ${anio}`
 }
 
-function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCicloCerrado, esCicloInactivo }) {
+function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCicloCerrado, esCicloInactivo, impactoDep }) {
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
 
@@ -121,6 +121,14 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
             <span className="text-xs text-gray-600">{tarea.total_evidencias}📎</span>
           )}
           <CondicionBadge condicion={tarea.condicion} frecuencia={tarea.frecuencia} />
+          {impactoDep && (
+            <span
+              className="text-xs px-1.5 py-0.5 rounded font-medium bg-amber-900/50 text-amber-300"
+              title={`Depende de "${impactoDep.nombre_tarea}" (${impactoDep.departamento}) con ${impactoDep.impacto_atraso} día${impactoDep.impacto_atraso !== 1 ? 's' : ''} de atraso`}
+            >
+              ⚠️ Dep. con atraso
+            </span>
+          )}
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estilos.badge}`}>
             {estilos.label}
           </span>
@@ -150,7 +158,7 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
 
 // ─── COLUMNA KANBAN ───────────────────────────────────────────────────────────
 function ColumnaKanban({ titulo, icono, iconoColor, accentBg, tareas, profile,
-  esCicloCerrado, esCicloInactivo, onClickTarea, onEditar, onEliminar, activa, onTabClick }) {
+  esCicloCerrado, esCicloInactivo, onClickTarea, onEditar, onEliminar, activa, onTabClick, impactosDep }) {
 
   const ordenadas = [...tareas].sort((a, b) => a.nombre_tarea.localeCompare(b.nombre_tarea, 'es'))
 
@@ -196,6 +204,7 @@ function ColumnaKanban({ titulo, icono, iconoColor, accentBg, tareas, profile,
               onClickTarea={() => onClickTarea(tarea)}
               onEditar={() => onEditar(tarea)}
               onEliminar={(esCicloCerrado || esCicloInactivo) ? null : () => onEliminar(tarea.id)}
+              impactoDep={impactosDep?.[tarea.id]}
             />
           ))}
         </div>
@@ -242,6 +251,30 @@ export default function Tareas({ cicloSeleccionado }) {
       const { data, error } = await query
       if (error) throw error
       return data ?? []
+    }
+  })
+
+  const taskIds = useMemo(() => tareas.map(t => t.id), [tareas])
+
+  const { data: impactosDep = {} } = useQuery({
+    queryKey: ['impactos-dep', cicloSeleccionado?.id, taskIds],
+    enabled:  taskIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('task_dependencies')
+        .select('task_id, impacto_atraso, depends_on:depends_on_id(nombre_tarea, departamento)')
+        .in('task_id', taskIds)
+        .gt('impacto_atraso', 0)
+      if (error) throw error
+      const mapa = {}
+      for (const row of data ?? []) {
+        mapa[row.task_id] = {
+          impacto_atraso: row.impacto_atraso,
+          nombre_tarea:   row.depends_on?.nombre_tarea ?? '',
+          departamento:   row.depends_on?.departamento ?? '',
+        }
+      }
+      return mapa
     }
   })
 
@@ -521,6 +554,7 @@ export default function Tareas({ cicloSeleccionado }) {
                 onClickTarea={handleClickTarea}
                 onEditar={setEditando}
                 onEliminar={handleAbrirEliminar}
+                impactosDep={impactosDep}
               />
             ))}
           </div>
@@ -556,6 +590,7 @@ export default function Tareas({ cicloSeleccionado }) {
                 onClickTarea={handleClickTarea}
                 onEditar={setEditando}
                 onEliminar={handleAbrirEliminar}
+                impactosDep={impactosDep}
               />
             ))}
           </div>

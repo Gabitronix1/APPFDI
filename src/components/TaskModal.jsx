@@ -60,6 +60,24 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
         })
       if (errComp) throw errComp
 
+      // Registrar impacto en cascada si la tarea se completó con atraso —
+      // actualiza task_dependencies.impacto_atraso en todas las tareas
+      // que dependen de ésta, para trazabilidad histórica.
+      {
+        const hoyImp = new Date()
+        hoyImp.setHours(0, 0, 0, 0)
+        const fechaTerminoImp = new Date(tarea.fecha_termino + 'T00:00:00')
+        const diasAtraso = Math.max(0, Math.floor(
+          (hoyImp - fechaTerminoImp) / (1000 * 60 * 60 * 24)
+        ))
+        if (diasAtraso > 0) {
+          await supabase
+            .from('task_dependencies')
+            .update({ impacto_atraso: diasAtraso })
+            .eq('depends_on_id', tarea.id)
+        }
+      }
+
       if (archivo) {
         const ext  = archivo.name.split('.').pop()
         const path = `evidencias/${tarea.id}/${Date.now()}.${ext}`

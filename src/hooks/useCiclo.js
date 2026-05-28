@@ -354,6 +354,48 @@ export function useCrearCiclo() {
         if (errTareas) throw errTareas
       }
 
+      // 8. Instanciar dependencias entre tareas a partir de las plantillas
+      try {
+        const { data: templateDeps } = await supabase
+          .from('template_dependencies')
+          .select('*')
+          .eq('activo', true)
+
+        if (templateDeps && templateDeps.length > 0) {
+          const dependenciasInsertar = []
+
+          for (const dep of templateDeps) {
+            const { data: tareasOrigen } = await supabase
+              .from('tasks')
+              .select('id')
+              .eq('ciclo_id', ciclo.id)
+              .eq('template_id', dep.template_id)
+
+            const { data: tareasDestino } = await supabase
+              .from('tasks')
+              .select('id')
+              .eq('ciclo_id', ciclo.id)
+              .eq('template_id', dep.depends_on_template_id)
+
+            if (tareasOrigen?.length && tareasDestino?.length) {
+              dependenciasInsertar.push({
+                task_id:        tareasOrigen[0].id,
+                depends_on_id:  tareasDestino[0].id,
+                tipo:           'referencia',
+                template_dep_id: dep.id,
+              })
+            }
+          }
+
+          if (dependenciasInsertar.length > 0) {
+            await supabase.from('task_dependencies').insert(dependenciasInsertar)
+          }
+        }
+      } catch (err) {
+        // Las dependencias son trazabilidad — no interrumpen la creación del ciclo
+        console.warn('Instanciación de dependencias falló (no crítico):', err)
+      }
+
       return ciclo
     },
     onSuccess: () => {
