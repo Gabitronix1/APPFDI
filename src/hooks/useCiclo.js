@@ -227,6 +227,7 @@ export function useCrearCiclo() {
         .from('monthly_cycles')
         .update({ estado: 'inactivo' })
         .eq('estado', 'activo')
+        .eq('departamento', departamento)
 
       // 3. Crear nuevo ciclo
       const fechaInicio = `${anio}-${String(mes).padStart(2, '0')}-01`
