@@ -215,189 +215,162 @@ export function useCrearCiclo() {
   return useMutation({
     mutationFn: async ({ mes, anio, departamento }) => {
 
-      // 1. Guardar snapshot del estado actual ANTES de cerrar el ciclo
-      //    — captura el mes que se está cerrando (mes anterior al nuevo)
-      const ahora      = new Date()
-      const mesSnap    = ahora.getMonth() + 1   // mes actual en curso
-      const anioSnap   = ahora.getFullYear()
-      await guardarSnapshotAutomatico(departamento, mesSnap, anioSnap)
-
-      // 2. Marcar ciclo activo anterior como inactivo
-      await supabase
-        .from('monthly_cycles')
-        .update({ estado: 'inactivo' })
-        .eq('estado', 'activo')
-        .eq('departamento', departamento)
-
-      // 3. Crear nuevo ciclo
-      const fechaInicio = `${anio}-${String(mes).padStart(2, '0')}-01`
-      const { data: ciclo, error: errCiclo } = await supabase
-        .from('monthly_cycles')
-        .insert({ mes, anio, fecha_inicio_mes: fechaInicio, estado: 'activo', departamento })
-        .select()
-        .single()
-      if (errCiclo) throw errCiclo
-
-      // 4. Traer plantillas activas
-      const { data: plantillas, error: errPlant } = await supabase
-        .from('task_templates')
-        .select('*')
-        .eq('activo', true)
-        .eq('departamento', departamento)
-      if (errPlant) throw errPlant
-
-      // 5. Preparar feriados del mes
+      // Preparar feriados una sola vez (comunes a todos los deptos)
+      const ahora        = new Date()
+      const mesSnap      = ahora.getMonth() + 1
+      const anioSnap     = ahora.getFullYear()
       const feriados     = getFeriadosDelAnio(anio)
       const feriadosAnt  = getFeriadosDelAnio(anio - 1)
       const feriadosComb = new Set([...feriados, ...feriadosAnt])
+      const fechaInicio  = `${anio}-${String(mes).padStart(2, '0')}-01`
 
-      // 6. Generar tareas según tipo y frecuencia
-      const tareas = []
+      // Obtener todos los departamentos activos
+      const { data: usuariosActivos } = await supabase
+        .from('users')
+        .select('departamento')
+        .eq('activo', true)
 
-      for (const p of plantillas) {
-        const duracion    = p.duracion_estimada_min ?? 60
-        const ponderacion = p.ponderacion ?? null
+      const deptos = [...new Set(
+        (usuariosActivos ?? []).map(u => u.departamento).filter(Boolean)
+      )]
 
-        // ── Semanal → N tareas con serie_id (soporta múltiples días) ─────
-        if (p.tipo === 'recurrente_mes' && p.frecuencia === 'semanal') {
-          const serieId   = generarUUID()
-          const diasArray = (p.dias_semana && p.dias_semana.length > 0)
-            ? p.dias_semana
-            : [p.dia_del_mes]
-          const fechas = diasArray
-            .flatMap(dia => calcularFechasSemanales(dia, mes, anio))
-            .sort((a, b) => a - b)
-          for (const fecha of fechas) {
-            tareas.push({
-              ciclo_id:              ciclo.id,
-              template_id:           p.id,
-              responsable_id:        p.responsable_id,
-              nombre_tarea:          p.nombre_tarea,
-              area:                  p.area,
-              departamento:          p.departamento,
-              condicion:             'habil',
-              fecha_inicio:          fechaStr(fecha),
-              fecha_termino:         fechaStr(fecha),
-              estado:                'pendiente',
-              tipo_tarea:            'adicional',
-              tipo:                  'recurrente_mes',
-              frecuencia:            'semanal',
-              serie_id:              serieId,
-              mes_calendario:        mes,
-              anio_calendario:       anio,
-              ponderacion,
-              duracion_estimada_min: duracion,
-            })
-          }
-          continue
-        }
+      let cicloRetorno = null
 
-        // ── Quincenal → 2 tareas con serie_id ────────────────
-        if (p.tipo === 'recurrente_mes' && p.frecuencia === 'quincenal') {
-          const serieId = generarUUID()
-          const dia1    = p.dia_del_mes
-          const dia2    = p.dia_del_mes_2 ?? (dia1 <= 15 ? dia1 + 15 : dia1)
-          const fechas  = calcularFechasQuincenales(dia1, dia2, mes, anio, feriadosComb)
-          for (const f of fechas) {
-            tareas.push({
-              ciclo_id:              ciclo.id,
-              template_id:           p.id,
-              responsable_id:        p.responsable_id,
-              nombre_tarea:          p.nombre_tarea,
-              area:                  p.area,
-              departamento:          p.departamento,
-              condicion:             'habil',
-              fecha_inicio:          fechaStr(f.inicio),
-              fecha_termino:         fechaStr(f.termino),
-              estado:                'pendiente',
-              tipo_tarea:            'adicional',
-              tipo:                  'recurrente_mes',
-              frecuencia:            'quincenal',
-              serie_id:              serieId,
-              mes_calendario:        mes,
-              anio_calendario:       anio,
-              ponderacion,
-              duracion_estimada_min: duracion,
-            })
-          }
-          continue
-        }
+      for (const depto of deptos) {
+        try {
+          // 1. Snapshot del estado actual antes de cerrar
+          await guardarSnapshotAutomatico(depto, mesSnap, anioSnap)
 
-        // ── Mensual / cierre → 1 tarea normal ────────────────
-        const { fecha_inicio, fecha_termino } = calcularFechasTarea(p, mes, anio)
-        tareas.push({
-          ciclo_id:              ciclo.id,
-          template_id:           p.id,
-          responsable_id:        p.responsable_id,
-          nombre_tarea:          p.nombre_tarea,
-          area:                  p.area,
-          departamento:          p.departamento,
-          condicion:             p.condicion,
-          fecha_inicio,
-          fecha_termino,
-          estado:                'pendiente',
-          tipo_tarea:            p.tipo === 'cierre' ? 'cierre' : 'adicional',
-          tipo:                  p.tipo ?? 'cierre',
-          frecuencia:            p.frecuencia ?? null,
-          serie_id:              null,
-          mes_calendario:        mes,
-          anio_calendario:       anio,
-          ponderacion,
-          duracion_estimada_min: duracion,
-        })
-      }
+          // 2. Marcar ciclo activo anterior como inactivo
+          await supabase
+            .from('monthly_cycles')
+            .update({ estado: 'inactivo' })
+            .eq('estado', 'activo')
+            .eq('departamento', depto)
 
-      // 7. Insertar todas las tareas
-      if (tareas.length > 0) {
-        const { error: errTareas } = await supabase
-          .from('tasks')
-          .insert(tareas)
-        if (errTareas) throw errTareas
-      }
+          // 3. Crear nuevo ciclo
+          const { data: ciclo, error: errCiclo } = await supabase
+            .from('monthly_cycles')
+            .insert({ mes, anio, fecha_inicio_mes: fechaInicio, estado: 'activo', departamento: depto })
+            .select()
+            .single()
+          if (errCiclo) throw errCiclo
 
-      // 8. Instanciar dependencias entre tareas a partir de las plantillas
-      try {
-        const { data: templateDeps } = await supabase
-          .from('template_dependencies')
-          .select('*')
-          .eq('activo', true)
+          // 4. Traer plantillas activas del depto
+          const { data: plantillas, error: errPlant } = await supabase
+            .from('task_templates')
+            .select('*')
+            .eq('activo', true)
+            .eq('departamento', depto)
+          if (errPlant) throw errPlant
 
-        if (templateDeps && templateDeps.length > 0) {
-          const dependenciasInsertar = []
+          // 5. Generar tareas según tipo y frecuencia
+          const tareas = []
 
-          for (const dep of templateDeps) {
-            const { data: tareasOrigen } = await supabase
-              .from('tasks')
-              .select('id')
-              .eq('ciclo_id', ciclo.id)
-              .eq('template_id', dep.template_id)
+          for (const p of plantillas) {
+            const duracion    = p.duracion_estimada_min ?? 60
+            const ponderacion = p.ponderacion ?? null
 
-            const { data: tareasDestino } = await supabase
-              .from('tasks')
-              .select('id')
-              .eq('ciclo_id', ciclo.id)
-              .eq('template_id', dep.depends_on_template_id)
-
-            if (tareasOrigen?.length && tareasDestino?.length) {
-              dependenciasInsertar.push({
-                task_id:        tareasOrigen[0].id,
-                depends_on_id:  tareasDestino[0].id,
-                tipo:           'referencia',
-                template_dep_id: dep.id,
-              })
+            // ── Semanal → N tareas con serie_id ──────────────
+            if (p.tipo === 'recurrente_mes' && p.frecuencia === 'semanal') {
+              const serieId   = generarUUID()
+              const diasArray = (p.dias_semana && p.dias_semana.length > 0)
+                ? p.dias_semana
+                : [p.dia_del_mes]
+              const fechas = diasArray
+                .flatMap(dia => calcularFechasSemanales(dia, mes, anio))
+                .sort((a, b) => a - b)
+              for (const fecha of fechas) {
+                tareas.push({
+                  ciclo_id: ciclo.id, template_id: p.id, responsable_id: p.responsable_id,
+                  nombre_tarea: p.nombre_tarea, area: p.area, departamento: p.departamento,
+                  condicion: 'habil', fecha_inicio: fechaStr(fecha), fecha_termino: fechaStr(fecha),
+                  estado: 'pendiente', tipo_tarea: 'adicional', tipo: 'recurrente_mes',
+                  frecuencia: 'semanal', serie_id: serieId, mes_calendario: mes,
+                  anio_calendario: anio, ponderacion, duracion_estimada_min: duracion,
+                })
+              }
+              continue
             }
+
+            // ── Quincenal → 2 tareas con serie_id ────────────
+            if (p.tipo === 'recurrente_mes' && p.frecuencia === 'quincenal') {
+              const serieId = generarUUID()
+              const dia1    = p.dia_del_mes
+              const dia2    = p.dia_del_mes_2 ?? (dia1 <= 15 ? dia1 + 15 : dia1)
+              const fechas  = calcularFechasQuincenales(dia1, dia2, mes, anio, feriadosComb)
+              for (const f of fechas) {
+                tareas.push({
+                  ciclo_id: ciclo.id, template_id: p.id, responsable_id: p.responsable_id,
+                  nombre_tarea: p.nombre_tarea, area: p.area, departamento: p.departamento,
+                  condicion: 'habil', fecha_inicio: fechaStr(f.inicio), fecha_termino: fechaStr(f.termino),
+                  estado: 'pendiente', tipo_tarea: 'adicional', tipo: 'recurrente_mes',
+                  frecuencia: 'quincenal', serie_id: serieId, mes_calendario: mes,
+                  anio_calendario: anio, ponderacion, duracion_estimada_min: duracion,
+                })
+              }
+              continue
+            }
+
+            // ── Mensual / cierre → 1 tarea normal ────────────
+            const { fecha_inicio: fi, fecha_termino: ft } = calcularFechasTarea(p, mes, anio)
+            tareas.push({
+              ciclo_id: ciclo.id, template_id: p.id, responsable_id: p.responsable_id,
+              nombre_tarea: p.nombre_tarea, area: p.area, departamento: p.departamento,
+              condicion: p.condicion, fecha_inicio: fi, fecha_termino: ft,
+              estado: 'pendiente', tipo_tarea: p.tipo === 'cierre' ? 'cierre' : 'adicional',
+              tipo: p.tipo ?? 'cierre', frecuencia: p.frecuencia ?? null, serie_id: null,
+              mes_calendario: mes, anio_calendario: anio, ponderacion, duracion_estimada_min: duracion,
+            })
           }
 
-          if (dependenciasInsertar.length > 0) {
-            await supabase.from('task_dependencies').insert(dependenciasInsertar)
+          // 6. Insertar tareas
+          if (tareas.length > 0) {
+            const { error: errTareas } = await supabase.from('tasks').insert(tareas)
+            if (errTareas) throw errTareas
           }
+
+          // 7. Instanciar dependencias
+          try {
+            const { data: templateDeps } = await supabase
+              .from('template_dependencies')
+              .select('*')
+              .eq('activo', true)
+
+            if (templateDeps && templateDeps.length > 0) {
+              const dependenciasInsertar = []
+              for (const dep of templateDeps) {
+                const { data: tareasOrigen } = await supabase
+                  .from('tasks').select('id')
+                  .eq('ciclo_id', ciclo.id).eq('template_id', dep.template_id)
+                const { data: tareasDestino } = await supabase
+                  .from('tasks').select('id')
+                  .eq('ciclo_id', ciclo.id).eq('template_id', dep.depends_on_template_id)
+                if (tareasOrigen?.length && tareasDestino?.length) {
+                  dependenciasInsertar.push({
+                    task_id:         tareasOrigen[0].id,
+                    depends_on_id:   tareasDestino[0].id,
+                    tipo:            'referencia',
+                    template_dep_id: dep.id,
+                  })
+                }
+              }
+              if (dependenciasInsertar.length > 0) {
+                await supabase.from('task_dependencies').insert(dependenciasInsertar)
+              }
+            }
+          } catch (err) {
+            console.warn(`Dependencias fallaron para ${depto} (no crítico):`, err)
+          }
+
+          if (depto === departamento) cicloRetorno = ciclo
+
+        } catch (err) {
+          console.error(`Error creando ciclo para ${depto}:`, err)
         }
-      } catch (err) {
-        // Las dependencias son trazabilidad — no interrumpen la creación del ciclo
-        console.warn('Instanciación de dependencias falló (no crítico):', err)
       }
 
-      return ciclo
+      return cicloRetorno
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ciclos'] })
