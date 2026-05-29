@@ -135,9 +135,11 @@ function BarraGlobalAdmin({ tareas, departamento, tituloCiclo }) {
   const colorPct    = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
   const colorBarra  = pct === 100 ? 'bg-green-500'   : pct > 60 ? 'bg-amber-500'   : 'bg-red-500'
   const colorCal    = calidad === null ? '' : calidad >= 90 ? 'text-green-400' : calidad >= 70 ? 'text-amber-400' : 'text-red-400'
+  const borderCard  = pct === 100 ? 'border-green-800' : pct > 60 ? 'border-amber-800' : 'border-red-800'
+  const bgCard      = pct === 100 ? 'bg-green-900/10' : pct > 60 ? 'bg-amber-900/10' : 'bg-red-900/10'
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-2xl px-5 py-3.5 flex items-center gap-5">
+    <div className={`${bgCard} border ${borderCard} rounded-2xl px-5 py-3.5 flex items-center gap-5`}>
       {/* Label depto + ciclo */}
       <div className="shrink-0 min-w-0">
         <p className="text-white text-sm font-semibold leading-none">{departamento}</p>

@@ -552,7 +552,6 @@ function MapaFlujos({ solicitudes, dependencias = [], deptoSeleccionado, onSelec
         <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-blue-400" />Solicitado</div>
         <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-400" />En proceso / por vencer</div>
         <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-400" />Atrasado</div>
-        <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-400" />Entregado</div>
         <div className="flex items-center gap-2">
           <svg width="16" height="8">
             <line x1="0" y1="4" x2="16" y2="4" stroke="#34d399" strokeWidth="1.5" strokeDasharray="4,2"/>
@@ -699,8 +698,20 @@ function SolicitudModal({ solicitud, modoCrear, onClose, onGuardado }) {
         creado_por: user.id,
         creado_at: new Date().toISOString(),
       }
-      const { error } = await supabase.from('department_requests').insert(payload)
+      const { data, error } = await supabase.from('department_requests').insert(payload).select().single()
       if (error) throw error
+      if (payload.responsable_destino) {
+        await supabase.from('notifications').insert({
+          user_id:   payload.responsable_destino,
+          tipo:      'novedad',
+          titulo:    '📨 Nueva solicitud de flujo',
+          mensaje:   `${profile.nombre} (${profile.departamento}) te envió una solicitud: "${payload.titulo}"`,
+          leida:     false,
+          link_id:   data.id,
+          link_tipo: 'department_request',
+          creado_at: new Date().toISOString(),
+        })
+      }
       queryClient.invalidateQueries({ queryKey: ['department_requests'] })
       onGuardado?.()
       onClose()
@@ -732,6 +743,22 @@ function SolicitudModal({ solicitud, modoCrear, onClose, onGuardado }) {
         creado_at: new Date().toISOString(),
       })
 
+      if (solicitud.responsable_origen && (nuevoEstado === 'entregado' || nuevoEstado === 'en_proceso')) {
+        await supabase.from('notifications').insert({
+          user_id:   solicitud.responsable_origen,
+          tipo:      'novedad',
+          titulo:    nuevoEstado === 'entregado'
+                     ? '✅ Solicitud entregada'
+                     : '⏳ Solicitud en proceso',
+          mensaje:   nuevoEstado === 'entregado'
+                     ? `Tu solicitud "${solicitud.titulo}" fue entregada por ${profile.nombre}`
+                     : `Tu solicitud "${solicitud.titulo}" está siendo procesada por ${profile.nombre}`,
+          leida:     false,
+          link_id:   solicitud.id,
+          link_tipo: 'department_request',
+          creado_at: new Date().toISOString(),
+        })
+      }
       queryClient.invalidateQueries({ queryKey: ['department_requests'] })
       onGuardado?.()
       onClose()

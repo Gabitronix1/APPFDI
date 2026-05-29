@@ -1,4 +1,4 @@
-import { X, CheckCircle2, Clock, RefreshCw, Sparkles, FileText, UserCheck, Plus, ChevronDown, Eye, Lock, TrendingUp, Star } from 'lucide-react'
+import { X, CheckCircle2, Clock, RefreshCw, Sparkles, FileText, UserCheck, Plus, ChevronDown, Eye, Lock, TrendingUp, Star, GitBranch, Link2, Bell, Timer, Calendar } from 'lucide-react'
 
 const SECCIONES = [
   {
@@ -115,6 +115,75 @@ const SECCIONES = [
       'El botón + crea un nuevo cierre generando automáticamente las tareas recurrentes con fechas según el calendario hábil chileno (incluye feriados).',
       'El botón 🗑 elimina el cierre activo y todas sus tareas permanentemente.',
       'Al crear un nuevo cierre, el anterior se cierra automáticamente.',
+    ]
+  },
+  {
+    titulo: 'Ciclos inactivos vs cerrados',
+    icono: Lock,
+    color: 'text-gray-400',
+    bg: 'bg-gray-800/50 border-gray-700',
+    items: [
+      '🔘 Inactivo: el ciclo anterior queda inactivo al crear uno nuevo. Puedes seguir completando tareas pendientes.',
+      '🔒 Cerrado: el admin cierra manualmente el ciclo. Las tareas pasan a solo lectura.',
+    ]
+  },
+  {
+    titulo: 'Flujos interdepartamentales',
+    icono: GitBranch,
+    color: 'text-green-400',
+    bg: 'bg-green-900/10 border-green-800',
+    items: [
+      '🗺️ Página Flujos: mapa interactivo de solicitudes entre departamentos.',
+      'Crea solicitudes desde el panel lateral seleccionando el departamento y responsable destino.',
+      'Estados: Solicitado → En proceso → Entregado.',
+      'Solo el departamento destino puede cambiar el estado de la solicitud.',
+      'Las solicitudes de flujos generan notificaciones automáticas a los responsables.',
+    ]
+  },
+  {
+    titulo: 'Dependencias entre tareas',
+    icono: Link2,
+    color: 'text-purple-400',
+    bg: 'bg-purple-900/10 border-purple-800',
+    items: [
+      'Una tarea puede depender de otra tarea de otro departamento.',
+      'Tipo referencia: no bloquea la tarea, solo registra el impacto entre ellas.',
+      'Si la tarea dependida se completa con atraso, se registra el impacto en las tareas que dependen de ella.',
+      'Visible en el detalle de cada tarea y en el mapa de Flujos.',
+    ]
+  },
+  {
+    titulo: 'Duración estimada',
+    icono: Timer,
+    color: 'text-blue-400',
+    bg: 'bg-gray-800/50 border-gray-700',
+    items: [
+      'Selector híbrido al crear o editar una tarea.',
+      'Botones rápidos: 30m, 1h, 2h, 4h, 8h.',
+      'O ingresa manualmente horas y minutos de forma libre.',
+    ]
+  },
+  {
+    titulo: 'Días semanales múltiples',
+    icono: Calendar,
+    color: 'text-amber-400',
+    bg: 'bg-gray-800/50 border-gray-700',
+    items: [
+      'Las tareas semanales pueden asignarse a varios días de la semana.',
+      'Ejemplo: Lunes + Miércoles + Viernes.',
+      'Cada combinación genera instancias independientes dentro del ciclo.',
+    ]
+  },
+  {
+    titulo: 'Notificaciones',
+    icono: Bell,
+    color: 'text-amber-400',
+    bg: 'bg-amber-900/10 border-amber-800',
+    items: [
+      '🔔 La campana en el navbar muestra el conteo de notificaciones no leídas.',
+      'Tipos: tareas por vencer, tareas vencidas, novedades.',
+      'Las solicitudes de flujos generan notificaciones automáticas: al crear una solicitud se notifica al responsable destino, y al cambiar el estado (en proceso / entregado) se notifica al responsable origen.',
+      'Haz clic en una notificación para ir directamente al recurso relacionado.',
     ]
   },
 ]
