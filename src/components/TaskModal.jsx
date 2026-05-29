@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { X, Upload, CheckCircle2, AlertCircle, UserCheck, Clock } from 'lucide-react'
 
 export default function TaskModal({ tarea, onClose, onCompletada }) {
-  const { user, profile } = useAuth()
+  const { user, profile, deptosAsignados } = useAuth()
   const [comentario, setComentario]             = useState('')
   const [archivo, setArchivo]                   = useState(null)
   const [loading, setLoading]                   = useState(false)
@@ -45,7 +45,8 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
 
   const pctEstimado = Math.max(0, 100 - (diasAtraso * 10))
 
-  const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente'
+  const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente' ||
+    (profile?.rol === 'subgerente' && deptosAsignados.includes(tarea.departamento))
 
   const { data: usuarios = [] } = useQuery({
     queryKey: ['usuarios-depto', profile?.departamento],

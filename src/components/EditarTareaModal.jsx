@@ -31,7 +31,7 @@ const DURACIONES_RAPIDAS = [
 
 export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const queryClient = useQueryClient()
-  const { profile } = useAuth()
+  const { profile, deptosAsignados } = useAuth()
 
   const [nombre,          setNombre]          = useState(tarea.nombre_tarea)
   const [area,            setArea]            = useState(tarea.area ?? '')
@@ -72,7 +72,8 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
 
   const { data: usuarios = [] } = useQuery({
     queryKey: ['usuarios-depto', tarea.departamento],
-    enabled: profile?.rol === 'admin' || profile?.rol === 'gerente',
+    enabled: profile?.rol === 'admin' || profile?.rol === 'gerente' ||
+      (profile?.rol === 'subgerente' && deptosAsignados.includes(tarea.departamento)),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('users')
@@ -151,7 +152,8 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   }, [tarea.serie_id, tarea.ciclo_id])
 
   // ── DEPENDENCIAS ───────────────────────────────────────────────
-  const esAdmin      = profile?.rol === 'admin'
+  const esAdmin      = profile?.rol === 'admin' ||
+    (profile?.rol === 'subgerente' && deptosAsignados.includes(tarea.departamento))
   const mostrarDeps  = esAdmin && !!tarea.template_id
 
   const [dependencias,         setDependencias]         = useState([])
@@ -612,7 +614,8 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
           </div>
 
           {/* Responsable */}
-          {(profile?.rol === 'admin' || profile?.rol === 'gerente') && (
+          {(profile?.rol === 'admin' || profile?.rol === 'gerente' ||
+            (profile?.rol === 'subgerente' && deptosAsignados.includes(tarea.departamento))) && (
             <div>
               <label className="block text-sm text-gray-400 mb-1">Responsable</label>
               {!reasignando ? (

@@ -114,7 +114,7 @@ function TareaRow({ tarea, onClick, esCicloCerrado, impactoDep }) {
 }
 
 // ─── BARRA GLOBAL ADMIN ───────────────────────────────────────────────────────
-function BarraGlobalAdmin({ tareas, departamento, tituloCiclo }) {
+export function BarraGlobalAdmin({ tareas, departamento, tituloCiclo }) {
   const hoy = new Date(); hoy.setHours(0,0,0,0)
   // Solo tareas con fecha_termino <= hoy y no bloqueadas
   const exigibles   = tareas.filter(t => {
@@ -266,7 +266,7 @@ function FilaMetricas({ tareasCierre, tareasRecurrentes, tareasPuntuales,
 }
 
 // ─── DASHBOARD ADMIN ──────────────────────────────────────────────────────────
-function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, profile, esCicloCerrado, impactosDep = {} }) {
+export function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, profile, esCicloCerrado, impactosDep = {} }) {
   const navigate    = useNavigate()
   const queryClient = useQueryClient()
   const [modalBloque,        setModalBloque]        = useState(null)

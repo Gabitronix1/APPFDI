@@ -167,9 +167,10 @@ function AjusteCalificacion({ comp, tareaId, onGuardado }) {
 
 // ─── PANEL PRINCIPAL ───────────────────────────────────────────────────────────
 export default function DetalleTareaPanel({ tarea, onClose }) {
-  const { profile }  = useAuth()
+  const { profile, deptosAsignados }  = useAuth()
   const queryClient  = useQueryClient()
-  const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente'
+  const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente' ||
+    (profile?.rol === 'subgerente' && deptosAsignados.includes(tarea.departamento))
 
   const { data: completaciones = [], isLoading: loadingComp } = useQuery({
     queryKey: ['completaciones', tarea.id],

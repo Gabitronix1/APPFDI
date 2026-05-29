@@ -76,11 +76,12 @@ function fechaStr(fecha) {
 }
 
 export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, departamentoForzado }) {
-  const { user, profile } = useAuth()
+  const { user, profile, deptosAsignados } = useAuth()
 
   const deptoActivo     = departamentoForzado ?? profile?.departamento
   const esUsuario       = profile?.rol === 'usuario'
-  const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente'
+  const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente' ||
+    (profile?.rol === 'subgerente' && deptosAsignados.includes(deptoActivo))
 
   const [form, setForm] = useState({
     nombre_tarea:          '',
