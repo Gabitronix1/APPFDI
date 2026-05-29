@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useQuery } from '@tanstack/react-query'
@@ -15,6 +15,27 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
   const [reasignando, setReasignando]           = useState(false)
   const [exito, setExito]                       = useState('')
   const [reasignarRecurrente, setReasignarRecurrente] = useState(false)
+  const [depsPendientes, setDepsPendientes]           = useState([])
+
+  useEffect(() => {
+    if (!tarea?.id) return
+    supabase
+      .from('task_dependencies')
+      .select(`
+        id,
+        depends_on:depends_on_id(
+          id, nombre_tarea, estado, departamento
+        )
+      `)
+      .eq('task_id', tarea.id)
+      .then(({ data }) => {
+        const pendientes = (data ?? []).filter(d =>
+          d.depends_on?.estado !== 'completada' &&
+          d.depends_on?.estado !== 'completada_con_atraso'
+        )
+        setDepsPendientes(pendientes)
+      })
+  }, [tarea?.id])
 
   // Calcular días de atraso si se completa hoy
   const hoy = new Date()
@@ -256,6 +277,22 @@ export default function TaskModal({ tarea, onClose, onCompletada }) {
             </div>
 
             {error && <p className="text-red-400 text-sm">{error}</p>}
+
+            {depsPendientes.length > 0 && (
+              <div className="bg-amber-900/30 border border-amber-700 rounded-xl px-3 py-2.5 space-y-1">
+                <p className="text-amber-300 text-sm font-medium">
+                  ⚠️ Esta tarea tiene dependencias pendientes:
+                </p>
+                {depsPendientes.map(d => (
+                  <p key={d.id} className="text-amber-400 text-xs">
+                    • {d.depends_on.nombre_tarea} ({d.depends_on.departamento}) — {d.depends_on.estado}
+                  </p>
+                ))}
+                <p className="text-amber-500 text-xs">
+                  Puedes completarla igual, pero quedará registro del impacto.
+                </p>
+              </div>
+            )}
 
             <button
               type="submit"

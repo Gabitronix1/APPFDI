@@ -30,7 +30,8 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
   const idx      = ciclos.findIndex(c => c.id === cicloSeleccionado.id)
   const anterior  = ciclos[idx + 1] ?? null
   const siguiente = ciclos[idx - 1] ?? null
-  const esActivo  = cicloSeleccionado.estado === 'activo'
+  const esActivo   = cicloSeleccionado.estado === 'activo'
+  const esInactivo = cicloSeleccionado.estado === 'inactivo'
 
   const ciclosOrdenados = [...ciclos].sort((a, b) =>
     a.anio !== b.anio ? a.anio - b.anio : a.mes - b.mes
@@ -96,7 +97,9 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
           {nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio)}
           {esActivo
             ? <span className="ml-1.5 text-xs text-green-400">● activo</span>
-            : <span className="ml-1.5 text-xs text-gray-600">🔒 cerrado</span>}
+            : esInactivo
+              ? <span className="ml-1.5 text-xs text-amber-400">● inactivo</span>
+              : <span className="ml-1.5 text-xs text-red-500">🔒 cerrado</span>}
         </span>
 
         {/* Avanzar */}
@@ -131,8 +134,18 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
         )}
       </div>
 
+      {/* Banner ciclo inactivo */}
+      {esInactivo && (
+        <div className="fixed top-16 left-0 right-0 z-30 flex justify-center pointer-events-none">
+          <div className="flex items-center gap-2 bg-amber-900/50 border border-amber-700
+                          text-amber-300 text-xs px-4 py-2 rounded-full shadow-lg">
+            ⏸ Estás viendo {nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio)} — ciclo inactivo. Puedes completar tareas pendientes.
+          </div>
+        </div>
+      )}
+
       {/* Banner ciclo cerrado */}
-      {!esActivo && (
+      {!esActivo && !esInactivo && (
         <div className="fixed top-16 left-0 right-0 z-30 flex justify-center pointer-events-none">
           <div className="flex items-center gap-2 bg-gray-800 border border-gray-700
                           text-gray-400 text-xs px-4 py-2 rounded-full shadow-lg">
@@ -153,7 +166,7 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
             </h3>
             <p className="text-gray-400 text-sm mb-6">
               {confirmando.tipo === 'crear'
-                ? 'Se generarán las tareas recurrentes con fechas según el calendario hábil chileno. El ciclo actual quedará cerrado.'
+                ? 'Se generarán las tareas recurrentes con fechas según el calendario hábil chileno. El ciclo actual quedará inactivo. Podrás seguir completando tareas pendientes hasta cerrarlo manualmente.'
                 : 'Se eliminarán permanentemente todas las tareas de este ciclo. Esta acción no se puede deshacer.'}
             </p>
             <div className="flex gap-3">

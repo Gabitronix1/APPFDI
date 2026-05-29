@@ -554,6 +554,12 @@ function MapaFlujos({ solicitudes, dependencias = [], deptoSeleccionado, onSelec
         <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-400" />Atrasado</div>
         <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-green-400" />Entregado</div>
         <div className="flex items-center gap-2">
+          <svg width="16" height="8">
+            <line x1="0" y1="4" x2="16" y2="4" stroke="#34d399" strokeWidth="1.5" strokeDasharray="4,2"/>
+          </svg>
+          Entregado
+        </div>
+        <div className="flex items-center gap-2">
           <svg width="14" height="4" className="shrink-0">
             <line x1="0" y1="2" x2="14" y2="2" stroke="#a78bfa" strokeWidth="1.5" strokeDasharray="4,2" />
           </svg>

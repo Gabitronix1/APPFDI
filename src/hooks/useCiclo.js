@@ -227,12 +227,13 @@ export function useCrearCiclo() {
         .from('monthly_cycles')
         .update({ estado: 'inactivo' })
         .eq('estado', 'activo')
+        .eq('departamento', departamento)
 
       // 3. Crear nuevo ciclo
       const fechaInicio = `${anio}-${String(mes).padStart(2, '0')}-01`
       const { data: ciclo, error: errCiclo } = await supabase
         .from('monthly_cycles')
-        .insert({ mes, anio, fecha_inicio_mes: fechaInicio, estado: 'activo' })
+        .insert({ mes, anio, fecha_inicio_mes: fechaInicio, estado: 'activo', departamento })
         .select()
         .single()
       if (errCiclo) throw errCiclo
