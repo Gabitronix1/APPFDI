@@ -76,11 +76,13 @@ function fechaStr(fecha) {
 }
 
 export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, departamentoForzado }) {
-  const { user, profile } = useAuth()
+  const { user, profile, esSubgerente } = useAuth()
 
   const deptoActivo     = departamentoForzado ?? profile?.departamento
   const esUsuario       = profile?.rol === 'usuario'
-  const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente'
+  const esAdminOGerente = profile?.rol === 'admin' ||
+                          profile?.rol === 'gerente' ||
+                          profile?.rol === 'subgerente'
 
   const [form, setForm] = useState({
     nombre_tarea:          '',
@@ -122,6 +124,18 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         .order('nombre')
       if (error) throw error
       return data ?? []
+    }
+  })
+
+  const { data: departamentosDisponibles = [] } = useQuery({
+    queryKey: ['departamentos-deps'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('departamento')
+        .eq('activo', true)
+      const unicos = [...new Set((data ?? []).map(u => u.departamento).filter(Boolean))].sort()
+      return unicos
     }
   })
 
@@ -930,7 +944,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
                                px-3 py-2 text-sm focus:outline-none focus:border-green-500"
                   >
                     <option value="">Seleccionar departamento...</option>
-                    {DEPARTAMENTOS_DEPS.filter(d => d !== deptoActivo).map(d => (
+                    {departamentosDisponibles.filter(d => d !== deptoActivo).map(d => (
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>
