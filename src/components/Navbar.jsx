@@ -27,34 +27,41 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
   const [cargandoCierre,     setCargandoCierre]     = useState(false)
 
   const { profile, signOut } = useAuth()
-  const location    = useLocation()
-  const queryClient = useQueryClient()
-  const esGerente   = profile?.rol === 'gerente'
-  const esAdmin     = profile?.rol === 'admin'
+  const location      = useLocation()
+  const queryClient   = useQueryClient()
+  const esGerente     = profile?.rol === 'gerente'
+  const esAdmin       = profile?.rol === 'admin'
+  const esSubgerente  = profile?.rol === 'subgerente'
 
   const { totalNoLeidas } = useNotificaciones()
 
   const links = esGerente ? [
-    { to: '/gerente',   label: 'Dashboard',      icon: LayoutDashboard },
-    { to: '/proyectos', label: 'Plan Operativo',  icon: FolderKanban },
-    { to: '/flujos',    label: 'Flujos',          icon: GitBranch },
+    { to: '/gerente',    label: 'Dashboard',      icon: LayoutDashboard },
+    { to: '/proyectos',  label: 'Plan Operativo',  icon: FolderKanban },
+    { to: '/flujos',     label: 'Flujos',          icon: GitBranch },
+  ] : esSubgerente ? [
+    { to: '/subgerente', label: 'Dashboard',       icon: LayoutDashboard },
+    { to: '/tareas',     label: 'Tareas',           icon: ListChecks },
+    { to: '/proyectos',  label: 'Plan Operativo',   icon: FolderKanban },
+    { to: '/flujos',     label: 'Flujos',           icon: GitBranch },
   ] : [
-    { to: '/',          label: 'Dashboard',      icon: LayoutDashboard },
-    { to: '/tareas',    label: 'Tareas',          icon: ListChecks },
-    { to: '/proyectos', label: 'Plan Operativo',  icon: FolderKanban },
-    { to: '/flujos',    label: 'Flujos',          icon: GitBranch },
+    { to: '/',           label: 'Dashboard',       icon: LayoutDashboard },
+    { to: '/tareas',     label: 'Tareas',           icon: ListChecks },
+    { to: '/proyectos',  label: 'Plan Operativo',   icon: FolderKanban },
+    { to: '/flujos',     label: 'Flujos',           icon: GitBranch },
   ]
 
   function isActive(to) {
-    if (to === '/gerente') return location.pathname.startsWith('/gerente')
+    if (to === '/gerente')    return location.pathname.startsWith('/gerente')
+    if (to === '/subgerente') return location.pathname === '/subgerente'
     return location.pathname === to
   }
 
   // Badge: máximo "9+"
   const badgeLabel = totalNoLeidas > 9 ? '9+' : String(totalNoLeidas)
 
-  // Botón cerrar ciclo: solo admin, solo cuando ciclo es activo o inactivo
-  const mostrarBotonCierre = esAdmin && !esGerente &&
+  // Botón cerrar ciclo: admin o subgerente, cuando ciclo es activo o inactivo
+  const mostrarBotonCierre = (esAdmin || esSubgerente) && !esGerente &&
     (cicloSeleccionado?.estado === 'activo' || cicloSeleccionado?.estado === 'inactivo')
 
   const nombreDelCiclo = cicloSeleccionado
@@ -123,7 +130,7 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
           <div className="items-center gap-2 shrink-0 hidden sm:flex">
             <img src={logo} alt="FDI" className="h-12 w-auto" />
             <span className="font-bold text-white text-sm">
-              {esGerente ? 'Vista Gerencial' : 'Gestión FDI'}
+              {esGerente ? 'Vista Gerencial' : esSubgerente ? 'Vista Subgerencial' : 'Gestión FDI'}
             </span>
           </div>
 

@@ -9,6 +9,7 @@ import Navbar from './components/Navbar'
 import Register from './pages/Register'
 import Proyectos from './pages/Proyectos'
 import DashboardGerente from './pages/DashboardGerente'
+import DashboardSubgerente from './pages/DashboardSubgerente'
 import DetalleDepto from './pages/DetalleDepto'
 import DetalleIntegrante from './pages/DetalleIntegrante'
 import Flujos from './pages/Flujos'
@@ -35,7 +36,9 @@ function PublicRoute({ children }) {
 
 function AppInner() {
   const { user, profile } = useAuth()  // ← agrega profile aquí
-  const { data: ciclos = [] } = useCiclos()
+  const { data: ciclos = [] } = useCiclos(
+    profile?.rol === 'gerente' ? undefined : profile?.departamento
+  )
   const [cicloSeleccionado, setCicloSeleccionado] = useState(null)
 
   useEffect(() => {
@@ -49,7 +52,8 @@ function AppInner() {
     setCicloSeleccionado(ciclo)
   }
 
-  const esGerente = profile?.rol === 'gerente'
+  const esGerente    = profile?.rol === 'gerente'
+  const esSubgerente = profile?.rol === 'subgerente'
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
@@ -69,6 +73,8 @@ function AppInner() {
           <PrivateRoute>
             {esGerente
               ? <Navigate to="/gerente" replace />
+              : esSubgerente
+              ? <Navigate to="/subgerente" replace />
               : <Dashboard cicloSeleccionado={cicloSeleccionado} />}
           </PrivateRoute>
         } />
@@ -82,6 +88,13 @@ function AppInner() {
         <Route path="/proyectos" element={
           <PrivateRoute>
             <Proyectos />
+          </PrivateRoute>
+        } />
+
+        {/* Ruta subgerente */}
+        <Route path="/subgerente" element={
+          <PrivateRoute>
+            <DashboardSubgerente cicloSeleccionado={cicloSeleccionado} />
           </PrivateRoute>
         } />
 
@@ -111,7 +124,7 @@ function AppInner() {
 
         {/* Catch-all */}
         <Route path="*" element={
-          <Navigate to={esGerente ? '/gerente' : '/'} replace />
+          <Navigate to={esGerente ? '/gerente' : esSubgerente ? '/subgerente' : '/'} replace />
         } />
       </Routes>
       

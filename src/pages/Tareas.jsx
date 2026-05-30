@@ -141,7 +141,7 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
             </button>
           )}
           {onEliminar && !estaBloqueada &&
-            (profile?.rol === 'admin' ||
+            ((profile?.rol === 'admin' || profile?.rol === 'subgerente') ||
              (tarea.responsable_id === profile?.id && tarea.estado === 'pendiente')) && (
             <button
               onClick={e => { e.stopPropagation(); onEliminar() }}
@@ -214,8 +214,12 @@ function ColumnaKanban({ titulo, icono, iconoColor, accentBg, tareas, profile,
 }
 
 export default function Tareas({ cicloSeleccionado }) {
-  const { profile }  = useAuth()
+  const { profile, deptosAsignados, esSubgerente } = useAuth()
   const queryClient  = useQueryClient()
+
+  const [deptoActivo, setDeptoActivo] = useState(
+    () => esSubgerente ? (deptosAsignados[0] ?? profile?.departamento) : profile?.departamento
+  )
 
   const [busqueda, setBusqueda]                     = useState('')
   const [soloMias, setSoloMias]                     = useState(false)
@@ -236,17 +240,35 @@ export default function Tareas({ cicloSeleccionado }) {
   // Control de columnas activas (en mobile: tab activo, en desktop: todas activas)
   const [columnaActiva, setColumnaActiva] = useState('cierre')
 
-  const { data: tareas = [], isLoading } = useQuery({
-    queryKey: ['tareas', cicloSeleccionado?.id, profile?.departamento],
-    enabled:  !!cicloSeleccionado?.id && !!profile?.departamento,
+  const { data: cicloDepto } = useQuery({
+    queryKey: ['ciclo-tareas-subgerente', deptoActivo],
+    enabled: esSubgerente && !!deptoActivo,
     queryFn: async () => {
+      const { data } = await supabase
+        .from('monthly_cycles')
+        .select('*')
+        .eq('departamento', deptoActivo)
+        .eq('estado', 'activo')
+        .maybeSingle()
+      return data ?? null
+    }
+  })
+
+  const cicloEfectivo      = esSubgerente ? cicloDepto : cicloSeleccionado
+  const esAdminOSubgerente = profile?.rol === 'admin' || profile?.rol === 'subgerente'
+
+  const { data: tareas = [], isLoading } = useQuery({
+    queryKey: ['tareas', cicloEfectivo?.id, esSubgerente ? deptoActivo : profile?.departamento],
+    enabled:  !!cicloEfectivo?.id && !!(esSubgerente ? deptoActivo : profile?.departamento),
+    queryFn: async () => {
+      const deptoBuscar = esSubgerente ? deptoActivo : profile?.departamento
       let query = supabase
         .from('v_tareas_ciclo_activo')
         .select('*')
-        .eq('ciclo_id', cicloSeleccionado.id)
+        .eq('ciclo_id', cicloEfectivo.id)
         .order('nombre_tarea', { ascending: true })
       if (profile?.rol !== 'gerente') {
-        query = query.eq('departamento', profile?.departamento)
+        query = query.eq('departamento', deptoBuscar)
       }
       const { data, error } = await query
       if (error) throw error
@@ -304,10 +326,10 @@ export default function Tareas({ cicloSeleccionado }) {
   const tareasRecurrentes = tareasFiltradas.filter(t => t.tipo === 'recurrente_mes')
   const tareasPuntuales   = tareasFiltradas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id))
 
-  const tituloCiclo    = cicloSeleccionado ? nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio) : ''
-  const tituloCierre   = cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : ''
-  const esCicloCerrado  = cicloSeleccionado?.estado === 'cerrado'
-  const esCicloInactivo = cicloSeleccionado?.estado === 'inactivo'
+  const tituloCiclo    = cicloEfectivo ? nombreCiclo(cicloEfectivo.mes, cicloEfectivo.anio) : ''
+  const tituloCierre   = cicloEfectivo ? nombreCierre(cicloEfectivo.mes, cicloEfectivo.anio) : ''
+  const esCicloCerrado  = cicloEfectivo?.estado === 'cerrado'
+  const esCicloInactivo = cicloEfectivo?.estado === 'inactivo'
   const tareaAEliminar = tareas.find(t => t.id === eliminando)
   const hayFiltrosActivos = busqueda || soloMias || filtroIntegrante !== 'todos' || filtroArea !== 'todas'
 
@@ -319,7 +341,7 @@ export default function Tareas({ cicloSeleccionado }) {
   }
 
   function onCompletada() {
-    queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
+    queryClient.invalidateQueries({ queryKey: ['tareas', cicloEfectivo?.id] })
     setTareaActiva(null)
   }
 
@@ -337,13 +359,11 @@ export default function Tareas({ cicloSeleccionado }) {
   async function handleAbrirEliminar(tareaId) {
     setEliminando(tareaId)
 
-    // Usuarios (no admin): modal simple, sin opciones de serie ni ciclos futuros
-    if (profile?.rol !== 'admin') return
+    // Usuarios normales: modal simple, sin opciones de serie ni ciclos futuros
+    if (!esAdminOSubgerente) return
 
     const tarea = tareas.find(t => t.id === tareaId)
 
-    // Obtener template_id directo de la tabla tasks para que funcione
-    // independientemente del estado de la tarea (completada, atrasada, etc.)
     const { data: taskData } = await supabase
       .from('tasks')
       .select('template_id')
@@ -356,7 +376,7 @@ export default function Tareas({ cicloSeleccionado }) {
         .from('tasks')
         .select('id, nombre_tarea, fecha_termino, fecha_inicio, estado')
         .eq('serie_id', tarea.serie_id)
-        .eq('ciclo_id', cicloSeleccionado.id)
+        .eq('ciclo_id', cicloEfectivo.id)
         .order('fecha_termino', { ascending: true })
       const serie = data ?? []
       setTareasSerieDelCiclo(serie)
@@ -386,7 +406,7 @@ export default function Tareas({ cicloSeleccionado }) {
           .eq('id', templateId)
       }
 
-      queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
+      queryClient.invalidateQueries({ queryKey: ['tareas', cicloEfectivo?.id] })
       setEliminando(null)
       setEliminarRecurrente(false)
       setEliminarSerie(false)
@@ -439,7 +459,7 @@ export default function Tareas({ cicloSeleccionado }) {
             {' · '}{tareasFiltradas.length} tareas
           </p>
         </div>
-        {cicloSeleccionado?.estado === 'activo' && (
+        {cicloEfectivo?.estado === 'activo' && (
           <button
             onClick={() => setMostrarNueva(true)}
             className="flex items-center gap-2 bg-green-700 hover:bg-green-600
@@ -450,6 +470,25 @@ export default function Tareas({ cicloSeleccionado }) {
           </button>
         )}
       </div>
+
+      {/* Selector de depto — solo subgerente con múltiples deptos */}
+      {esSubgerente && deptosAsignados.length > 1 && (
+        <div className="flex gap-2 mb-4 flex-wrap">
+          {deptosAsignados.map(depto => (
+            <button
+              key={depto}
+              onClick={() => setDeptoActivo(depto)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                deptoActivo === depto
+                  ? 'bg-green-900 text-green-300'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {depto}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Buscador + Filtros */}
       <div className="flex flex-wrap gap-2 mb-4">
@@ -606,12 +645,13 @@ export default function Tareas({ cicloSeleccionado }) {
         />
       )}
 
-      {mostrarNueva && cicloSeleccionado && (
+      {mostrarNueva && cicloEfectivo && (
         <NuevaTareaModal
-          cicloSeleccionado={cicloSeleccionado}
+          cicloSeleccionado={cicloEfectivo}
+          departamentoForzado={esSubgerente ? deptoActivo : undefined}
           onClose={() => setMostrarNueva(false)}
           onCreada={() => {
-            queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
+            queryClient.invalidateQueries({ queryKey: ['tareas', cicloEfectivo?.id] })
             setMostrarNueva(false)
           }}
         />
@@ -620,8 +660,8 @@ export default function Tareas({ cicloSeleccionado }) {
       {eliminando && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
 
-          {/* ── Modal simple para usuarios (no admin) ── */}
-          {profile?.rol !== 'admin' ? (
+          {/* ── Modal simple para usuarios normales ── */}
+          {!esAdminOSubgerente ? (
             <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-red-900/40 rounded-xl">
@@ -785,7 +825,7 @@ export default function Tareas({ cicloSeleccionado }) {
       {editando && (
         <EditarTareaModal
           tarea={editando}
-          cicloId={cicloSeleccionado?.id}
+          cicloId={cicloEfectivo?.id}
           onClose={() => setEditando(null)}
         />
       )}
