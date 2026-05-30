@@ -113,7 +113,7 @@ export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
           <ChevronRight className="w-4 h-4" />
         </button>
 
-        {profile?.rol === 'admin' && (
+        {(profile?.rol === 'admin' || profile?.rol === 'subgerente') && (
           <>
             <button
               onClick={() => setConfirmando({ tipo: 'eliminar' })}
