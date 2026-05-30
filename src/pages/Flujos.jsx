@@ -115,7 +115,7 @@ function formatFecha(fechaStr) {
 }
 
 // ─── Mapa interactivo con D3 ──────────────────────────────────────────────────
-function MapaFlujos({ solicitudes, dependencias = [], deptoSeleccionado, onSelectDepto, onClickSolicitud, onClickDependencia }) {
+function MapaFlujos({ solicitudes, dependencias = [], deptoSeleccionado, onSelectDepto, onClickSolicitud, onClickDependencia, departamentos = DEPARTAMENTOS }) {
   const svgRef = useRef(null)
   const containerRef = useRef(null)
   const simulationRef = useRef(null)
@@ -143,7 +143,7 @@ function MapaFlujos({ solicitudes, dependencias = [], deptoSeleccionado, onSelec
 
   // Agregar conexiones según solicitudes activas
   const { nodos, enlaces } = useMemo(() => {
-    const nodos = DEPARTAMENTOS.map(d => {
+    const nodos = departamentos.map(d => {
       const sActivas = solicitudes.filter(s =>
         (s.depto_origen === d.nombre || s.depto_destino === d.nombre) &&
         s.estado !== 'entregado'
@@ -200,7 +200,7 @@ function MapaFlujos({ solicitudes, dependencias = [], deptoSeleccionado, onSelec
     })
 
     return { nodos, enlaces }
-  }, [solicitudes])
+  }, [solicitudes, departamentos])
 
   // Enlaces de dependencias (capa inferior, violetas)
   const depLinks = useMemo(() => {
@@ -1278,6 +1278,15 @@ export default function Flujos({ cicloSeleccionado }) {
   const [vistaMobile, setVistaMobile] = useState('mapa')
   const [tabPanel, setTabPanel] = useState('todas')
 
+  const { data: departamentosDisponibles = [] } = useQuery({
+    queryKey: ['departamentos-flujos'],
+    queryFn: async () => {
+      const { data } = await supabase.from('users').select('departamento').eq('activo', true)
+      const unicos = [...new Set((data ?? []).map(u => u.departamento).filter(Boolean))].sort()
+      return unicos.map(nombre => ({ nombre, inicial: INICIALES[nombre] ?? nombre.slice(0, 3).toUpperCase() }))
+    }
+  })
+
   const { data: solicitudes = [], isLoading } = useQuery({
     queryKey: ['department_requests', cicloSeleccionado?.id],
     enabled: !!cicloSeleccionado?.id,
@@ -1307,16 +1316,25 @@ export default function Flujos({ cicloSeleccionado }) {
   })
 
   const { data: dependencias = [] } = useQuery({
-    queryKey: ['task-dependencies-flujos', cicloSeleccionado?.id],
-    enabled: !!cicloSeleccionado?.id,
+    queryKey: ['task-dependencies-flujos', cicloSeleccionado?.mes, cicloSeleccionado?.anio],
+    enabled: !!cicloSeleccionado?.mes && !!cicloSeleccionado?.anio,
     queryFn: async () => {
-      const { data: tareasDelCiclo } = await supabase
+      const { data: ciclosPeriodo } = await supabase
+        .from('monthly_cycles')
+        .select('id')
+        .eq('mes', cicloSeleccionado.mes)
+        .eq('anio', cicloSeleccionado.anio)
+
+      const cicloIds = ciclosPeriodo?.map(c => c.id) ?? []
+      if (cicloIds.length === 0) return []
+
+      const { data: tareasDelPeriodo } = await supabase
         .from('tasks')
         .select('id')
-        .eq('ciclo_id', cicloSeleccionado.id)
+        .in('ciclo_id', cicloIds)
 
-      const idsDelCiclo = tareasDelCiclo?.map(t => t.id) ?? []
-      if (idsDelCiclo.length === 0) return []
+      const idsDelPeriodo = tareasDelPeriodo?.map(t => t.id) ?? []
+      if (idsDelPeriodo.length === 0) return []
 
       const { data, error } = await supabase
         .from('task_dependencies')
@@ -1325,7 +1343,7 @@ export default function Flujos({ cicloSeleccionado }) {
           task:task_id(id, nombre_tarea, departamento, estado, ciclo_id),
           depends_on:depends_on_id(id, nombre_tarea, departamento, estado, ciclo_id)
         `)
-        .in('task_id', idsDelCiclo)
+        .in('task_id', idsDelPeriodo)
       if (error) throw error
       return (data ?? []).filter(d =>
         d.task?.departamento &&
@@ -1387,6 +1405,7 @@ export default function Flujos({ cicloSeleccionado }) {
             <MapaFlujos
               solicitudes={solicitudes}
               dependencias={dependenciasMapa}
+              departamentos={departamentosDisponibles.length > 0 ? departamentosDisponibles : DEPARTAMENTOS}
               deptoSeleccionado={deptoSeleccionado}
               onSelectDepto={setDeptoSeleccionado}
               onClickSolicitud={s => setSolicitudAbierta(s)}
