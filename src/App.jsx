@@ -36,7 +36,9 @@ function PublicRoute({ children }) {
 
 function AppInner() {
   const { user, profile } = useAuth()  // ← agrega profile aquí
-  const { data: ciclos = [] } = useCiclos()
+  const { data: ciclos = [] } = useCiclos(
+    profile?.rol === 'gerente' ? undefined : profile?.departamento
+  )
   const [cicloSeleccionado, setCicloSeleccionado] = useState(null)
 
   useEffect(() => {

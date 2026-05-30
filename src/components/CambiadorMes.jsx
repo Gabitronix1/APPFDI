@@ -14,7 +14,9 @@ function nombreCiclo(mes, anio) {
 
 export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
   const { profile }  = useAuth()
-  const { data: ciclos = [] } = useCiclos()
+  const { data: ciclos = [] } = useCiclos(
+    profile?.rol === 'gerente' ? undefined : profile?.departamento
+  )
   const { mutate: crearCiclo,    isPending: creando   } = useCrearCiclo()
   const { mutate: eliminarCiclo, isPending: eliminando } = useEliminarCiclo()
 

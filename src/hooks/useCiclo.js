@@ -179,15 +179,17 @@ async function guardarSnapshotAutomatico(departamento, mes, anio) {
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
 
-export function useCiclos() {
+export function useCiclos(departamento) {
   return useQuery({
-    queryKey: ['ciclos'],
+    queryKey: ['ciclos', departamento],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('monthly_cycles')
         .select('*')
         .order('anio', { ascending: false })
         .order('mes',  { ascending: false })
+      if (departamento) query = query.eq('departamento', departamento)
+      const { data, error } = await query
       if (error) throw error
       return data ?? []
     }
