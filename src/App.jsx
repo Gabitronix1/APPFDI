@@ -112,7 +112,11 @@ function AppInner() {
         {/* Rutas usuarios/admins */}
         <Route path="/tareas" element={
           <PrivateRoute>
-            <Tareas cicloSeleccionado={cicloSeleccionado} />
+            <Tareas
+              cicloSeleccionado={cicloSeleccionado}
+              deptoActivo={deptoActivoSubgerente}
+              onCambiarDepto={handleCambiarDeptoSubgerente}
+            />
           </PrivateRoute>
         } />
         <Route path="/proyectos" element={
