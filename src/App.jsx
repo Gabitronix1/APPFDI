@@ -40,20 +40,46 @@ function AppInner() {
     profile?.rol === 'gerente' ? undefined : profile?.departamento
   )
   const [cicloSeleccionado, setCicloSeleccionado] = useState(null)
+  const [deptoActivoSubgerente, setDeptoActivoSubgerente] = useState(null)
+
+  const esGerente    = profile?.rol === 'gerente'
+  const esSubgerente = profile?.rol === 'subgerente'
+
+  // Inicializa el depto activo del subgerente con el primero asignado
+  useEffect(() => {
+    if (esSubgerente && !deptoActivoSubgerente && (profile?.deptos_asignados?.length > 0)) {
+      setDeptoActivoSubgerente(profile.deptos_asignados[0])
+    }
+  }, [profile, esSubgerente])
+
+  // Ciclos del depto activo del subgerente (para sincronizar el CambiadorMes)
+  const { data: cicloSubgerente } = useCiclos(
+    esSubgerente ? deptoActivoSubgerente : null
+  )
 
   useEffect(() => {
-    if (ciclos.length > 0 && !cicloSeleccionado) {
+    if (esSubgerente) {
+      // Para subgerente: tomar el ciclo activo del depto seleccionado
+      if (cicloSubgerente?.length > 0) {
+        const activo = cicloSubgerente.find(c => c.estado === 'activo') ?? cicloSubgerente[0]
+        setCicloSeleccionado(activo)
+      }
+    } else if (ciclos.length > 0 && !cicloSeleccionado) {
       const activo = ciclos.find(c => c.estado === 'activo') ?? ciclos[0]
       setCicloSeleccionado(activo)
     }
-  }, [ciclos])
+  }, [ciclos, cicloSubgerente, esSubgerente, deptoActivoSubgerente])
 
   function handleCambiarCiclo(ciclo) {
     setCicloSeleccionado(ciclo)
   }
 
-  const esGerente    = profile?.rol === 'gerente'
-  const esSubgerente = profile?.rol === 'subgerente'
+  // Al cambiar el depto del subgerente, limpia el ciclo para que tome
+  // el ciclo activo del nuevo depto.
+  function handleCambiarDeptoSubgerente(depto) {
+    setDeptoActivoSubgerente(depto)
+    setCicloSeleccionado(null)
+  }
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100">
@@ -61,6 +87,10 @@ function AppInner() {
         <Navbar
           cicloSeleccionado={cicloSeleccionado}
           onCambiarCiclo={handleCambiarCiclo}
+          esSubgerente={esSubgerente}
+          deptosAsignados={profile?.deptos_asignados ?? []}
+          deptoActivoSubgerente={deptoActivoSubgerente}
+          onCambiarDepto={handleCambiarDeptoSubgerente}
         />
       )}
       <Routes>
@@ -94,7 +124,11 @@ function AppInner() {
         {/* Ruta subgerente */}
         <Route path="/subgerente" element={
           <PrivateRoute>
-            <DashboardSubgerente cicloSeleccionado={cicloSeleccionado} />
+            <DashboardSubgerente
+              cicloSeleccionado={cicloSeleccionado}
+              deptoActivo={deptoActivoSubgerente}
+              onCambiarDepto={handleCambiarDeptoSubgerente}
+            />
           </PrivateRoute>
         } />
 

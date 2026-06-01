@@ -628,9 +628,12 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
 }
 
 // ─── COMPONENTE PRINCIPAL ─────────────────────────────────────────────────────
-export default function DashboardSubgerente({ cicloSeleccionado: _cicloSeleccionado }) {
+export default function DashboardSubgerente({ cicloSeleccionado: _cicloSeleccionado, deptoActivo: deptoActivoProp, onCambiarDepto }) {
   const { profile, deptosAsignados } = useAuth()
-  const [deptoActivo, setDeptoActivo] = useState(() => deptosAsignados[0] ?? null)
+  // Usar el depto de props si viene (sincronizado con el navbar), sino el estado local como fallback
+  const [deptoLocal, setDeptoLocal] = useState(() => deptosAsignados[0] ?? null)
+  const deptoActivo    = deptoActivoProp ?? deptoLocal
+  const setDeptoActivo = onCambiarDepto ?? setDeptoLocal
   const queryClient = useQueryClient()
   const [tareaActiva, setTareaActiva] = useState(null)
 

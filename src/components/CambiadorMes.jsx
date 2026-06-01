@@ -12,11 +12,11 @@ function nombreCiclo(mes, anio) {
   return `${MESES[mes - 1]} ${anio}`
 }
 
-export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo }) {
+export default function CambiadorMes({ cicloSeleccionado, onCambiarCiclo, departamentoSubgerente }) {
   const { profile }  = useAuth()
-  const { data: ciclos = [] } = useCiclos(
-    profile?.rol === 'gerente' ? undefined : profile?.departamento
-  )
+  const deptoFiltro = departamentoSubgerente ??
+    (profile?.rol === 'gerente' ? undefined : profile?.departamento)
+  const { data: ciclos = [] } = useCiclos(deptoFiltro)
   const { mutate: crearCiclo,    isPending: creando   } = useCrearCiclo()
   const { mutate: eliminarCiclo, isPending: eliminando } = useEliminarCiclo()
 
