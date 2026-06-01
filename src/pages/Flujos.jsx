@@ -607,14 +607,17 @@ function SolicitudCard({ solicitud, onClick }) {
 
 // ─── Modal de detalle / crear ─────────────────────────────────────────────────
 function SolicitudModal({ solicitud, modoCrear, onClose, onGuardado }) {
-  const { user, profile } = useAuth()
+  const { user, profile, esSubgerente, deptosAsignados } = useAuth()
   const queryClient = useQueryClient()
-  const esDestino = profile?.departamento === solicitud?.depto_destino
+  const esDestino = esSubgerente
+    ? deptosAsignados.includes(solicitud?.depto_destino)
+    : profile?.departamento === solicitud?.depto_destino
 
   // Estado para crear
   const [form, setForm] = useState({
     titulo: '',
     descripcion: '',
+    depto_origen: esSubgerente ? (deptosAsignados[0] ?? '') : (profile?.departamento ?? ''),
     depto_destino: '',
     responsable_destino: '',
     responsable_origen: profile?.id ?? '',
@@ -643,14 +646,14 @@ function SolicitudModal({ solicitud, modoCrear, onClose, onGuardado }) {
   })
 
   const { data: usuariosOrigen = [] } = useQuery({
-    queryKey: ['usuarios-origen-flujos', profile?.departamento],
-    enabled: modoCrear && !!profile?.departamento,
+    queryKey: ['usuarios-origen-flujos', esSubgerente ? form.depto_origen : profile?.departamento],
+    enabled: modoCrear && !!(esSubgerente ? form.depto_origen : profile?.departamento),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('users')
         .select('id, nombre, cargo')
         .eq('activo', true)
-        .eq('departamento', profile?.departamento)
+        .eq('departamento', esSubgerente ? form.depto_origen : profile?.departamento)
         .order('nombre')
       if (error) throw error
       return data ?? []
@@ -687,7 +690,7 @@ function SolicitudModal({ solicitud, modoCrear, onClose, onGuardado }) {
       const payload = {
         titulo: form.titulo.trim(),
         descripcion: form.descripcion.trim() || null,
-        depto_origen: profile.departamento,
+        depto_origen: esSubgerente ? form.depto_origen : profile.departamento,
         depto_destino: form.depto_destino,
         responsable_origen: form.responsable_origen || null,
         responsable_destino: form.responsable_destino || null,
@@ -839,6 +842,20 @@ function SolicitudModal({ solicitud, modoCrear, onClose, onGuardado }) {
                 />
               </div>
 
+              {esSubgerente && (
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Depto origen</label>
+                  <select
+                    required
+                    value={form.depto_origen}
+                    onChange={e => setForm(f => ({ ...f, depto_origen: e.target.value, responsable_origen: '' }))}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-green-700"
+                  >
+                    {deptosAsignados.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-gray-400 mb-1">Depto destino</label>
@@ -850,7 +867,7 @@ function SolicitudModal({ solicitud, modoCrear, onClose, onGuardado }) {
                   >
                     <option value="">Seleccionar…</option>
                     {DEPARTAMENTOS
-                      .filter(d => d.nombre !== profile?.departamento)
+                      .filter(d => d.nombre !== (esSubgerente ? form.depto_origen : profile?.departamento))
                       .map(d => <option key={d.nombre} value={d.nombre}>{d.nombre}</option>)}
                   </select>
                 </div>
@@ -1131,13 +1148,15 @@ function DependenciaCard({ dependencia }) {
 
 function PanelSolicitudes({
   solicitudes, dependencias = [], cicloActivoId, deptoSeleccionado, profile,
+  esSubgerente, deptosAsignados = [],
   onAbrirSolicitud, onNueva, tab, onTabChange,
 }) {
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [filtroPrioridad, setFiltroPrioridad] = useState('todas')
 
-  const puedeCrear = profile?.rol === 'admin' || profile?.rol === 'gerente'
+  const puedeCrear = profile?.rol === 'admin' || profile?.rol === 'gerente' || profile?.rol === 'subgerente'
   const miDepto = profile?.departamento
+  const deptosDelUsuario = esSubgerente ? deptosAsignados : [miDepto]
   const esTabDeps = tab === 'dependencias'
 
   const filtradas = useMemo(() => {
@@ -1146,12 +1165,12 @@ function PanelSolicitudes({
     if (deptoSeleccionado) {
       arr = arr.filter(s => s.depto_origen === deptoSeleccionado || s.depto_destino === deptoSeleccionado)
     }
-    if (tab === 'entrantes' && miDepto) arr = arr.filter(s => s.depto_destino === miDepto)
-    if (tab === 'salientes' && miDepto) arr = arr.filter(s => s.depto_origen === miDepto)
+    if (tab === 'entrantes') arr = arr.filter(s => deptosDelUsuario.includes(s.depto_destino))
+    if (tab === 'salientes') arr = arr.filter(s => deptosDelUsuario.includes(s.depto_origen))
     if (filtroEstado !== 'todos') arr = arr.filter(s => s.estado === filtroEstado)
     if (filtroPrioridad !== 'todas') arr = arr.filter(s => s.prioridad === filtroPrioridad)
     return arr
-  }, [solicitudes, deptoSeleccionado, tab, filtroEstado, filtroPrioridad, miDepto, esTabDeps])
+  }, [solicitudes, deptoSeleccionado, tab, filtroEstado, filtroPrioridad, miDepto, esTabDeps, esSubgerente, deptosAsignados])
 
   const depsFiltradas = useMemo(() => {
     if (!esTabDeps) return []
@@ -1271,7 +1290,7 @@ function PanelSolicitudes({
 
 // ─── Página principal ────────────────────────────────────────────────────────
 export default function Flujos({ cicloSeleccionado }) {
-  const { profile } = useAuth()
+  const { profile, esSubgerente, deptosAsignados } = useAuth()
   const [deptoSeleccionado, setDeptoSeleccionado] = useState(null)
   const [solicitudAbierta, setSolicitudAbierta] = useState(null)
   const [mostrarNueva, setMostrarNueva] = useState(false)
@@ -1424,6 +1443,8 @@ export default function Flujos({ cicloSeleccionado }) {
               cicloActivoId={cicloSeleccionado?.id}
               deptoSeleccionado={deptoSeleccionado}
               profile={profile}
+              esSubgerente={esSubgerente}
+              deptosAsignados={deptosAsignados}
               onAbrirSolicitud={s => setSolicitudAbierta(s)}
               onNueva={() => setMostrarNueva(true)}
               tab={tabPanel}

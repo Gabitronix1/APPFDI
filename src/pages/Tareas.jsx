@@ -213,13 +213,15 @@ function ColumnaKanban({ titulo, icono, iconoColor, accentBg, tareas, profile,
   )
 }
 
-export default function Tareas({ cicloSeleccionado }) {
+export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp, onCambiarDepto }) {
   const { profile, deptosAsignados, esSubgerente } = useAuth()
   const queryClient  = useQueryClient()
 
-  const [deptoActivo, setDeptoActivo] = useState(
+  const [deptoLocal, setDeptoLocal] = useState(
     () => esSubgerente ? (deptosAsignados[0] ?? profile?.departamento) : profile?.departamento
   )
+  const deptoActivo = (esSubgerente && deptoActivoProp) ? deptoActivoProp : deptoLocal
+  const setDeptoActivo = (esSubgerente && onCambiarDepto) ? onCambiarDepto : setDeptoLocal
 
   const [busqueda, setBusqueda]                     = useState('')
   const [soloMias, setSoloMias]                     = useState(false)

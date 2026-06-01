@@ -18,7 +18,8 @@ const MESES = [
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'
 ]
 
-export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
+export default function Navbar({ cicloSeleccionado, onCambiarCiclo,
+  esSubgerente, deptosAsignados = [], deptoActivoSubgerente, onCambiarDepto }) {
   const [mostrarAyuda,       setMostrarAyuda]       = useState(false)
   const [mostrarNotif,       setMostrarNotif]       = useState(false)
   const [mostrarCerrarCiclo, setMostrarCerrarCiclo] = useState(false)
@@ -31,7 +32,6 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
   const queryClient   = useQueryClient()
   const esGerente     = profile?.rol === 'gerente'
   const esAdmin       = profile?.rol === 'admin'
-  const esSubgerente  = profile?.rol === 'subgerente'
 
   const { totalNoLeidas } = useNotificaciones()
 
@@ -61,7 +61,8 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
   const badgeLabel = totalNoLeidas > 9 ? '9+' : String(totalNoLeidas)
 
   // Botón cerrar ciclo: admin o subgerente, cuando ciclo es activo o inactivo
-  const mostrarBotonCierre = (esAdmin || esSubgerente) && !esGerente &&
+  const esSubgerenteRol = profile?.rol === 'subgerente'
+  const mostrarBotonCierre = (esAdmin || esSubgerenteRol) && !esGerente &&
     (cicloSeleccionado?.estado === 'activo' || cicloSeleccionado?.estado === 'inactivo')
 
   const nombreDelCiclo = cicloSeleccionado
@@ -153,10 +154,25 @@ export default function Navbar({ cicloSeleccionado, onCambiarCiclo }) {
 
           {/* Selector mes + botones */}
           <div className="flex items-center gap-1.5 shrink-0">
+            {/* Selector de depto compacto — solo subgerente con varios deptos */}
+            {esSubgerente && deptosAsignados.length > 1 && (
+              <select
+                value={deptoActivoSubgerente ?? ''}
+                onChange={e => onCambiarDepto(e.target.value)}
+                className="bg-gray-800 border border-gray-700 text-gray-300 text-sm
+                           rounded-lg px-3 py-2 focus:outline-none focus:border-green-500 max-w-[160px]"
+              >
+                {deptosAsignados.map(depto => (
+                  <option key={depto} value={depto}>{depto}</option>
+                ))}
+              </select>
+            )}
+
             {!esGerente && (
               <CambiadorMes
                 cicloSeleccionado={cicloSeleccionado}
                 onCambiarCiclo={onCambiarCiclo}
+                departamentoSubgerente={esSubgerente ? deptoActivoSubgerente : null}
               />
             )}
 
