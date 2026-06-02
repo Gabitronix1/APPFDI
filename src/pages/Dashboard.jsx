@@ -837,18 +837,22 @@ export default function Dashboard({ cicloSeleccionado }) {
     }
   })
 
-  // Depto activo del usuario (default: su propio depto si tiene tareas ahí)
+  // Lista de deptos disponibles: SIEMPRE incluye el depto propio, aunque no
+  // tenga tareas asignadas ahí (para no quedar atrapado en un depto cruzado).
+  const deptosDisponibles = useMemo(() => {
+    const set = new Set(misDeptosConTareas)
+    if (profile?.departamento) set.add(profile.departamento)
+    return [...set].sort()
+  }, [misDeptosConTareas, profile?.departamento])
+
+  // Depto activo del usuario (default: SIEMPRE su propio depto)
   const [deptoUsuario, setDeptoUsuario] = useState(null)
 
   useEffect(() => {
-    if (!deptoUsuario && misDeptosConTareas.length > 0) {
-      setDeptoUsuario(
-        misDeptosConTareas.includes(profile?.departamento)
-          ? profile.departamento
-          : misDeptosConTareas[0]
-      )
+    if (!deptoUsuario && deptosDisponibles.length > 0) {
+      setDeptoUsuario(profile?.departamento ?? deptosDisponibles[0])
     }
-  }, [misDeptosConTareas, profile])
+  }, [deptosDisponibles, profile])
 
   // Ciclo del depto seleccionado (solo si es un depto cruzado, distinto al propio)
   const { data: cicloUsuarioActivo } = useQuery({
@@ -947,11 +951,11 @@ export default function Dashboard({ cicloSeleccionado }) {
         </div>
       ) : (
         <>
-          {/* Selector multi-depto — usuario o admin con tareas en más de un depto */}
-          {(profile?.rol === 'usuario' || profile?.rol === 'admin') && misDeptosConTareas.length > 1 && (
+          {/* Selector multi-depto — usuario o admin con más de un depto disponible */}
+          {(profile?.rol === 'usuario' || profile?.rol === 'admin') && deptosDisponibles.length > 1 && (
             <div className="flex gap-2 mb-4 flex-wrap items-center">
               <span className="text-xs text-gray-500">Departamento:</span>
-              {misDeptosConTareas.map(depto => (
+              {deptosDisponibles.map(depto => (
                 <button
                   key={depto}
                   onClick={() => setDeptoUsuario(depto)}
