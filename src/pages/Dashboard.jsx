@@ -7,7 +7,7 @@ import {
   User, Users, RefreshCw, Sparkles, X, Calendar, ChevronRight,
   CalendarClock, ChevronDown, ChevronUp
 } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import TaskModal from '../components/TaskModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
 import CalendarioTareas from '../components/CalendarioTareas'
@@ -811,16 +811,79 @@ export default function Dashboard({ cicloSeleccionado }) {
   const [tareaActiva, setTareaActiva] = useState(null)
   const queryClient  = useQueryClient()
 
+  // ── MULTI-DEPTO (solo rol 'usuario') ──────────────────────────────────────
+  // Deptos donde el usuario tiene tareas en el período del ciclo seleccionado.
+  // Para el caso normal (un solo depto) devuelve length 1 → no aparece selector.
+  const { data: misDeptosConTareas = [] } = useQuery({
+    queryKey: ['mis-deptos-tareas', profile?.id, cicloSeleccionado?.mes, cicloSeleccionado?.anio],
+    enabled: !!profile?.id && profile?.rol === 'usuario' && !!cicloSeleccionado?.mes,
+    queryFn: async () => {
+      // Ciclos del período (todos los deptos)
+      const { data: ciclosPeriodo } = await supabase
+        .from('monthly_cycles')
+        .select('id, departamento')
+        .eq('mes', cicloSeleccionado.mes)
+        .eq('anio', cicloSeleccionado.anio)
+      const cicloIds = (ciclosPeriodo ?? []).map(c => c.id)
+      if (cicloIds.length === 0) return []
+      // Tareas del usuario en esos ciclos
+      const { data: misTareas } = await supabase
+        .from('tasks')
+        .select('departamento')
+        .in('ciclo_id', cicloIds)
+        .eq('responsable_id', profile.id)
+      const deptos = [...new Set((misTareas ?? []).map(t => t.departamento).filter(Boolean))]
+      return deptos.sort()
+    }
+  })
+
+  // Depto activo del usuario (default: su propio depto si tiene tareas ahí)
+  const [deptoUsuario, setDeptoUsuario] = useState(null)
+
+  useEffect(() => {
+    if (!deptoUsuario && misDeptosConTareas.length > 0) {
+      setDeptoUsuario(
+        misDeptosConTareas.includes(profile?.departamento)
+          ? profile.departamento
+          : misDeptosConTareas[0]
+      )
+    }
+  }, [misDeptosConTareas, profile])
+
+  // Ciclo del depto seleccionado (solo si es un depto cruzado, distinto al propio)
+  const { data: cicloUsuarioActivo } = useQuery({
+    queryKey: ['ciclo-usuario-depto', deptoUsuario, cicloSeleccionado?.mes, cicloSeleccionado?.anio],
+    enabled: profile?.rol === 'usuario' && !!deptoUsuario && !!cicloSeleccionado?.mes
+      && deptoUsuario !== profile?.departamento,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('monthly_cycles')
+        .select('*')
+        .eq('departamento', deptoUsuario)
+        .eq('mes', cicloSeleccionado.mes)
+        .eq('anio', cicloSeleccionado.anio)
+        .maybeSingle()
+      return data ?? null
+    }
+  })
+
+  // Ciclo y depto efectivos:
+  // - Depto propio → cicloSeleccionado (comportamiento normal, idéntico al actual)
+  // - Depto cruzado → ciclo de ese depto
+  const esDeptoPropio  = !deptoUsuario || deptoUsuario === profile?.departamento
+  const cicloEfectivo  = esDeptoPropio ? cicloSeleccionado : (cicloUsuarioActivo ?? cicloSeleccionado)
+  const deptoEfectivo  = deptoUsuario ?? profile?.departamento
+
   const { data: tareas = [], isLoading } = useQuery({
-    queryKey: ['tareas', cicloSeleccionado?.id, profile?.departamento],
-    enabled:  !!cicloSeleccionado?.id && !!profile?.departamento,
+    queryKey: ['tareas', cicloEfectivo?.id, deptoEfectivo],
+    enabled:  !!cicloEfectivo?.id && !!deptoEfectivo,
     queryFn: async () => {
       let query = supabase
         .from('v_tareas_ciclo_activo').select('*')
-        .eq('ciclo_id', cicloSeleccionado.id)
+        .eq('ciclo_id', cicloEfectivo.id)
         .order('fecha_termino', { ascending: true })
       if (profile?.rol !== 'gerente')
-        query = query.eq('departamento', profile?.departamento)
+        query = query.eq('departamento', deptoEfectivo)
       const { data, error } = await query
       if (error) throw error
       return data ?? []
@@ -887,18 +950,39 @@ export default function Dashboard({ cicloSeleccionado }) {
           impactosDep={impactosDep}
         />
       ) : (
-        <DashboardUsuario
-          tareas={tareas} profile={profile}
-          tituloCiclo={tituloCiclo} isLoading={isLoading}
-          onClickTarea={setTareaActiva}
-          impactosDep={impactosDep}
-        />
+        <>
+          {/* Selector multi-depto — solo si el usuario tiene tareas en más de un depto */}
+          {profile?.rol === 'usuario' && misDeptosConTareas.length > 1 && (
+            <div className="flex gap-2 mb-4 flex-wrap items-center">
+              <span className="text-xs text-gray-500">Departamento:</span>
+              {misDeptosConTareas.map(depto => (
+                <button
+                  key={depto}
+                  onClick={() => setDeptoUsuario(depto)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                    deptoUsuario === depto
+                      ? 'bg-green-900 text-green-300'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  {depto}{depto === profile?.departamento ? ' (mi depto)' : ''}
+                </button>
+              ))}
+            </div>
+          )}
+          <DashboardUsuario
+            tareas={tareas} profile={profile}
+            tituloCiclo={tituloCiclo} isLoading={isLoading}
+            onClickTarea={setTareaActiva}
+            impactosDep={impactosDep}
+          />
+        </>
       )}
 
       {tareaActiva && (
         <TaskModal tarea={tareaActiva} onClose={() => setTareaActiva(null)}
           onCompletada={() => {
-            queryClient.invalidateQueries({ queryKey: ['tareas', cicloSeleccionado?.id] })
+            queryClient.invalidateQueries({ queryKey: ['tareas', cicloEfectivo?.id] })
             setTareaActiva(null)
           }}
         />
