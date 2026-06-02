@@ -16,13 +16,17 @@ const MESES = [
 ]
 
 const DEPARTAMENTOS = [
-  { nombre: 'CDG',                        inicial: 'CDG' },
-  { nombre: 'Maquinarias',                inicial: 'MAQ' },
-  { nombre: 'Compras y Adquisiciones',    inicial: 'CyA' },
-  { nombre: 'Administración',             inicial: 'ADM' },
-  { nombre: 'Personas',                   inicial: 'PER' },
-  { nombre: 'SST',                        inicial: 'SST' },
-  { nombre: 'Gerencia',                   inicial: 'GER' },
+  { nombre: 'CDG',                      inicial: 'CDG' },
+  { nombre: 'Maquinarias',              inicial: 'MAQ' },
+  { nombre: 'Compra y Abastecimiento',  inicial: 'CyA' },
+  { nombre: 'Administración',           inicial: 'ADM' },
+  { nombre: 'Personas',                 inicial: 'PER' },
+  { nombre: 'SST',                      inicial: 'SST' },
+  { nombre: 'Gerencia',                 inicial: 'GER' },
+  { nombre: 'Bodega',                   inicial: 'BOD' },
+  { nombre: 'Finanzas',                 inicial: 'FIN' },
+  { nombre: 'SAP',                      inicial: 'SAP' },
+  { nombre: 'Producción',               inicial: 'PRO' },
 ]
 
 const INICIALES = DEPARTAMENTOS.reduce((acc, d) => { acc[d.nombre] = d.inicial; return acc }, {})
@@ -629,6 +633,19 @@ function SolicitudModal({ solicitud, modoCrear, onClose, onGuardado }) {
   const [error, setError] = useState('')
   const [comentario, setComentario] = useState('')
 
+  // Departamentos activos desde BD (mismo origen que el resto de selectores)
+  const { data: departamentosDisponibles = [] } = useQuery({
+    queryKey: ['departamentos-deps'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('departamento')
+        .eq('activo', true)
+      const unicos = [...new Set((data ?? []).map(u => u.departamento).filter(Boolean))].sort()
+      return unicos
+    }
+  })
+
   // Cargar usuarios para selectores
   const { data: usuariosDestino = [] } = useQuery({
     queryKey: ['usuarios-depto-flujos', form.depto_destino],
@@ -866,9 +883,11 @@ function SolicitudModal({ solicitud, modoCrear, onClose, onGuardado }) {
                     className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-green-700"
                   >
                     <option value="">Seleccionar…</option>
-                    {DEPARTAMENTOS
-                      .filter(d => d.nombre !== (esSubgerente ? form.depto_origen : profile?.departamento))
-                      .map(d => <option key={d.nombre} value={d.nombre}>{d.nombre}</option>)}
+                    {(departamentosDisponibles.length > 0
+                      ? departamentosDisponibles
+                      : DEPARTAMENTOS.map(d => d.nombre))
+                      .filter(d => d !== (esSubgerente ? form.depto_origen : profile?.departamento))
+                      .map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
 

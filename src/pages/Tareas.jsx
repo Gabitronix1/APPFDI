@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -256,14 +256,75 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
     }
   })
 
-  const cicloEfectivo      = esSubgerente ? cicloDepto : cicloSeleccionado
+  // ── MULTI-DEPTO usuario/admin con tareas cruzadas (NO subgerente) ──────────
+  // Deptos donde el usuario tiene tareas en el período del ciclo seleccionado.
+  const { data: misDeptosConTareasRaw = [] } = useQuery({
+    queryKey: ['mis-deptos-tareas-tareas', profile?.id, cicloSeleccionado?.mes, cicloSeleccionado?.anio],
+    enabled: !esSubgerente && !!profile?.id
+      && (profile?.rol === 'usuario' || profile?.rol === 'admin')
+      && !!cicloSeleccionado?.mes,
+    queryFn: async () => {
+      const { data: ciclosPeriodo } = await supabase
+        .from('monthly_cycles')
+        .select('id, departamento')
+        .eq('mes', cicloSeleccionado.mes)
+        .eq('anio', cicloSeleccionado.anio)
+      const cicloIds = (ciclosPeriodo ?? []).map(c => c.id)
+      if (cicloIds.length === 0) return []
+      const { data: misTareas } = await supabase
+        .from('tasks')
+        .select('departamento')
+        .in('ciclo_id', cicloIds)
+        .eq('responsable_id', profile.id)
+      return [...new Set((misTareas ?? []).map(t => t.departamento).filter(Boolean))]
+    }
+  })
+
+  // Deptos disponibles: SIEMPRE incluye el propio (para no quedar atrapado).
+  const deptosDisponiblesUsuario = useMemo(() => {
+    const set = new Set(misDeptosConTareasRaw)
+    if (profile?.departamento) set.add(profile.departamento)
+    return [...set].sort()
+  }, [misDeptosConTareasRaw, profile?.departamento])
+
+  // Depto activo del usuario/admin cruzado (default: su propio depto).
+  const [deptoUsuarioCruzado, setDeptoUsuarioCruzado] = useState(null)
+
+  useEffect(() => {
+    if (!esSubgerente && !deptoUsuarioCruzado && deptosDisponiblesUsuario.length > 0) {
+      setDeptoUsuarioCruzado(profile?.departamento ?? deptosDisponiblesUsuario[0])
+    }
+  }, [deptosDisponiblesUsuario, profile, esSubgerente])
+
+  const esDeptoPropioUsuario = !deptoUsuarioCruzado || deptoUsuarioCruzado === profile?.departamento
+
+  // Ciclo del depto cruzado (cuando el usuario/admin ve un depto que no es el suyo).
+  const { data: cicloCruzado } = useQuery({
+    queryKey: ['ciclo-cruzado-tareas', deptoUsuarioCruzado, cicloSeleccionado?.mes, cicloSeleccionado?.anio],
+    enabled: !esSubgerente && !esDeptoPropioUsuario && !!deptoUsuarioCruzado && !!cicloSeleccionado?.mes,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('monthly_cycles')
+        .select('*')
+        .eq('departamento', deptoUsuarioCruzado)
+        .eq('mes', cicloSeleccionado.mes)
+        .eq('anio', cicloSeleccionado.anio)
+        .maybeSingle()
+      return data ?? null
+    }
+  })
+
+  const cicloEfectivo      = esSubgerente
+    ? cicloDepto
+    : (!esDeptoPropioUsuario ? (cicloCruzado ?? cicloSeleccionado) : cicloSeleccionado)
   const esAdminOSubgerente = profile?.rol === 'admin' || profile?.rol === 'subgerente'
 
   const { data: tareas = [], isLoading } = useQuery({
-    queryKey: ['tareas', cicloEfectivo?.id, esSubgerente ? deptoActivo : profile?.departamento],
-    enabled:  !!cicloEfectivo?.id && !!(esSubgerente ? deptoActivo : profile?.departamento),
+    queryKey: ['tareas', cicloEfectivo?.id,
+      esSubgerente ? deptoActivo : deptoUsuarioCruzado, !esDeptoPropioUsuario],
+    enabled:  !!cicloEfectivo?.id && !!(esSubgerente ? deptoActivo : (deptoUsuarioCruzado ?? profile?.departamento)),
     queryFn: async () => {
-      const deptoBuscar = esSubgerente ? deptoActivo : profile?.departamento
+      const deptoBuscar = esSubgerente ? deptoActivo : (deptoUsuarioCruzado ?? profile?.departamento)
       let query = supabase
         .from('v_tareas_ciclo_activo')
         .select('*')
@@ -271,6 +332,10 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
         .order('nombre_tarea', { ascending: true })
       if (profile?.rol !== 'gerente') {
         query = query.eq('departamento', deptoBuscar)
+      }
+      // En depto CRUZADO: filtrar solo MIS tareas (no todo el equipo)
+      if (!esSubgerente && !esDeptoPropioUsuario) {
+        query = query.eq('responsable_id', profile.id)
       }
       const { data, error } = await query
       if (error) throw error
@@ -487,6 +552,27 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
               }`}
             >
               {depto}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Selector de depto — usuario/admin con tareas cruzadas (NO subgerente) */}
+      {!esSubgerente && (profile?.rol === 'usuario' || profile?.rol === 'admin')
+        && deptosDisponiblesUsuario.length > 1 && (
+        <div className="flex gap-2 mb-4 flex-wrap items-center">
+          <span className="text-xs text-gray-500">Departamento:</span>
+          {deptosDisponiblesUsuario.map(depto => (
+            <button
+              key={depto}
+              onClick={() => setDeptoUsuarioCruzado(depto)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition ${
+                deptoUsuarioCruzado === depto
+                  ? 'bg-green-900 text-green-300'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {depto}{depto === profile?.departamento ? ' (mi depto)' : ''}
             </button>
           ))}
         </div>

@@ -5,16 +5,6 @@ import { useAuth } from '../context/AuthContext'
 import { X, Save, RefreshCw, CalendarClock, Sparkles, Clock, Trash2, Link2 } from 'lucide-react'
 import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } from '../lib/feriados'
 
-const DEPARTAMENTOS_DEPS = [
-  'CDG',
-  'Maquinarias',
-  'Compras y Adquisiciones',
-  'Administración',
-  'Personas',
-  'SST',
-  'Gerencia',
-]
-
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -31,7 +21,7 @@ const DURACIONES_RAPIDAS = [
 
 export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const queryClient = useQueryClient()
-  const { profile } = useAuth()
+  const { profile, esSubgerente, deptosAsignados } = useAuth()
 
   const [nombre,          setNombre]          = useState(tarea.nombre_tarea)
   const [area,            setArea]            = useState(tarea.area ?? '')
@@ -71,15 +61,19 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const nombreMesCiclo   = `${MESES[mesCiclo - 1]} ${anioCiclo}`
 
   const { data: usuarios = [] } = useQuery({
-    queryKey: ['usuarios-depto', tarea.departamento],
-    enabled: profile?.rol === 'admin' || profile?.rol === 'gerente',
+    queryKey: ['usuarios-depto', tarea.departamento, esSubgerente, deptosAsignados],
+    enabled: profile?.rol === 'admin' || profile?.rol === 'gerente' || profile?.rol === 'subgerente',
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('users')
-        .select('id, nombre, cargo')
+        .select('id, nombre, cargo, departamento')
         .eq('activo', true)
-        .eq('departamento', tarea.departamento)
-        .order('nombre')
+      if (esSubgerente && deptosAsignados.length > 0) {
+        query = query.in('departamento', deptosAsignados)
+      } else {
+        query = query.eq('departamento', tarea.departamento)
+      }
+      const { data, error } = await query.order('nombre')
       if (error) throw error
       return data ?? []
     }
@@ -95,6 +89,18 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
         .eq('activo', true)
         .order('nombre')
       return data ?? []
+    }
+  })
+
+  const { data: departamentosDisponibles = [] } = useQuery({
+    queryKey: ['departamentos-deps'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('departamento')
+        .eq('activo', true)
+      const unicos = [...new Set((data ?? []).map(u => u.departamento).filter(Boolean))].sort()
+      return unicos
     }
   })
 
@@ -612,7 +618,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
           </div>
 
           {/* Responsable */}
-          {(profile?.rol === 'admin' || profile?.rol === 'gerente') && (
+          {(profile?.rol === 'admin' || profile?.rol === 'gerente' || profile?.rol === 'subgerente') && (
             <div>
               <label className="block text-sm text-gray-400 mb-1">Responsable</label>
               {!reasignando ? (
@@ -638,7 +644,9 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                 >
                   <option value="">Seleccionar responsable...</option>
                   {usuarios.map(u => (
-                    <option key={u.id} value={u.id}>{u.nombre} — {u.cargo}</option>
+                    <option key={u.id} value={u.id}>
+                      {u.nombre} — {u.cargo}{esSubgerente ? ` (${u.departamento})` : ''}
+                    </option>
                   ))}
                 </select>
               )}
@@ -896,7 +904,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                                px-3 py-2 text-sm focus:outline-none focus:border-green-500"
                   >
                     <option value="">Seleccionar departamento...</option>
-                    {DEPARTAMENTOS_DEPS.filter(d => d !== tarea.departamento).map(d => (
+                    {departamentosDisponibles.filter(d => d !== tarea.departamento).map(d => (
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>
