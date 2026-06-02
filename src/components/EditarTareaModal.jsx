@@ -5,16 +5,6 @@ import { useAuth } from '../context/AuthContext'
 import { X, Save, RefreshCw, CalendarClock, Sparkles, Clock, Trash2, Link2 } from 'lucide-react'
 import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } from '../lib/feriados'
 
-const DEPARTAMENTOS_DEPS = [
-  'CDG',
-  'Maquinarias',
-  'Compras y Adquisiciones',
-  'Administración',
-  'Personas',
-  'SST',
-  'Gerencia',
-]
-
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
@@ -95,6 +85,18 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
         .eq('activo', true)
         .order('nombre')
       return data ?? []
+    }
+  })
+
+  const { data: departamentosDisponibles = [] } = useQuery({
+    queryKey: ['departamentos-deps'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('users')
+        .select('departamento')
+        .eq('activo', true)
+      const unicos = [...new Set((data ?? []).map(u => u.departamento).filter(Boolean))].sort()
+      return unicos
     }
   })
 
@@ -896,7 +898,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                                px-3 py-2 text-sm focus:outline-none focus:border-green-500"
                   >
                     <option value="">Seleccionar departamento...</option>
-                    {DEPARTAMENTOS_DEPS.filter(d => d !== tarea.departamento).map(d => (
+                    {departamentosDisponibles.filter(d => d !== tarea.departamento).map(d => (
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>

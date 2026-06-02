@@ -8,16 +8,6 @@ import { getFeriadosDelAnio, ajustarAlDiaHabilSiguiente, getNesimoHabilDelMes } 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
                'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
-const DEPARTAMENTOS_DEPS = [
-  'CDG',
-  'Maquinarias',
-  'Compras y Adquisiciones',
-  'Administración',
-  'Personas',
-  'SST',
-  'Gerencia',
-]
-
 const DIAS_SEMANA = ['Lunes','Martes','Miércoles','Jueves','Viernes']
 
 const DURACIONES_RAPIDAS = [
