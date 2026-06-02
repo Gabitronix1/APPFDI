@@ -21,7 +21,7 @@ const DURACIONES_RAPIDAS = [
 
 export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const queryClient = useQueryClient()
-  const { profile } = useAuth()
+  const { profile, esSubgerente, deptosAsignados } = useAuth()
 
   const [nombre,          setNombre]          = useState(tarea.nombre_tarea)
   const [area,            setArea]            = useState(tarea.area ?? '')
@@ -61,15 +61,19 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
   const nombreMesCiclo   = `${MESES[mesCiclo - 1]} ${anioCiclo}`
 
   const { data: usuarios = [] } = useQuery({
-    queryKey: ['usuarios-depto', tarea.departamento],
-    enabled: profile?.rol === 'admin' || profile?.rol === 'gerente',
+    queryKey: ['usuarios-depto', tarea.departamento, esSubgerente, deptosAsignados],
+    enabled: profile?.rol === 'admin' || profile?.rol === 'gerente' || profile?.rol === 'subgerente',
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('users')
-        .select('id, nombre, cargo')
+        .select('id, nombre, cargo, departamento')
         .eq('activo', true)
-        .eq('departamento', tarea.departamento)
-        .order('nombre')
+      if (esSubgerente && deptosAsignados.length > 0) {
+        query = query.in('departamento', deptosAsignados)
+      } else {
+        query = query.eq('departamento', tarea.departamento)
+      }
+      const { data, error } = await query.order('nombre')
       if (error) throw error
       return data ?? []
     }
@@ -614,7 +618,7 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
           </div>
 
           {/* Responsable */}
-          {(profile?.rol === 'admin' || profile?.rol === 'gerente') && (
+          {(profile?.rol === 'admin' || profile?.rol === 'gerente' || profile?.rol === 'subgerente') && (
             <div>
               <label className="block text-sm text-gray-400 mb-1">Responsable</label>
               {!reasignando ? (
@@ -640,7 +644,9 @@ export default function EditarTareaModal({ tarea, onClose, cicloId }) {
                 >
                   <option value="">Seleccionar responsable...</option>
                   {usuarios.map(u => (
-                    <option key={u.id} value={u.id}>{u.nombre} — {u.cargo}</option>
+                    <option key={u.id} value={u.id}>
+                      {u.nombre} — {u.cargo}{esSubgerente ? ` (${u.departamento})` : ''}
+                    </option>
                   ))}
                 </select>
               )}

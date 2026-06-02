@@ -66,7 +66,7 @@ function fechaStr(fecha) {
 }
 
 export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, departamentoForzado }) {
-  const { user, profile, esSubgerente } = useAuth()
+  const { user, profile, esSubgerente, deptosAsignados } = useAuth()
 
   const deptoActivo     = departamentoForzado ?? profile?.departamento
   const esUsuario       = profile?.rol === 'usuario'
@@ -103,15 +103,19 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
   const queryClient = useQueryClient()
 
   const { data: usuarios = [] } = useQuery({
-    queryKey: ['usuarios-depto', deptoActivo],
+    queryKey: ['usuarios-depto', deptoActivo, esSubgerente, deptosAsignados],
     enabled: esAdminOGerente,
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('users')
-        .select('id, nombre, cargo')
+        .select('id, nombre, cargo, departamento')
         .eq('activo', true)
-        .eq('departamento', deptoActivo)
-        .order('nombre')
+      if (esSubgerente && deptosAsignados.length > 0) {
+        query = query.in('departamento', deptosAsignados)
+      } else {
+        query = query.eq('departamento', deptoActivo)
+      }
+      const { data, error } = await query.order('nombre')
       if (error) throw error
       return data ?? []
     }
@@ -617,7 +621,9 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
               >
                 <option value="">Seleccionar responsable...</option>
                 {usuarios.map(u => (
-                  <option key={u.id} value={u.id}>{u.nombre} — {u.cargo}</option>
+                  <option key={u.id} value={u.id}>
+                    {u.nombre} — {u.cargo}{esSubgerente ? ` (${u.departamento})` : ''}
+                  </option>
                 ))}
               </select>
             </div>
