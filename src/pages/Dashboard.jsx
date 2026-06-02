@@ -816,7 +816,7 @@ export default function Dashboard({ cicloSeleccionado }) {
   // Para el caso normal (un solo depto) devuelve length 1 → no aparece selector.
   const { data: misDeptosConTareas = [] } = useQuery({
     queryKey: ['mis-deptos-tareas', profile?.id, cicloSeleccionado?.mes, cicloSeleccionado?.anio],
-    enabled: !!profile?.id && profile?.rol === 'usuario' && !!cicloSeleccionado?.mes,
+    enabled: !!profile?.id && (profile?.rol === 'usuario' || profile?.rol === 'admin') && !!cicloSeleccionado?.mes,
     queryFn: async () => {
       // Ciclos del período (todos los deptos)
       const { data: ciclosPeriodo } = await supabase
@@ -853,7 +853,7 @@ export default function Dashboard({ cicloSeleccionado }) {
   // Ciclo del depto seleccionado (solo si es un depto cruzado, distinto al propio)
   const { data: cicloUsuarioActivo } = useQuery({
     queryKey: ['ciclo-usuario-depto', deptoUsuario, cicloSeleccionado?.mes, cicloSeleccionado?.anio],
-    enabled: profile?.rol === 'usuario' && !!deptoUsuario && !!cicloSeleccionado?.mes
+    enabled: (profile?.rol === 'usuario' || profile?.rol === 'admin') && !!deptoUsuario && !!cicloSeleccionado?.mes
       && deptoUsuario !== profile?.departamento,
     queryFn: async () => {
       const { data } = await supabase
@@ -917,6 +917,9 @@ export default function Dashboard({ cicloSeleccionado }) {
   const tituloCiclo    = cicloSeleccionado ? nombreCiclo(cicloSeleccionado.mes, cicloSeleccionado.anio) : ''
   const esCicloCerrado = cicloSeleccionado?.estado === 'cerrado'
   const esAdmin        = profile?.rol === 'admin'
+  // Admin en su PROPIO depto → vista admin completa.
+  // Admin en depto CRUZADO → vista personal (DashboardUsuario).
+  const mostrarVistaAdmin = esAdmin && esDeptoPropio
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -942,17 +945,10 @@ export default function Dashboard({ cicloSeleccionado }) {
         <div className="flex justify-center py-20">
           <div className="w-8 h-8 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : esAdmin ? (
-        <DashboardAdmin
-          tareas={tareas} tituloCiclo={tituloCiclo}
-          cicloSeleccionado={cicloSeleccionado} isLoading={isLoading}
-          profile={profile} esCicloCerrado={esCicloCerrado}
-          impactosDep={impactosDep}
-        />
       ) : (
         <>
-          {/* Selector multi-depto — solo si el usuario tiene tareas en más de un depto */}
-          {profile?.rol === 'usuario' && misDeptosConTareas.length > 1 && (
+          {/* Selector multi-depto — usuario o admin con tareas en más de un depto */}
+          {(profile?.rol === 'usuario' || profile?.rol === 'admin') && misDeptosConTareas.length > 1 && (
             <div className="flex gap-2 mb-4 flex-wrap items-center">
               <span className="text-xs text-gray-500">Departamento:</span>
               {misDeptosConTareas.map(depto => (
@@ -970,12 +966,21 @@ export default function Dashboard({ cicloSeleccionado }) {
               ))}
             </div>
           )}
-          <DashboardUsuario
-            tareas={tareas} profile={profile}
-            tituloCiclo={tituloCiclo} isLoading={isLoading}
-            onClickTarea={setTareaActiva}
-            impactosDep={impactosDep}
-          />
+          {mostrarVistaAdmin ? (
+            <DashboardAdmin
+              tareas={tareas} tituloCiclo={tituloCiclo}
+              cicloSeleccionado={cicloSeleccionado} isLoading={isLoading}
+              profile={profile} esCicloCerrado={esCicloCerrado}
+              impactosDep={impactosDep}
+            />
+          ) : (
+            <DashboardUsuario
+              tareas={tareas} profile={{ ...profile, departamento: deptoEfectivo }}
+              tituloCiclo={tituloCiclo} isLoading={isLoading}
+              onClickTarea={setTareaActiva}
+              impactosDep={impactosDep}
+            />
+          )}
         </>
       )}
 
