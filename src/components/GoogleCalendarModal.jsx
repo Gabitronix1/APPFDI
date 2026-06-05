@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Calendar, ExternalLink } from 'lucide-react'
 import { generarLinkGoogleCalendar, formatDuracion } from '../lib/googleCalendar'
+import { supabase } from '../lib/supabase'
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
   'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
@@ -13,7 +14,30 @@ function formatFechaLegible(fechaStr) {
 
 export default function GoogleCalendarModal({ tarea, onClose }) {
   const [horaInicio, setHoraInicio] = useState('09:00')
-  const link = generarLinkGoogleCalendar(tarea, horaInicio)
+
+  const esRecurrenteSemanal = tarea.tipo === 'recurrente_mes'
+    && tarea.frecuencia === 'semanal' && !!tarea.serie_id
+
+  const [recurrencia, setRecurrencia] = useState(null)
+
+  useEffect(() => {
+    if (!esRecurrenteSemanal) return
+    supabase
+      .from('tasks')
+      .select('fecha_termino, mes_calendario, anio_calendario')
+      .eq('serie_id', tarea.serie_id)
+      .then(({ data }) => {
+        if (!data?.length) return
+        const dias = [...new Set(data.map(t => new Date(t.fecha_termino + 'T12:00:00').getDay()))]
+        setRecurrencia({
+          diasSemana: dias,
+          mesCalendario: tarea.mes_calendario ?? data[0].mes_calendario,
+          anioCalendario: tarea.anio_calendario ?? data[0].anio_calendario,
+        })
+      })
+  }, [tarea.serie_id])
+
+  const link = generarLinkGoogleCalendar(tarea, horaInicio, recurrencia)
 
   // Calcular hora fin para el resumen
   const duracion = tarea.duracion_estimada_min ?? 60
@@ -42,6 +66,9 @@ export default function GoogleCalendarModal({ tarea, onClose }) {
           <p className="text-gray-400 text-xs">📅 {formatFechaLegible(tarea.fecha_termino)}</p>
           <p className="text-gray-400 text-xs">⏱ Duración: {formatDuracion(duracion)}</p>
           <p className="text-gray-400 text-xs">🕐 {horaInicio} – {finHH}:{finMM}</p>
+          {recurrencia && (
+            <p className="text-blue-400 text-xs">🔁 Se repite semanalmente hasta fin de mes</p>
+          )}
         </div>
 
         {/* Selector de hora */}
