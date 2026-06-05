@@ -7,6 +7,7 @@ import TaskModal from '../components/TaskModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
 import CalendarioTareas from '../components/CalendarioTareas'
 import PanelRendimiento from '../components/PanelRendimiento'
+import GoogleCalendarModal from '../components/GoogleCalendarModal'
 import {
   Calendar, Users, User, RefreshCw, CalendarClock,
   Sparkles, ChevronRight, X, CheckCircle2, ChevronDown, ChevronUp,
@@ -636,6 +637,8 @@ export default function DashboardSubgerente({ cicloSeleccionado: _cicloSeleccion
   const setDeptoActivo = onCambiarDepto ?? setDeptoLocal
   const queryClient = useQueryClient()
   const [tareaActiva, setTareaActiva] = useState(null)
+  const [toastDeshacer, setToastDeshacer] = useState(null)
+  const [entradaParaAgendar, setEntradaParaAgendar] = useState(null)
 
   // 1. Ciclos activos por depto
   const { data: ciclosPorDepto = {}, isLoading: loadingCiclos } = useQuery({
@@ -752,6 +755,61 @@ export default function DashboardSubgerente({ cicloSeleccionado: _cicloSeleccion
     }
   })
 
+  // 6. Tareas sin agendar en Google Calendar (todos los deptos del subgerente)
+  const { data: tareasSinAgendar = [], refetch: refetchSinAgendar } = useQuery({
+    queryKey: ['tareas-sin-agendar', deptosAsignados, cicloActivo?.mes, cicloActivo?.anio],
+    enabled: deptosAsignados.length > 0 && !!cicloActivo,
+    queryFn: async () => {
+      // Ciclos activos de los deptos del subgerente
+      const { data: ciclos } = await supabase
+        .from('monthly_cycles')
+        .select('id')
+        .in('departamento', deptosAsignados)
+        .eq('estado', 'activo')
+      const cicloIds = (ciclos ?? []).map(c => c.id)
+      if (cicloIds.length === 0) return []
+      const { data } = await supabase
+        .from('tasks')
+        .select('id, nombre_tarea, fecha_termino, duracion_estimada_min, observaciones, area, departamento, tipo, frecuencia, serie_id, mes_calendario, anio_calendario')
+        .in('ciclo_id', cicloIds)
+        .eq('agendada_en_calendar', false)
+        .order('fecha_termino', { ascending: true })
+      return data ?? []
+    }
+  })
+
+  const entradasAgendar = useMemo(() => {
+    const series = new Map()
+    const puntuales = []
+    for (const t of tareasSinAgendar) {
+      if (t.serie_id) {
+        if (!series.has(t.serie_id)) {
+          series.set(t.serie_id, { tipo: 'serie', serie_id: t.serie_id, tarea: t, count: 1, ids: [t.id] })
+        } else {
+          const s = series.get(t.serie_id)
+          s.count++
+          s.ids.push(t.id)
+        }
+      } else {
+        puntuales.push({ tipo: 'puntual', tarea: t, ids: [t.id] })
+      }
+    }
+    return [...series.values(), ...puntuales]
+  }, [tareasSinAgendar])
+
+  function mostrarToastDeshacer(nombre, ids) {
+    setToastDeshacer({ nombre, ids })
+    setTimeout(() => {
+      setToastDeshacer(prev => (prev && prev.ids === ids ? null : prev))
+    }, 6000)
+  }
+
+  async function handleDesmarcar(ids) {
+    await supabase.from('tasks').update({ agendada_en_calendar: false }).in('id', ids)
+    setToastDeshacer(null)
+    refetchSinAgendar()
+  }
+
   const tituloCicloActivo = cicloActivo
     ? nombreCiclo(cicloActivo.mes, cicloActivo.anio) : '—'
   const esCicloCerrado = cicloActivo?.estado === 'cerrado'
@@ -782,6 +840,40 @@ export default function DashboardSubgerente({ cicloSeleccionado: _cicloSeleccion
           <span className="text-gray-300 text-sm">{formatFechaHoy()}</span>
         </div>
       </div>
+
+      {/* BANNER DE AGENDADO EN LOTE */}
+      {entradasAgendar.length > 0 && (
+        <div className="mb-6 bg-blue-950/30 border border-blue-800/50 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Calendar className="w-5 h-5 text-blue-400" />
+            <h3 className="text-white font-semibold text-sm">
+              Tienes {entradasAgendar.length} {entradasAgendar.length === 1 ? 'elemento' : 'elementos'} sin agendar en tu calendario
+            </h3>
+          </div>
+          <div className="space-y-2">
+            {entradasAgendar.map((entrada) => (
+              <div key={entrada.serie_id ?? entrada.tarea.id}
+                className="flex items-center justify-between gap-3 bg-gray-900/50 border border-gray-800 rounded-xl px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium truncate">{entrada.tarea.nombre_tarea}</p>
+                  <p className="text-gray-500 text-xs">
+                    {entrada.tipo === 'serie'
+                      ? `Serie semanal · ${entrada.count} fechas · ${entrada.tarea.departamento}`
+                      : `${entrada.tarea.fecha_termino} · ${entrada.tarea.departamento}`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEntradaParaAgendar(entrada)}
+                  className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition shrink-0"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  Agendar
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* PANEL RESUMEN MULTI-DEPTO */}
       <div className="mb-6 space-y-3">
@@ -894,6 +986,48 @@ export default function DashboardSubgerente({ cicloSeleccionado: _cicloSeleccion
             setTareaActiva(null)
           }}
         />
+      )}
+
+      {/* MODAL DE HORA PARA AGENDAR EN LOTE */}
+      {entradaParaAgendar && (
+        <GoogleCalendarModal
+          tarea={entradaParaAgendar.tarea}
+          onClose={() => setEntradaParaAgendar(null)}
+          onAgendado={async () => {
+            await supabase
+              .from('tasks')
+              .update({ agendada_en_calendar: true })
+              .in('id', entradaParaAgendar.ids)
+            refetchSinAgendar()
+            mostrarToastDeshacer(entradaParaAgendar.tarea.nombre_tarea, entradaParaAgendar.ids)
+            setEntradaParaAgendar(null)
+          }}
+        />
+      )}
+
+      {/* TOAST DESHACER AGENDADO */}
+      {toastDeshacer && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 border border-gray-700
+                        rounded-xl shadow-xl p-4 flex items-center gap-3 max-w-sm">
+          <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-sm font-medium">Agendada ✓</p>
+            <p className="text-gray-500 text-xs truncate">{toastDeshacer.nombre}</p>
+          </div>
+          <button
+            onClick={() => handleDesmarcar(toastDeshacer.ids)}
+            className="text-blue-400 hover:text-blue-300 text-xs font-medium px-3 py-1.5 rounded-lg
+                       bg-blue-950/40 transition shrink-0"
+          >
+            Deshacer
+          </button>
+          <button
+            onClick={() => setToastDeshacer(null)}
+            className="text-gray-500 hover:text-white transition shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
     </div>
   )

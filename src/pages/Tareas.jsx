@@ -6,11 +6,12 @@ import TaskModal from '../components/TaskModal'
 import {
   CheckCircle2, Clock, AlertCircle, Filter, Plus, Trash2,
   RefreshCw, Sparkles, Lock, Pencil,
-  CalendarClock, Search, X
+  CalendarClock, Search, X, Calendar
 } from 'lucide-react'
 import NuevaTareaModal from '../components/NuevaTareaModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
 import EditarTareaModal from '../components/EditarTareaModal'
+import GoogleCalendarModal from '../components/GoogleCalendarModal'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -50,6 +51,9 @@ function nombreCierre(mes, anio) {
 }
 
 function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCicloCerrado, esCicloInactivo, impactoDep }) {
+  const esSubgerente = profile?.rol === 'subgerente'
+  const [mostrarCalendarItem, setMostrarCalendarItem] = useState(false)
+
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
 
@@ -132,6 +136,15 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estilos.badge}`}>
             {estilos.label}
           </span>
+          {esSubgerente && !estaBloqueada && (
+            <button
+              onClick={e => { e.stopPropagation(); setMostrarCalendarItem(true) }}
+              className="p-1 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition"
+              title="Agregar a Google Calendar"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+            </button>
+          )}
           {!esCicloCerrado && !esCicloInactivo && !estaBloqueada && (
             <button
               onClick={e => { e.stopPropagation(); onEditar?.() }}
@@ -152,6 +165,10 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
           )}
         </div>
       </div>
+
+      {mostrarCalendarItem && (
+        <GoogleCalendarModal tarea={tarea} onClose={() => setMostrarCalendarItem(false)} />
+      )}
     </div>
   )
 }
@@ -236,6 +253,9 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
   const [templateIdEliminar, setTemplateIdEliminar] = useState(null)
   const [tareaDetalle, setTareaDetalle]             = useState(null)
   const [editando, setEditando]                     = useState(null)
+  const [tareaParaAgendar, setTareaParaAgendar]       = useState(null)
+  const [mostrarToastAgendar, setMostrarToastAgendar] = useState(false)
+  const [mostrarCalendarModal, setMostrarCalendarModal] = useState(false)
   const [tareasSerieSeleccionadas, setTareasSerieSeleccionadas] = useState([])
   const [tareasSerieDelCiclo, setTareasSerieDelCiclo]           = useState([])
 
@@ -738,9 +758,16 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
           cicloSeleccionado={cicloEfectivo}
           departamentoForzado={esSubgerente ? deptoActivo : undefined}
           onClose={() => setMostrarNueva(false)}
-          onCreada={() => {
+          onCreada={(tareaCreada) => {
             queryClient.invalidateQueries({ queryKey: ['tareas', cicloEfectivo?.id] })
             setMostrarNueva(false)
+            // Solo para subgerente: ofrecer agendar
+            if (esSubgerente && tareaCreada) {
+              setTareaParaAgendar(tareaCreada)
+              setMostrarToastAgendar(true)
+              // Auto-ocultar el toast tras 8 segundos
+              setTimeout(() => setMostrarToastAgendar(false), 8000)
+            }
           }}
         />
       )}
@@ -922,6 +949,42 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
         <DetalleTareaPanel
           tarea={tareaDetalle}
           onClose={() => setTareaDetalle(null)}
+        />
+      )}
+
+      {/* Toast: ofrecer agendar en Google Calendar tras crear (solo subgerente) */}
+      {mostrarToastAgendar && tareaParaAgendar && (
+        <div className="fixed bottom-6 right-6 z-50 bg-gray-900 border border-gray-700
+                        rounded-xl shadow-xl p-4 flex items-center gap-3 max-w-sm">
+          <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-sm font-medium">Tarea creada</p>
+            <p className="text-gray-500 text-xs truncate">{tareaParaAgendar.nombre_tarea}</p>
+          </div>
+          <button
+            onClick={() => {
+              setMostrarToastAgendar(false)
+              setMostrarCalendarModal(true)
+            }}
+            className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-600 text-white
+                       text-xs font-medium px-3 py-2 rounded-lg transition shrink-0"
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            Agendar
+          </button>
+          <button
+            onClick={() => setMostrarToastAgendar(false)}
+            className="text-gray-500 hover:text-white transition shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {mostrarCalendarModal && tareaParaAgendar && (
+        <GoogleCalendarModal
+          tarea={tareaParaAgendar}
+          onClose={() => { setMostrarCalendarModal(false); setTareaParaAgendar(null) }}
         />
       )}
     </div>
