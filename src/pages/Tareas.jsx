@@ -6,11 +6,12 @@ import TaskModal from '../components/TaskModal'
 import {
   CheckCircle2, Clock, AlertCircle, Filter, Plus, Trash2,
   RefreshCw, Sparkles, Lock, Pencil,
-  CalendarClock, Search, X
+  CalendarClock, Search, X, Calendar
 } from 'lucide-react'
 import NuevaTareaModal from '../components/NuevaTareaModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
 import EditarTareaModal from '../components/EditarTareaModal'
+import GoogleCalendarModal from '../components/GoogleCalendarModal'
 
 const MESES = [
   'Enero','Febrero','Marzo','Abril','Mayo','Junio',
@@ -50,6 +51,9 @@ function nombreCierre(mes, anio) {
 }
 
 function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCicloCerrado, esCicloInactivo, impactoDep }) {
+  const esSubgerente = profile?.rol === 'subgerente'
+  const [mostrarCalendarItem, setMostrarCalendarItem] = useState(false)
+
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
 
@@ -132,6 +136,15 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${estilos.badge}`}>
             {estilos.label}
           </span>
+          {esSubgerente && !estaBloqueada && (
+            <button
+              onClick={e => { e.stopPropagation(); setMostrarCalendarItem(true) }}
+              className="p-1 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-900/20 transition"
+              title="Agregar a Google Calendar"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+            </button>
+          )}
           {!esCicloCerrado && !esCicloInactivo && !estaBloqueada && (
             <button
               onClick={e => { e.stopPropagation(); onEditar?.() }}
@@ -152,6 +165,10 @@ function TareaItem({ tarea, profile, onClickTarea, onEditar, onEliminar, esCiclo
           )}
         </div>
       </div>
+
+      {mostrarCalendarItem && (
+        <GoogleCalendarModal tarea={tarea} onClose={() => setMostrarCalendarItem(false)} />
+      )}
     </div>
   )
 }

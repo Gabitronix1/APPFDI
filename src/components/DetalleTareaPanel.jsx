@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useState } from 'react'
-import { X, CheckCircle2, Clock, AlertCircle, Download, FileText, Image, FileSpreadsheet, File, RefreshCw, Sparkles, Pencil, Save, MessageSquare, Send, Trash2, Link2 } from 'lucide-react'
+import { X, CheckCircle2, Clock, AlertCircle, Download, FileText, Image, FileSpreadsheet, File, RefreshCw, Sparkles, Pencil, Save, MessageSquare, Send, Trash2, Link2, Calendar } from 'lucide-react'
+import GoogleCalendarModal from './GoogleCalendarModal'
 
 function getIconoArchivo(tipo) {
   switch (tipo) {
@@ -170,6 +171,8 @@ export default function DetalleTareaPanel({ tarea, onClose }) {
   const { profile }  = useAuth()
   const queryClient  = useQueryClient()
   const esAdminOGerente = profile?.rol === 'admin' || profile?.rol === 'gerente'
+  const esSubgerente = profile?.rol === 'subgerente'
+  const [mostrarCalendar, setMostrarCalendar] = useState(false)
 
   const { data: completaciones = [], isLoading: loadingComp } = useQuery({
     queryKey: ['completaciones', tarea.id],
@@ -267,6 +270,18 @@ export default function DetalleTareaPanel({ tarea, onClose }) {
               </div>
             </div>
           </div>
+
+          {/* Agregar a Google Calendar — solo subgerente */}
+          {esSubgerente && (
+            <button
+              onClick={() => setMostrarCalendar(true)}
+              className="flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300
+                         bg-blue-950/30 border border-blue-800/50 rounded-lg px-3 py-2 transition"
+            >
+              <Calendar className="w-4 h-4" />
+              Agregar a Google Calendar
+            </button>
+          )}
 
           {/* Historial */}
           <div>
@@ -404,6 +419,10 @@ export default function DetalleTareaPanel({ tarea, onClose }) {
 
         </div>
       </div>
+
+      {mostrarCalendar && (
+        <GoogleCalendarModal tarea={tarea} onClose={() => setMostrarCalendar(false)} />
+      )}
     </>
   )
 }
