@@ -552,6 +552,7 @@ function EntregableRow({ entregable, onActualizar, onEditar, onEliminar, esAdmin
 // ─── PROYECTO CARD ────────────────────────────────────────────────────────────
 export default function ProyectoCard({ proyecto, onCambio }) {
   const { profile }  = useAuth()
+  const esAdminOSubgerente = profile?.rol === 'admin' || profile?.rol === 'subgerente'
   const [expandido,            setExpandido]            = useState(true)
   const [modalEntregable,      setModalEntregable]      = useState(false)
   const [editandoEntregable,   setEditandoEntregable]   = useState(null)
@@ -693,13 +694,13 @@ export default function ProyectoCard({ proyecto, onCambio }) {
                     onActualizar={onCambio}
                     onEditar={() => setEditandoEntregable(entregable)}
                     onEliminar={() => setEliminandoEntregable(entregable)}
-                    esAdmin={profile?.rol === 'admin'}
+                    esAdmin={esAdminOSubgerente}
                   />
                 ))}
             </div>
           )}
 
-          {profile?.rol === 'admin' && (
+          {esAdminOSubgerente && (
             <div className="flex items-center justify-between px-6 py-3 border-t border-gray-800 bg-gray-900/50">
               <button
                 onClick={e => { e.stopPropagation(); setModalEntregable(true) }}
