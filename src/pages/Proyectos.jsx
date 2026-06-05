@@ -497,9 +497,16 @@ function PanelEjecutivo({ proyectos, onClickProyecto }) {
 }
 
 // ─── PAGE PRINCIPAL ───────────────────────────────────────────────────────────
-export default function Proyectos() {
+export default function Proyectos({ departamentoSubgerente }) {
   const { profile }  = useAuth()
   const queryClient  = useQueryClient()
+
+  const esSubgerente       = profile?.rol === 'subgerente'
+  const esAdminOSubgerente = profile?.rol === 'admin' || esSubgerente
+  // Departamento que se muestra/gestiona
+  const deptoEfectivo = esSubgerente
+    ? departamentoSubgerente
+    : profile?.departamento
   const [modalProyecto,  setModalProyecto]  = useState(false)
   const [verHistorial,   setVerHistorial]   = useState(false)
   const [guardandoSnap,  setGuardandoSnap]  = useState(false)
@@ -509,8 +516,11 @@ export default function Proyectos() {
   const proyectoRefs = useRef({})
 
   const { data: proyectos = [], isLoading } = useQuery({
-    queryKey: ['proyectos', anio, profile?.departamento],
+    queryKey: ['proyectos', anio, deptoEfectivo],
     queryFn: async () => {
+      // Subgerente sin depto activo: no mostrar proyectos de otros deptos
+      if (esSubgerente && !deptoEfectivo) return []
+
       let query = supabase
         .from('projects')
         .select(`
@@ -528,8 +538,8 @@ export default function Proyectos() {
         .eq('activo', true)
         .order('edt')
 
-      if (profile?.rol !== 'gerente' && profile?.departamento)
-        query = query.eq('departamento', profile.departamento)
+      if (profile?.rol !== 'gerente' && deptoEfectivo)
+        query = query.eq('departamento', deptoEfectivo)
 
       const { data, error } = await query
       if (error) throw error
@@ -538,7 +548,7 @@ export default function Proyectos() {
   })
 
   function onCambio() {
-    queryClient.invalidateQueries({ queryKey: ['proyectos', anio, profile?.departamento] })
+    queryClient.invalidateQueries({ queryKey: ['proyectos', anio, deptoEfectivo] })
   }
 
   function scrollAProyecto(proyectoId) {
@@ -609,7 +619,7 @@ export default function Proyectos() {
       const { error: errDepto } = await supabase
         .from('department_snapshots')
         .insert({
-          departamento:      profile?.departamento,
+          departamento:      deptoEfectivo,
           mes,
           anio:              anioSnap,
           pct_real:          deptoReal,
@@ -626,7 +636,7 @@ export default function Proyectos() {
 
       // Invalidar caché de snapshots
       queryClient.invalidateQueries({ queryKey: ['snapshots'] })
-      queryClient.invalidateQueries({ queryKey: ['department_snapshots', profile?.departamento] })
+      queryClient.invalidateQueries({ queryKey: ['department_snapshots', deptoEfectivo] })
       setSnapMsg(`✓ Snapshot guardado — ${MESES_CORTO[mes - 1]} ${anioSnap}`)
       setTimeout(() => setSnapMsg(''), 4000)
     } catch (err) {
@@ -676,7 +686,7 @@ export default function Proyectos() {
     : cumplimientoPlan >= 75  ? 'text-amber-400'
     : 'text-red-400'
 
-  const nombreDepto = profile?.departamento ?? 'Proyectos'
+  const nombreDepto = deptoEfectivo ?? 'Proyectos'
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -716,8 +726,8 @@ export default function Proyectos() {
             Historial
           </button>
 
-          {/* Botón snapshot — solo admin */}
-          {profile?.rol === 'admin' && (
+          {/* Botón snapshot — admin y subgerente */}
+          {esAdminOSubgerente && (
             <button
               onClick={guardarSnapshot}
               disabled={guardandoSnap || proyectos.length === 0}
@@ -730,8 +740,8 @@ export default function Proyectos() {
             </button>
           )}
 
-          {/* Botón nuevo proyecto — solo admin */}
-          {profile?.rol === 'admin' && (
+          {/* Botón nuevo proyecto — admin y subgerente */}
+          {esAdminOSubgerente && (
             <button onClick={() => setModalProyecto(true)}
               className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600
                          text-white text-sm font-medium px-4 py-2 rounded-lg transition">
@@ -822,7 +832,7 @@ export default function Proyectos() {
 
       {/* ── PANEL HISTORIAL ──────────────────────────────────────── */}
       {verHistorial && !isLoading && proyectos.length > 0 && (
-        <PanelHistorial proyectos={proyectos} departamento={profile?.departamento} />
+        <PanelHistorial proyectos={proyectos} departamento={deptoEfectivo} />
       )}
 
       {/* ── PANEL EJECUTIVO ──────────────────────────────────────── */}
@@ -848,7 +858,7 @@ export default function Proyectos() {
         <div className="text-center py-20">
           <FolderKanban className="w-12 h-12 text-gray-700 mx-auto mb-3" />
           <p className="text-gray-500">No hay proyectos para {anio}</p>
-          {profile?.rol === 'admin' && (
+          {esAdminOSubgerente && deptoEfectivo && (
             <button onClick={() => setModalProyecto(true)}
               className="mt-4 text-blue-400 hover:text-blue-300 text-sm transition">
               Crear el primero
@@ -870,7 +880,7 @@ export default function Proyectos() {
       {modalProyecto && (
         <ProyectoModal
           anio={anio}
-          departamento={profile?.departamento}
+          departamento={deptoEfectivo}
           onClose={() => setModalProyecto(false)}
           onGuardado={() => { onCambio(); setModalProyecto(false) }}
         />

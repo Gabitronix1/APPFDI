@@ -10,9 +10,11 @@ const PRIORIDADES = [
   { value: 'baja',  label: '↓ Baja',  cls: 'bg-gray-800 border-gray-600 text-gray-400'        },
 ]
 
-export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
+export default function ProyectoModal({ proyecto, anio, departamento, onClose, onGuardado }) {
   const { profile } = useAuth()
   const editando = !!proyecto
+  // Departamento al que se asigna el proyecto nuevo (depto activo del subgerente o el del perfil)
+  const deptoDestino = departamento ?? profile?.departamento ?? null
 
   const [form, setForm] = useState({
     edt:            proyecto?.edt            ?? '',
@@ -56,7 +58,7 @@ export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
       responsable_id: form.responsable_id || null,
       prioridad:      form.prioridad,
       anio,
-      ...(!editando && { departamento: profile?.departamento ?? null }),
+      ...(!editando && { departamento: deptoDestino }),
     }
 
     const { error: err } = editando
@@ -75,9 +77,9 @@ export default function ProyectoModal({ proyecto, anio, onClose, onGuardado }) {
             <h2 className="text-white font-semibold text-lg">
               {editando ? 'Editar proyecto' : 'Nuevo proyecto'}
             </h2>
-            {!editando && profile?.departamento && (
+            {!editando && deptoDestino && (
               <p className="text-gray-500 text-xs mt-0.5">
-                Departamento: <span className="text-gray-400">{profile.departamento}</span>
+                Departamento: <span className="text-gray-400">{deptoDestino}</span>
               </p>
             )}
           </div>

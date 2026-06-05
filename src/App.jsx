@@ -121,7 +121,7 @@ function AppInner() {
         } />
         <Route path="/proyectos" element={
           <PrivateRoute>
-            <Proyectos />
+            <Proyectos departamentoSubgerente={deptoActivoSubgerente} />
           </PrivateRoute>
         } />
 
