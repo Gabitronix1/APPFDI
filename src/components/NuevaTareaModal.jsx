@@ -332,6 +332,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
     const duracion = parseInt(form.duracion_estimada_min) || 60
 
     try {
+      let tareaCreada = null
       const esRecurrenteMultiple = form.tipo === 'recurrente_mes' &&
         (form.frecuencia === 'semanal' || form.frecuencia === 'quincenal')
 
@@ -394,10 +395,16 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           duracion_estimada_min: duracion,
         }))
 
-        const { error: errTareas } = await supabase.from('tasks').insert(tareas)
+        const { data: tareasCreadas, error: errTareas } = await supabase
+          .from('tasks').insert(tareas).select()
         if (errTareas) throw errTareas
 
         await crearDependenciasParaNuevaPlantilla(plantilla.id)
+
+        // Primera tarea de la serie (por fecha de término) para ofrecer agendar
+        tareaCreada = [...(tareasCreadas ?? [])]
+          .sort((a, b) => (a.fecha_termino ?? '').localeCompare(b.fecha_termino ?? ''))[0]
+          ?? null
 
       } else {
         // Tarea única (cierre, puntual, recurrente mensual)
@@ -428,7 +435,7 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
         }
 
         // 2. Crear la tarea con template_id cuando existe
-        const { error: errTarea } = await supabase.from('tasks').insert({
+        const { data: tareaInsertada, error: errTarea } = await supabase.from('tasks').insert({
           ciclo_id:              cicloSeleccionado.id,
           responsable_id:        form.responsable_id,
           nombre_tarea:          form.nombre_tarea.trim(),
@@ -448,14 +455,18 @@ export default function NuevaTareaModal({ cicloSeleccionado, onClose, onCreada, 
           duracion_estimada_min: duracion,
           template_id:           plantillaSimple?.id ?? null,
         })
+        .select()
+        .single()
         if (errTarea) throw errTarea
+
+        tareaCreada = tareaInsertada ?? null
 
         if (plantillaSimple) {
           await crearDependenciasParaNuevaPlantilla(plantillaSimple.id)
         }
       }
 
-      onCreada()
+      onCreada(tareaCreada)
     } catch (err) {
       setError('Error al crear la tarea, intenta de nuevo')
       console.error(err)
