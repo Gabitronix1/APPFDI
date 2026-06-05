@@ -7,7 +7,7 @@ import TaskModal from '../components/TaskModal'
 import DetalleTareaPanel from '../components/DetalleTareaPanel'
 import CalendarioTareas from '../components/CalendarioTareas'
 import PanelRendimiento from '../components/PanelRendimiento'
-import { generarLinkGoogleCalendar } from '../lib/googleCalendar'
+import GoogleCalendarModal from '../components/GoogleCalendarModal'
 import {
   Calendar, Users, User, RefreshCw, CalendarClock,
   Sparkles, ChevronRight, X, CheckCircle2, ChevronDown, ChevronUp,
@@ -638,6 +638,7 @@ export default function DashboardSubgerente({ cicloSeleccionado: _cicloSeleccion
   const queryClient = useQueryClient()
   const [tareaActiva, setTareaActiva] = useState(null)
   const [toastDeshacer, setToastDeshacer] = useState(null)
+  const [entradaParaAgendar, setEntradaParaAgendar] = useState(null)
 
   // 1. Ciclos activos por depto
   const { data: ciclosPorDepto = {}, isLoading: loadingCiclos } = useQuery({
@@ -796,28 +797,10 @@ export default function DashboardSubgerente({ cicloSeleccionado: _cicloSeleccion
     return [...series.values(), ...puntuales]
   }, [tareasSinAgendar])
 
-  async function handleAgendarEntrada(entrada) {
-    // Construir recurrencia si es serie
-    let recurrencia = null
-    if (entrada.tipo === 'serie') {
-      const dias = [...new Set(tareasSinAgendar
-        .filter(t => t.serie_id === entrada.serie_id)
-        .map(t => new Date(t.fecha_termino + 'T12:00:00').getDay()))]
-      recurrencia = {
-        diasSemana: dias,
-        mesCalendario: entrada.tarea.mes_calendario,
-        anioCalendario: entrada.tarea.anio_calendario,
-      }
-    }
-    const link = generarLinkGoogleCalendar(entrada.tarea, '09:00', recurrencia)
-    window.open(link, '_blank', 'noopener,noreferrer')
-    // Marcar como agendadas
-    await supabase.from('tasks').update({ agendada_en_calendar: true }).in('id', entrada.ids)
-    refetchSinAgendar()
-    // Toast con opción de deshacer
-    setToastDeshacer({ nombre: entrada.tarea.nombre_tarea, ids: entrada.ids })
+  function mostrarToastDeshacer(nombre, ids) {
+    setToastDeshacer({ nombre, ids })
     setTimeout(() => {
-      setToastDeshacer(prev => (prev && prev.ids === entrada.ids ? null : prev))
+      setToastDeshacer(prev => (prev && prev.ids === ids ? null : prev))
     }, 6000)
   }
 
@@ -880,7 +863,7 @@ export default function DashboardSubgerente({ cicloSeleccionado: _cicloSeleccion
                   </p>
                 </div>
                 <button
-                  onClick={() => handleAgendarEntrada(entrada)}
+                  onClick={() => setEntradaParaAgendar(entrada)}
                   className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition shrink-0"
                 >
                   <Calendar className="w-3.5 h-3.5" />
@@ -1001,6 +984,23 @@ export default function DashboardSubgerente({ cicloSeleccionado: _cicloSeleccion
           onCompletada={() => {
             queryClient.invalidateQueries({ queryKey: ['tareas-subgerente'] })
             setTareaActiva(null)
+          }}
+        />
+      )}
+
+      {/* MODAL DE HORA PARA AGENDAR EN LOTE */}
+      {entradaParaAgendar && (
+        <GoogleCalendarModal
+          tarea={entradaParaAgendar.tarea}
+          onClose={() => setEntradaParaAgendar(null)}
+          onAgendado={async () => {
+            await supabase
+              .from('tasks')
+              .update({ agendada_en_calendar: true })
+              .in('id', entradaParaAgendar.ids)
+            refetchSinAgendar()
+            mostrarToastDeshacer(entradaParaAgendar.tarea.nombre_tarea, entradaParaAgendar.ids)
+            setEntradaParaAgendar(null)
           }}
         />
       )}
