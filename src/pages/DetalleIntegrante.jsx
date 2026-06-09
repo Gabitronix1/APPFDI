@@ -175,6 +175,7 @@ function GrupoTareas({ titulo, icono, iconoColor, tareas, onClickTarea, esCicloC
 export default function DetalleIntegrante({ cicloSeleccionado: cicloExterno }) {
   const { nombre }    = useParams()
   const navigate      = useNavigate()
+  const queryClient   = useQueryClient()
   const nombreDecoded = decodeURIComponent(nombre)
 
   const [tareaActiva,      setTareaActiva]      = useState(null)
