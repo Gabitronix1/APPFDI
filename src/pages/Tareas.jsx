@@ -242,6 +242,7 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
 
   const [busqueda, setBusqueda]                     = useState('')
   const [soloMias, setSoloMias]                     = useState(false)
+  const [soloAtrasadas, setSoloAtrasadas]           = useState(false)
   const [filtroIntegrante, setFiltroIntegrante]     = useState('todos')
   const [filtroArea, setFiltroArea]                 = useState('todas')
   const [tareaActiva, setTareaActiva]               = useState(null)
@@ -394,10 +395,19 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
 
   const areas = ['todas', ...new Set(tareas.map(t => t.area).filter(Boolean))]
 
+  const hoyStr = useMemo(() => new Date().toISOString().split('T')[0], [])
+
   const tareasFiltradas = useMemo(() => tareas.filter(t => {
     if (soloMias && t.responsable_nombre !== profile?.nombre) return false
     if (filtroIntegrante !== 'todos' && t.responsable_nombre !== filtroIntegrante) return false
     if (filtroArea !== 'todas' && t.area !== filtroArea) return false
+    if (soloAtrasadas) {
+      const bloqueada = t.serie_id && t.fecha_inicio && t.fecha_inicio > hoyStr
+      if (bloqueada) return false
+      const esAtrasada = t.estado === 'con_atraso' ||
+        (t.estado === 'pendiente' && t.fecha_termino < hoyStr)
+      if (!esAtrasada) return false
+    }
     if (busqueda.trim()) {
       const q = busqueda.toLowerCase()
       return (
@@ -407,22 +417,30 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
       )
     }
     return true
-  }), [tareas, soloMias, filtroIntegrante, filtroArea, busqueda, profile])
+  }), [tareas, soloMias, soloAtrasadas, filtroIntegrante, filtroArea, busqueda, profile, hoyStr])
 
   const tareasCierre      = tareasFiltradas.filter(t => t.tipo === 'cierre')
   const tareasRecurrentes = tareasFiltradas.filter(t => t.tipo === 'recurrente_mes')
   const tareasPuntuales   = tareasFiltradas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id))
+
+  const cantAtrasadas = tareas.filter(t => {
+    const bloqueada = t.serie_id && t.fecha_inicio && t.fecha_inicio > hoyStr
+    if (bloqueada) return false
+    return t.estado === 'con_atraso' ||
+      (t.estado === 'pendiente' && t.fecha_termino < hoyStr)
+  }).length
 
   const tituloCiclo    = cicloEfectivo ? nombreCiclo(cicloEfectivo.mes, cicloEfectivo.anio) : ''
   const tituloCierre   = cicloEfectivo ? nombreCierre(cicloEfectivo.mes, cicloEfectivo.anio) : ''
   const esCicloCerrado  = cicloEfectivo?.estado === 'cerrado'
   const esCicloInactivo = cicloEfectivo?.estado === 'inactivo'
   const tareaAEliminar = tareas.find(t => t.id === eliminando)
-  const hayFiltrosActivos = busqueda || soloMias || filtroIntegrante !== 'todos' || filtroArea !== 'todas'
+  const hayFiltrosActivos = busqueda || soloMias || filtroIntegrante !== 'todos' || filtroArea !== 'todas' || soloAtrasadas
 
   function limpiarFiltros() {
     setBusqueda('')
     setSoloMias(false)
+    setSoloAtrasadas(false)
     setFiltroIntegrante('todos')
     setFiltroArea('todas')
   }
@@ -628,6 +646,23 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
           <Filter className="w-4 h-4" />
           Solo mis tareas
         </button>
+
+        {cantAtrasadas > 0 && (
+          <button
+            onClick={() => setSoloAtrasadas(!soloAtrasadas)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition
+              ${soloAtrasadas
+                ? 'bg-red-700 text-white'
+                : 'bg-gray-800 text-gray-400 hover:text-white'}`}
+          >
+            <AlertCircle className="w-4 h-4" />
+            Con atraso
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold
+              ${soloAtrasadas ? 'bg-red-600 text-white' : 'bg-red-900/60 text-red-400'}`}>
+              {cantAtrasadas}
+            </span>
+          </button>
+        )}
 
         <select
           value={filtroIntegrante}
