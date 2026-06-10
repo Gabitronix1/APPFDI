@@ -387,6 +387,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
     queryFn: async () => {
       const { data: ciclosHist } = await supabase
         .from('monthly_cycles').select('id, mes, anio')
+        .eq('departamento', profile?.departamento)
         .order('anio', { ascending: false }).order('mes', { ascending: false }).limit(12)
       if (!ciclosHist?.length) return []
       const results = []
