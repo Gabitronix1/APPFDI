@@ -302,7 +302,12 @@ export default function PanelRendimiento({ tareas, historial, departamento }) {
                         hover:brightness-125 transition-all duration-150 hover:scale-[1.02] ${kpi.color}`}
                     >
                       <p className="text-xs font-semibold text-center leading-tight">{kpi.area}</p>
-                      <PctRing pct={kpi.calidad ?? kpi.pct} />
+                      <div className="flex flex-col items-center gap-0.5">
+                        <PctRing pct={kpi.calidad ?? kpi.pct} />
+                        <p className="text-xs opacity-60 leading-none">
+                          {kpi.calidad !== null ? 'Calidad' : 'Cumplimiento'}
+                        </p>
+                      </div>
                       <div className="w-full space-y-1">
                         <div className="flex justify-between text-xs">
                           <span className="opacity-70">Completadas</span>
