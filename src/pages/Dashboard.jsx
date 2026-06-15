@@ -279,11 +279,21 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
   const tareasPuntuales   = tareas.filter(t => t.tipo === 'puntual' || (!t.tipo && !t.template_id))
   const tituloCierre      = cicloSeleccionado ? nombreCierre(cicloSeleccionado.mes, cicloSeleccionado.anio) : '—'
 
-  const porIntegrante = tareas.reduce((acc, t) => {
+  const hoyEquipo = new Date(); hoyEquipo.setHours(0,0,0,0)
+  const esExigible = t => {
+    const bloqueada = t.serie_id && t.fecha_inicio && new Date(t.fecha_inicio + 'T00:00:00') > hoyEquipo
+    const debida    = t.fecha_termino && new Date(t.fecha_termino + 'T00:00:00') <= hoyEquipo
+    return !bloqueada && debida
+  }
+
+  const porIntegrante = tareas.filter(esExigible).reduce((acc, t) => {
     const nombre = t.responsable_nombre ?? 'Sin asignar'
-    if (!acc[nombre]) acc[nombre] = { total: 0, completadas: 0, pendientes: 0, atrasadas: 0, fueraPlazo: 0 }
+    if (!acc[nombre]) acc[nombre] = { total: 0, completadas: 0, pendientes: 0, atrasadas: 0, fueraPlazo: 0, pctCalidad: [] }
     acc[nombre].total++
-    if (t.estado === 'completada' || t.estado === 'completada_con_atraso') acc[nombre].completadas++
+    if (t.estado === 'completada' || t.estado === 'completada_con_atraso') {
+      acc[nombre].completadas++
+      if (t.porcentaje_cumplimiento !== null) acc[nombre].pctCalidad.push(t.porcentaje_cumplimiento)
+    }
     if (t.estado === 'pendiente' || t.estado === 'en_progreso') acc[nombre].pendientes++
     if (t.estado === 'con_atraso') acc[nombre].atrasadas++
     if (t.alerta === 'fuera_de_plazo' && t.estado !== 'completada') acc[nombre].fueraPlazo++
@@ -397,6 +407,9 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
                 const color    = pct === 100 ? 'bg-green-500' : pct > 60 ? 'bg-amber-500' : 'bg-red-500'
                 const texto    = pct === 100 ? 'text-green-400' : pct > 60 ? 'text-amber-400' : 'text-red-400'
                 const iniciales = nombre.split(' ').map(n => n.charAt(0)).join('').slice(0, 2)
+                const calidad = stats.pctCalidad.length
+                  ? Math.round(stats.pctCalidad.reduce((s, v) => s + v, 0) / stats.pctCalidad.length)
+                  : null
                 return (
                   <div key={nombre}
                     onClick={() => navigate(`/integrante/${encodeURIComponent(nombre)}`, { state: { cicloId: cicloSeleccionado?.id } })}
@@ -414,6 +427,12 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
                         <div className={`h-1.5 rounded-full transition-all duration-700 ${color}`}
                           style={{ width: `${pct}%` }} />
                       </div>
+                      {calidad !== null && (
+                        <div className="w-full bg-gray-800 rounded-full h-1 overflow-hidden mt-1">
+                          <div className="h-1 rounded-full transition-all duration-700 bg-yellow-500"
+                            style={{ width: `${calidad}%` }} />
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 mt-1">
                         {stats.pendientes > 0 && <span className="text-xs text-amber-500">⏳ {stats.pendientes}</span>}
                         {stats.fueraPlazo > 0 && <span className="text-xs text-red-400">🔴 {stats.fueraPlazo}</span>}
