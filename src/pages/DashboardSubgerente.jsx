@@ -388,23 +388,27 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
       const { data: ciclosHist } = await supabase
         .from('monthly_cycles').select('id, mes, anio')
         .eq('departamento', profile?.departamento)
-        .order('anio', { ascending: false }).order('mes', { ascending: false }).limit(12)
+        .order('anio', { ascending: false }).order('mes', { ascending: false }).limit(60)
       if (!ciclosHist?.length) return []
       const results = []
       for (const c of ciclosHist) {
         const { data: tareasHist } = await supabase
-          .from('v_tareas_ciclo_activo').select('estado, porcentaje_cumplimiento')
+          .from('v_tareas_ciclo_activo')
+          .select('nombre_tarea, area, estado, porcentaje_cumplimiento, responsable_nombre, fecha_termino')
           .eq('ciclo_id', c.id).eq('departamento', profile?.departamento)
         if (!tareasHist?.length) continue
         const comp   = tareasHist.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
         const conPct = tareasHist.filter(t => t.porcentaje_cumplimiento !== null)
         results.push({
           mes: nombreCiclo(c.mes, c.anio),
+          mesNum: c.mes,
+          anio: c.anio,
           pct: Math.round((comp / tareasHist.length) * 100),
           completadas: comp, total: tareasHist.length,
           pctPromedio: conPct.length
             ? Math.round(conPct.reduce((s, t) => s + t.porcentaje_cumplimiento, 0) / conPct.length)
-            : Math.round((comp / tareasHist.length) * 100)
+            : Math.round((comp / tareasHist.length) * 100),
+          tareas: tareasHist,
         })
       }
       return results.reverse()

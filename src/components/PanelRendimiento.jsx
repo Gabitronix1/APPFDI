@@ -17,6 +17,37 @@ const COLORES_AREA = [
   'bg-orange-900/50 border-orange-700 text-orange-300',
 ]
 
+// Empareja cada mes con el mismo mes del año anterior (si existe en los datos ya cargados)
+// y adjunta sus valores bajo `${campo}Anterior` para poder graficar la línea de comparación.
+function conAnioAnterior(lista, campos) {
+  return lista.map(item => {
+    const anterior = lista.find(h => h.anio === item.anio - 1 && h.mesNum === item.mesNum)
+    const extra = {}
+    for (const campo of campos) {
+      extra[`${campo}Anterior`] = anterior ? anterior[campo] : undefined
+    }
+    return { ...item, ...extra }
+  })
+}
+
+function ToggleAnioAnterior({ checked, onChange }) {
+  return (
+    <label
+      onClick={() => onChange(!checked)}
+      className="flex items-center gap-2 cursor-pointer select-none shrink-0"
+    >
+      <span className="text-xs text-gray-500">Comparar con año anterior</span>
+      <span
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors
+          ${checked ? 'bg-blue-600' : 'bg-gray-700'}`}
+      >
+        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform
+          ${checked ? 'translate-x-[18px]' : 'translate-x-1'}`} />
+      </span>
+    </label>
+  )
+}
+
 function PctRing({ pct, size = 56 }) {
   const r    = 20
   const circ = 2 * Math.PI * r
@@ -38,6 +69,9 @@ function PctRing({ pct, size = 56 }) {
 }
 
 function ModalHistorialArea({ area, departamento, onClose }) {
+  const [compararAnio, setCompararAnio] = useState(false)
+  const [mesFiltro, setMesFiltro]       = useState(null)
+
   const { data: tareasHistorial = [], isLoading } = useQuery({
     queryKey: ['historial-area', area, departamento],
     queryFn: async () => {
@@ -46,17 +80,25 @@ function ModalHistorialArea({ area, departamento, onClose }) {
         .select('id, mes, anio')
         .order('anio', { ascending: false })
         .order('mes',  { ascending: false })
-        .limit(24)
+        .limit(60)
       if (!ciclos?.length) return []
+
+      const { data: todasTareas } = await supabase
+        .from('v_tareas_ciclo_activo')
+        .select('ciclo_id, nombre_tarea, estado, porcentaje_cumplimiento, responsable_nombre, fecha_termino')
+        .in('ciclo_id', ciclos.map(c => c.id))
+        .eq('area', area)
+        .eq('departamento', departamento)
+
+      const porCiclo = {}
+      for (const t of todasTareas ?? []) {
+        if (!porCiclo[t.ciclo_id]) porCiclo[t.ciclo_id] = []
+        porCiclo[t.ciclo_id].push(t)
+      }
 
       const results = []
       for (const c of ciclos) {
-        const { data: tareas } = await supabase
-          .from('v_tareas_ciclo_activo')
-          .select('nombre_tarea, estado, porcentaje_cumplimiento, responsable_nombre, fecha_termino')
-          .eq('ciclo_id', c.id)
-          .eq('area', area)
-          .eq('departamento', departamento)
+        const tareas = porCiclo[c.id]
         if (!tareas?.length) continue
         const completadas = tareas.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
         const conPct = tareas.filter(t => t.porcentaje_cumplimiento !== null)
@@ -75,17 +117,30 @@ function ModalHistorialArea({ area, departamento, onClose }) {
     }
   })
 
-  const grafico = tareasHistorial.map(h => ({
-    mes:     h.mes,
-    pct:     h.pct,
-    calidad: h.calidad ?? h.pct,
-    completadas: h.completadas,
-    total:   h.total,
-  }))
+  const grafico = useMemo(() => {
+    const base = tareasHistorial.map(h => ({
+      mes:     h.mes,
+      mesNum:  h.mesNum,
+      anio:    h.anio,
+      pct:     h.pct,
+      calidad: h.calidad ?? h.pct,
+      completadas: h.completadas,
+      total:   h.total,
+    }))
+    return conAnioAnterior(base, ['pct', 'calidad'])
+  }, [tareasHistorial])
 
   const todasLasTareas = tareasHistorial.flatMap(h =>
     h.tareas.map(t => ({ ...t, mesLabel: h.mes }))
   ).reverse()
+
+  const tareasMostradas = mesFiltro
+    ? todasLasTareas.filter(t => t.mesLabel === mesFiltro)
+    : todasLasTareas
+
+  function handleClickGrafico(e) {
+    if (e && e.activeLabel) setMesFiltro(prev => prev === e.activeLabel ? null : e.activeLabel)
+  }
 
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
@@ -115,18 +170,35 @@ function ModalHistorialArea({ area, departamento, onClose }) {
               {/* Gráfico histórico */}
               {grafico.length > 1 && (
                 <div className="px-6 py-5 border-b border-gray-800">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-0.5 bg-green-500 inline-block rounded" />
-                      <span className="text-xs text-gray-500">Cumplimiento</span>
+                  <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-3 h-0.5 bg-green-500 inline-block rounded" />
+                        <span className="text-xs text-gray-500">Cumplimiento</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-3 h-0.5 bg-yellow-500 inline-block rounded" />
+                        <span className="text-xs text-gray-500">Calidad</span>
+                      </div>
+                      {compararAnio && (
+                        <>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-3 h-0.5 bg-green-500/40 inline-block rounded" />
+                            <span className="text-xs text-gray-600">Cumplimiento (año anterior)</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-3 h-0.5 bg-yellow-500/40 inline-block rounded" />
+                            <span className="text-xs text-gray-600">Calidad (año anterior)</span>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="w-3 h-0.5 bg-yellow-500 inline-block rounded" />
-                      <span className="text-xs text-gray-500">Calidad</span>
-                    </div>
+                    <ToggleAnioAnterior checked={compararAnio} onChange={setCompararAnio} />
                   </div>
+                  <p className="text-xs text-gray-600 mb-2">Click en un punto para ver las tareas de ese mes</p>
                   <ResponsiveContainer width="100%" height={180}>
-                    <LineChart data={grafico} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                    <LineChart data={grafico} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}
+                      onClick={handleClickGrafico} style={{ cursor: 'pointer' }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                       <XAxis dataKey="mes" tick={{ fill: '#6B7280', fontSize: 9 }} tickLine={false} axisLine={false} />
                       <YAxis domain={[0, 100]} tick={{ fill: '#6B7280', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
@@ -137,6 +209,7 @@ function ModalHistorialArea({ area, departamento, onClose }) {
                               <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 shadow-xl">
                                 <p className="text-gray-400 text-xs mb-2">{label}</p>
                                 {payload.map((p, i) => (
+                                  p.value === undefined || p.value === null ? null :
                                   <div key={i} className="flex items-center gap-2 mb-1">
                                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
                                     <span className="text-gray-400 text-xs">{p.name}:</span>
@@ -156,6 +229,14 @@ function ModalHistorialArea({ area, departamento, onClose }) {
                         dot={{ fill: '#22C55E', r: 3 }} activeDot={{ r: 5 }} name="Cumplimiento" />
                       <Line type="monotone" dataKey="calidad" stroke="#EAB308" strokeWidth={2}
                         strokeDasharray="4 4" dot={{ fill: '#EAB308', r: 3 }} activeDot={{ r: 5 }} name="Calidad" />
+                      {compararAnio && (
+                        <>
+                          <Line type="monotone" dataKey="pctAnterior" stroke="#22C55E" strokeOpacity={0.4} strokeWidth={2}
+                            strokeDasharray="2 3" dot={false} connectNulls name="Cumplimiento (año anterior)" />
+                          <Line type="monotone" dataKey="calidadAnterior" stroke="#EAB308" strokeOpacity={0.4} strokeWidth={2}
+                            strokeDasharray="2 3" dot={false} connectNulls name="Calidad (año anterior)" />
+                        </>
+                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -163,11 +244,22 @@ function ModalHistorialArea({ area, departamento, onClose }) {
 
               {/* Historial de tareas */}
               <div className="px-6 py-4">
-                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide mb-3">
-                  Historial de completaciones
-                </p>
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                    Historial de completaciones
+                  </p>
+                  {mesFiltro && (
+                    <button
+                      onClick={() => setMesFiltro(null)}
+                      className="flex items-center gap-1 text-xs bg-blue-900/50 text-blue-300 border border-blue-700 px-2 py-0.5 rounded-full hover:brightness-125 transition"
+                    >
+                      {mesFiltro}
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-2">
-                  {todasLasTareas.map((t, i) => {
+                  {tareasMostradas.map((t, i) => {
                     const esCompletada = t.estado === 'completada' || t.estado === 'completada_con_atraso'
                     const esAtrasada   = t.estado === 'con_atraso' || t.estado === 'no_completada'
                     const pct = esCompletada ? (t.porcentaje_cumplimiento ?? 100) : null
@@ -216,9 +308,96 @@ function ModalHistorialArea({ area, departamento, onClose }) {
   )
 }
 
+function ModalDetalleMes({ mes, tareas, onClose }) {
+  const ordenadas = [...tareas].sort((a, b) => (a.area ?? '').localeCompare(b.area ?? ''))
+  const completadas = tareas.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-green-400" />
+            <h3 className="text-white font-semibold">{mes}</h3>
+            <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">
+              {completadas}/{tareas.length} completadas
+            </span>
+          </div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white transition">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 scroll-dark px-6 py-4">
+          {ordenadas.length === 0 ? (
+            <p className="text-center text-gray-600 py-8">Sin tareas para este mes</p>
+          ) : (
+            <div className="space-y-2">
+              {ordenadas.map((t, i) => {
+                const esCompletada = t.estado === 'completada' || t.estado === 'completada_con_atraso'
+                const esAtrasada   = t.estado === 'con_atraso' || t.estado === 'no_completada'
+                const pct = esCompletada ? (t.porcentaje_cumplimiento ?? 100) : null
+
+                return (
+                  <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-800/50 last:border-0">
+                    <div className="shrink-0">
+                      {esCompletada
+                        ? <CheckCircle2 className="w-4 h-4 text-green-500" />
+                        : esAtrasada
+                        ? <AlertCircle className="w-4 h-4 text-red-400" />
+                        : <Clock className="w-4 h-4 text-gray-500" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-200 truncate">{t.nombre_tarea}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {t.area && <span className="text-xs text-gray-500">{t.area}</span>}
+                        {t.area && <span className="text-xs text-gray-600">·</span>}
+                        <span className="text-xs text-gray-500">{t.responsable_nombre}</span>
+                      </div>
+                    </div>
+                    {pct !== null && (
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                        pct === 100 ? 'bg-green-900 text-green-300'
+                        : pct >= 80  ? 'bg-amber-900 text-amber-300'
+                        : 'bg-red-900 text-red-300'
+                      }`}>{pct}%</span>
+                    )}
+                    {!esCompletada && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
+                        esAtrasada ? 'bg-red-900 text-red-300' : 'bg-gray-800 text-gray-500'
+                      }`}>
+                        {esAtrasada ? 'No completada' : 'Pendiente'}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PanelRendimiento({ tareas, historial, departamento }) {
   const [tab,          setTab]          = useState('areas')
   const [areaSeleccionada, setAreaSeleccionada] = useState(null)
+  const [compararAnioTendencia, setCompararAnioTendencia] = useState(false)
+  const [mesDetalle,   setMesDetalle]   = useState(null)
+
+  const datosTendencia = useMemo(
+    () => conAnioAnterior(historial, ['pct', 'pctPromedio']),
+    [historial]
+  )
+
+  function handleClickTendencia(e) {
+    if (!e || !e.activeLabel) return
+    const fila = historial.find(h => h.mes === e.activeLabel)
+    if (fila) setMesDetalle(prev => prev?.mes === fila.mes ? null : fila)
+  }
 
   const kpisPorArea = useMemo(() => {
     const hoy = new Date()
@@ -335,18 +514,35 @@ export default function PanelRendimiento({ tareas, historial, departamento }) {
               <p className="text-center text-gray-600 py-8">Sin historial suficiente</p>
             ) : (
               <>
-                <div className="flex items-center gap-4 mb-4 ml-auto w-fit">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-0.5 bg-green-500 inline-block" />
-                    <span className="text-xs text-gray-500">Tareas completadas</span>
+                <div className="flex items-center justify-between gap-3 mb-1 flex-wrap">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3 h-0.5 bg-green-500 inline-block" />
+                      <span className="text-xs text-gray-500">Tareas completadas</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-3 h-0.5 bg-yellow-500 inline-block" />
+                      <span className="text-xs text-gray-500">Calidad promedio</span>
+                    </div>
+                    {compararAnioTendencia && (
+                      <>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-3 h-0.5 bg-green-500/40 inline-block" />
+                          <span className="text-xs text-gray-600">Completadas (año anterior)</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-3 h-0.5 bg-yellow-500/40 inline-block" />
+                          <span className="text-xs text-gray-600">Calidad (año anterior)</span>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-0.5 bg-yellow-500 inline-block" />
-                    <span className="text-xs text-gray-500">Calidad promedio</span>
-                  </div>
+                  <ToggleAnioAnterior checked={compararAnioTendencia} onChange={setCompararAnioTendencia} />
                 </div>
+                <p className="text-xs text-gray-600 mb-3">Click en un punto para ver las tareas de ese mes</p>
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={historial} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                  <LineChart data={datosTendencia} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}
+                    onClick={handleClickTendencia} style={{ cursor: 'pointer' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis dataKey="mes" tick={{ fill: '#6B7280', fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis domain={[0, 100]} tick={{ fill: '#6B7280', fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => `${v}%`} />
@@ -357,6 +553,7 @@ export default function PanelRendimiento({ tareas, historial, departamento }) {
                             <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 shadow-xl">
                               <p className="text-gray-400 text-xs mb-2">{label}</p>
                               {payload.map((p, i) => (
+                                p.value === undefined || p.value === null ? null :
                                 <div key={i} className="flex items-center gap-2 mb-1">
                                   <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
                                   <span className="text-gray-400 text-xs">{p.name}:</span>
@@ -377,6 +574,14 @@ export default function PanelRendimiento({ tareas, historial, departamento }) {
                     <Line type="monotone" dataKey="pctPromedio" stroke="#EAB308" strokeWidth={2}
                       strokeDasharray="4 4" dot={{ fill: '#EAB308', r: 3 }} activeDot={{ r: 5, fill: '#CA8A04' }}
                       name="Calidad promedio" />
+                    {compararAnioTendencia && (
+                      <>
+                        <Line type="monotone" dataKey="pctAnterior" stroke="#22C55E" strokeOpacity={0.4} strokeWidth={2}
+                          strokeDasharray="2 3" dot={false} connectNulls name="Completadas (año anterior)" />
+                        <Line type="monotone" dataKey="pctPromedioAnterior" stroke="#EAB308" strokeOpacity={0.4} strokeWidth={2}
+                          strokeDasharray="2 3" dot={false} connectNulls name="Calidad (año anterior)" />
+                      </>
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               </>
@@ -391,6 +596,15 @@ export default function PanelRendimiento({ tareas, historial, departamento }) {
           area={areaSeleccionada}
           departamento={departamento}
           onClose={() => setAreaSeleccionada(null)}
+        />
+      )}
+
+      {/* Modal detalle del mes (drill-down desde Tendencia) */}
+      {mesDetalle && (
+        <ModalDetalleMes
+          mes={mesDetalle.mes}
+          tareas={mesDetalle.tareas ?? []}
+          onClose={() => setMesDetalle(null)}
         />
       )}
     </>
