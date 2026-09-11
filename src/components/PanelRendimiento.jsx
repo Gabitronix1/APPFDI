@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react'
-import { TrendingUp, BarChart2, X, CheckCircle2, AlertCircle, Clock } from 'lucide-react'
+import { TrendingUp, BarChart2, X, CheckCircle2, AlertCircle, Clock, ChevronRight } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
+import DetalleTareaPanel from './DetalleTareaPanel'
 
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
 
@@ -71,6 +72,7 @@ function PctRing({ pct, size = 56 }) {
 function ModalHistorialArea({ area, departamento, onClose }) {
   const [compararAnio, setCompararAnio] = useState(false)
   const [mesFiltro, setMesFiltro]       = useState(null)
+  const [tareaSeleccionada, setTareaSeleccionada] = useState(null)
 
   const { data: tareasHistorial = [], isLoading } = useQuery({
     queryKey: ['historial-area', area, departamento],
@@ -85,7 +87,7 @@ function ModalHistorialArea({ area, departamento, onClose }) {
 
       const { data: todasTareas } = await supabase
         .from('v_tareas_ciclo_activo')
-        .select('ciclo_id, nombre_tarea, estado, porcentaje_cumplimiento, responsable_nombre, fecha_termino')
+        .select('*')
         .in('ciclo_id', ciclos.map(c => c.id))
         .eq('area', area)
         .eq('departamento', departamento)
@@ -143,6 +145,7 @@ function ModalHistorialArea({ area, departamento, onClose }) {
   }
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
       <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
 
@@ -265,7 +268,11 @@ function ModalHistorialArea({ area, departamento, onClose }) {
                     const pct = esCompletada ? (t.porcentaje_cumplimiento ?? 100) : null
 
                     return (
-                      <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-800/50 last:border-0">
+                      <div key={i}
+                        onClick={() => setTareaSeleccionada(t)}
+                        className="flex items-center gap-3 py-2 border-b border-gray-800/50 last:border-0
+                          cursor-pointer hover:bg-gray-800/50 rounded-lg px-2 -mx-2 transition"
+                      >
                         <div className="shrink-0">
                           {esCompletada
                             ? <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -295,6 +302,7 @@ function ModalHistorialArea({ area, departamento, onClose }) {
                             {esAtrasada ? 'No completada' : 'Pendiente'}
                           </span>
                         )}
+                        <ChevronRight className="w-4 h-4 text-gray-600 shrink-0" />
                       </div>
                     )
                   })}
@@ -305,14 +313,25 @@ function ModalHistorialArea({ area, departamento, onClose }) {
         </div>
       </div>
     </div>
+
+    {/* Detalle de la tarea seleccionada — trazabilidad completa */}
+    {tareaSeleccionada && (
+      <DetalleTareaPanel
+        tarea={tareaSeleccionada}
+        onClose={() => setTareaSeleccionada(null)}
+      />
+    )}
+    </>
   )
 }
 
 function ModalDetalleMes({ mes, tareas, onClose }) {
+  const [tareaSeleccionada, setTareaSeleccionada] = useState(null)
   const ordenadas = [...tareas].sort((a, b) => (a.area ?? '').localeCompare(b.area ?? ''))
   const completadas = tareas.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-4">
       <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
 
@@ -341,7 +360,11 @@ function ModalDetalleMes({ mes, tareas, onClose }) {
                 const pct = esCompletada ? (t.porcentaje_cumplimiento ?? 100) : null
 
                 return (
-                  <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-800/50 last:border-0">
+                  <div key={i}
+                    onClick={() => setTareaSeleccionada(t)}
+                    className="flex items-center gap-3 py-2 border-b border-gray-800/50 last:border-0
+                      cursor-pointer hover:bg-gray-800/50 rounded-lg px-2 -mx-2 transition"
+                  >
                     <div className="shrink-0">
                       {esCompletada
                         ? <CheckCircle2 className="w-4 h-4 text-green-500" />
@@ -371,6 +394,7 @@ function ModalDetalleMes({ mes, tareas, onClose }) {
                         {esAtrasada ? 'No completada' : 'Pendiente'}
                       </span>
                     )}
+                    <ChevronRight className="w-4 h-4 text-gray-600 shrink-0" />
                   </div>
                 )
               })}
@@ -379,6 +403,15 @@ function ModalDetalleMes({ mes, tareas, onClose }) {
         </div>
       </div>
     </div>
+
+    {/* Detalle de la tarea seleccionada — trazabilidad completa */}
+    {tareaSeleccionada && (
+      <DetalleTareaPanel
+        tarea={tareaSeleccionada}
+        onClose={() => setTareaSeleccionada(null)}
+      />
+    )}
+    </>
   )
 }
 

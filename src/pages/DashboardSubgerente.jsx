@@ -394,7 +394,7 @@ function DashboardAdmin({ tareas, tituloCiclo, cicloSeleccionado, isLoading, pro
       for (const c of ciclosHist) {
         const { data: tareasHist } = await supabase
           .from('v_tareas_ciclo_activo')
-          .select('nombre_tarea, area, estado, porcentaje_cumplimiento, responsable_nombre, fecha_termino')
+          .select('*')
           .eq('ciclo_id', c.id).eq('departamento', profile?.departamento)
         if (!tareasHist?.length) continue
         const comp   = tareasHist.filter(t => t.estado === 'completada' || t.estado === 'completada_con_atraso').length
