@@ -31,21 +31,6 @@ function conAnioAnterior(lista, campos) {
   })
 }
 
-// El año "actual" es el más reciente presente en los datos (no necesariamente
-// el año calendario real: si aún no se crea el ciclo del mes en curso, el
-// gráfico sigue mostrando el último año con datos en vez de quedar vacío).
-function anioMasReciente(lista) {
-  return lista.length ? Math.max(...lista.map(h => h.anio)) : new Date().getFullYear()
-}
-
-// Limita la serie al año más reciente, conservando los campos `${campo}Anterior`
-// ya calculados (con conAnioAnterior) para que el switch de comparación siga
-// funcionando como una superposición, sin extender el eje X a años pasados.
-function soloAnioActual(lista) {
-  const anioActual = anioMasReciente(lista)
-  return lista.filter(item => item.anio === anioActual)
-}
-
 function ToggleAnioAnterior({ checked, onChange }) {
   return (
     <label
@@ -144,7 +129,7 @@ function ModalHistorialArea({ area, departamento, onClose }) {
       completadas: h.completadas,
       total:   h.total,
     }))
-    return soloAnioActual(conAnioAnterior(base, ['pct', 'calidad']))
+    return conAnioAnterior(base, ['pct', 'calidad'])
   }, [tareasHistorial])
 
   const todasLasTareas = tareasHistorial.flatMap(h =>
@@ -437,7 +422,7 @@ export default function PanelRendimiento({ tareas, historial, departamento }) {
   const [mesDetalle,   setMesDetalle]   = useState(null)
 
   const datosTendencia = useMemo(
-    () => soloAnioActual(conAnioAnterior(historial, ['pct', 'pctPromedio'])),
+    () => conAnioAnterior(historial, ['pct', 'pctPromedio']),
     [historial]
   )
 
@@ -558,7 +543,7 @@ export default function PanelRendimiento({ tareas, historial, departamento }) {
         {/* Tendencia */}
         {tab === 'tendencia' && (
           <div className="p-6">
-            {datosTendencia.length <= 1 ? (
+            {historial.length <= 1 ? (
               <p className="text-center text-gray-600 py-8">Sin historial suficiente</p>
             ) : (
               <>
