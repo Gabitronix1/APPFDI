@@ -850,7 +850,7 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
 
           ) : (
           /* ── Modal completo para admin ── */
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-3 mb-3">
               <div className="p-2 bg-red-900/40 rounded-xl">
                 <Trash2 className="w-5 h-5 text-red-400" />
@@ -867,7 +867,7 @@ export default function Tareas({ cicloSeleccionado, deptoActivo: deptoActivoProp
                 <p className="text-xs text-gray-400 mb-2 font-medium">
                   Selecciona las tareas a eliminar este mes:
                 </p>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                   {tareasSerieDelCiclo.map(t => {
                     const seleccionada = tareasSerieSeleccionadas.includes(t.id)
                     const bloqueada    = eliminarRecurrente
