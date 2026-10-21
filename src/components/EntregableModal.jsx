@@ -195,7 +195,7 @@ export default function EntregableModal({ proyectoId, entregable, onClose, onGua
     } else {
       const { data, error: err } = await supabase
         .from('project_deliverables')
-        .insert({ ...camposBase, project_id: proyectoId, duracion_dias: calcularDuracion(form.fecha_inicio, form.fecha_fin) })
+        .insert({ ...camposBase, project_id: proyectoId })
         .select().single()
       if (err) { setError('Error al guardar: ' + err.message); setLoading(false); return }
       deliverableId = data.id
